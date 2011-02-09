@@ -11,35 +11,20 @@ import Control.Applicative
 import Control.Monad
 import C2HS
 
--- #include "/opt/intel/arbb/1.0.0.013/include/arbb_vmapi.h"
 
 #include <arbb_vmapi.h>
 #include "arbb_vmwrap.h"
 
--- TODO: Make these newtype 
-type Context = Ptr ()
-type Type    = Ptr () 
+newtype Context = Context {fromContext :: Ptr ()} 
 
+newtype Type = Type {fromType :: Ptr ()}
+{# pointer *arbb_type_t as TypeArray -> Type#}
 
-newtype TypeStruct = TypeStruct (Ptr ())
-{# pointer *arbb_type_t as TypeArray -> TypeStruct#}
-
-{-
-instance Storable StructName where
-  sizeOf _ = {#sizeof StructName #}
-  alignment _ = 4
-  peek p = StructName
-    <$> liftM cIntConv ({#get StructName->struct_field1 #} p)
-    <*> liftM cIntConv ({#get StructName->struct_field2 #} p)
-  poke p x = do
-    {#set StructName.struct_field1 #} p (cIntConv $ struct_field1'StructName x)
-    {#set StructName.struct_field2 #} p (cIntConv $ struct_field2'StructName x)
--}
-instance Storable TypeStruct where
+instance Storable Type where
   sizeOf _ = {#sizeof arbb_type_t #}
   alignment _ = 0
-  peek p =  TypeStruct <$> liftM id ({#get arbb_type_t->ptr #} p)
-  poke p (TypeStruct x) = do
+  peek p =  Type <$> liftM id ({#get arbb_type_t->ptr #} p)
+  poke p (Type x) = do
     {#set arbb_type_t.ptr #} p x
  
 
@@ -52,43 +37,40 @@ instance Storable TypeStruct where
 --------------------------------------------------------------------------
 
 {# fun arbb_wrap_get_default_context as defaultContext   
-    { }  -> `Context' id #}
+    { }  -> `Context' Context #}
  
 {# fun arbb_wrap_get_scalar_type as getScalarType
-   { id `Context', 
-     cFromEnum `ScalarType' } -> `Type' id #}
-
---getFunctionType ctx outp inp =   
---    getFunctionType_ ctx outp inp (length outp) (length inp) 
-
+   { fromContext `Context', 
+     cFromEnum `ScalarType' } -> `Type' Type #}
 
 {# fun arbb_wrap_get_binary_function_type as getBinFunctionType
-   { id `Context',                 
-     id `Type'   , 
-     id `Type'   , 
-     id `Type'   } -> `Type' id #}
+   { fromContext `Context',                 
+     fromType `Type'   , 
+     fromType `Type'   , 
+     fromType `Type'   } -> `Type' Type #}
    
--- TODO: Does not work
-{# fun arbb_wrap_get_function_type as getFunctionType_ 
-   { id `Context',
-     id  `TypeArray' , 
-     id  `TypeArray' , 
+-- TODO: Does this REALLY work ?
+{# fun arbb_wrap_get_function_type as getFunctionType 
+   { fromContext `Context',
+     withArray*  `[Type]' , 
+     withArray*  `[Type]' , 
      cIntConv   `Int'   , 
-     cIntConv   `Int'    } -> `Type' id #}
+     cIntConv   `Int'    } -> `Type' Type #}
+
 
 -------------------------------------------------------------------------
 {# fun fun4 as ^ 
-   { id `Context',
-     id `Type'   , 
-     id `Type'  } -> `()' #} 
+   { fromContext `Context',
+     fromType `Type'   , 
+     fromType `Type'  } -> `()' #} 
 
 
 {# fun fun3 as ^ 
-   { id `Context',
-     id `Type'    } -> `()' #} 
+   { fromContext `Context',
+     fromType `Type'    } -> `()' #} 
 
 {# fun fun2 as ^ 
-   { id `Context'  } -> `()' #} 
+   { fromContext `Context'  } -> `()' #} 
 
 {# fun fun1 as ^  
   {  } -> `()'  #}

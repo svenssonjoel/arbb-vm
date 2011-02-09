@@ -20,11 +20,17 @@ main = do
      fun4 ctx t fnt
 -}
 
-
--- TODO: Does not work
+{-
 main = do 
      ctx <- defaultContext
      t   <- getScalarType ctx ArbbF32 
-     fnt <- withArray [TypeStruct t,TypeStruct t] $ \inp -> 
-              withArray [TypeStruct t] $ \outp -> getFunctionType_ ctx  outp inp 1 2
+     fnt <- withArray [t,t] $ \inp -> 
+             withArray [t] $ \oupt -> getFunctionType ctx  outp inp 1 2
+     fun4 ctx t fnt
+-}
+
+main = do 
+     ctx <- defaultContext
+     t   <- getScalarType ctx ArbbF32 
+     fnt <- getFunctionType ctx  [t] [t,t] 1 2
      fun4 ctx t fnt
