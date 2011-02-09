@@ -9,13 +9,13 @@ void* arbb_wrap_get_binary_function_type(void *context,
 					 void *in1,
 					 void *in2,
 					 void *out);
-/*
+
+
 void* arbb_wrap_get_function_type(void *context, 
-                                  void* ot[], 
-				  void* it[], 
-				  int ins, 
-				  int outs);
-*/
+				  arbb_type_t* ot, 
+				  arbb_type_t* it, int, int);
+
+
 
 void fun1(); 
 
