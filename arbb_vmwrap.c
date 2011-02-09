@@ -2,8 +2,6 @@
 #include <arbb_vmapi.h>
 #include "arbb_vmwrap.h"
 
-
-
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -48,39 +46,26 @@ void* arbb_wrap_get_binary_function_type(void *context,
 
 } 
 
+/* how to do this ? */
 void* arbb_wrap_get_function_type(void *context, 
-				  void* ot[], 
-				  void* it[], int ins, int outs) {
+				  arbb_type_t* ot, 
+				  arbb_type_t* it, int outs, int ins) {
   int i;
   arbb_context_t ctx; 
   arbb_type_t fn_type;
   
   ctx.ptr = context;
-  
-  arbb_type_t *inputs;
-  arbb_type_t *outputs;
-  
-  inputs = malloc(sizeof(arbb_type_t) * ins);
-  outputs = malloc(sizeof(arbb_type_t) * outs);
- 
-  for (i = 0; i < ins; ++i) {
-    inputs[i].ptr = it[i];
-  }
 
-  for (i = 0; i < outs; ++i) {
-    outputs[i].ptr = ot[i];
-    }
- 
   arbb_get_function_type(ctx, &fn_type,
-    outs, outputs,      
-    ins, inputs,
+    outs, ot,      
+    ins, it,
     0);
 
   return fn_type.ptr;
 }
 
 
-/* --------------------------------------------------------------------------
+/* -------------------------------------------------------------------------
    Experiments
    ----------------------------------------------------------------------- */
 
