@@ -1,4 +1,5 @@
 
+# NOTE: This Makefile assumes that you have sources "install_environment_vars.sh"
 
 all: ArbbVM.hs Test Test2
 
