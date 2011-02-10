@@ -5,8 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-/* enum { is_input, is_output };  */
-
 void* arbb_wrap_get_default_context() {
   arbb_context_t context;
   arbb_get_default_context(&context, 0);
@@ -193,4 +191,3 @@ float arbb_wrap_read_scalar_float(void *ctx, void *var) {
   arbb_read_scalar(context, out, &result, 0);
   return result;
 }
-

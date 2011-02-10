@@ -138,4 +138,5 @@ getFunctionType ctx xs ys = getFunctionType_ ctx xs ys (length xs) (length ys)
 {# fun arbb_wrap_read_scalar_float as readScalarFloat 
    { fromContext `Context'   ,
      fromVariable `Variable' } -> `Float' #}
+
 -------------------------------------------------------------------------

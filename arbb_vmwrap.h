@@ -47,4 +47,3 @@ void arbb_wrap_execute(void *fnc,
 		       arbb_variable_t *in);
 
 float arbb_wrap_read_scalar_float(void *ctx, void *var);
-
