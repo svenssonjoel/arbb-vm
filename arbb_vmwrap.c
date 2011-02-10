@@ -191,3 +191,28 @@ float arbb_wrap_read_scalar_float(void *ctx, void *var) {
   arbb_read_scalar(context, out, &result, 0);
   return result;
 }
+
+
+void *arbb_wrap_serialize_function(void *fnt) {
+  
+  arbb_function_t function;
+
+  function.ptr = fnt;
+
+  arbb_string_t str; 
+  arbb_serialize_function(function, &str,0);
+  return str.ptr;
+}
+
+
+const char *arbb_wrap_get_c_string(void *str){ 
+  arbb_string_t s;
+  s.ptr = str;
+  return arbb_get_c_string(s);
+}
+
+void arbb_wrap_free_string(void *str){ 
+  arbb_string_t s; 
+  s.ptr = str;
+  arbb_free_string(s);
+}

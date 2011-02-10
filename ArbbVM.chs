@@ -15,14 +15,25 @@ import C2HS
 #include <arbb_vmapi.h>
 #include "arbb_vmwrap.h"
 
+-- ----------------------------------------------------------------------
+
 newtype Context = Context {fromContext :: Ptr ()} 
+{# pointer *arbb_context_t as PtrContext -> Context #}
+
+instance Storable Context where
+  sizeOf _ = {#sizeof arbb_context_t #}
+  alignment _ = 4
+  peek p =  Context <$> liftM id ({#get arbb_context_t->ptr #} p)
+  poke p (Context x) = do
+    {#set arbb_context_t.ptr #} p x
+
 
 newtype Type = Type {fromType :: Ptr ()}
-{# pointer *arbb_type_t as TypeArray -> Type#}
+{# pointer *arbb_type_t as PtrType -> Type#}
 
 instance Storable Type where
   sizeOf _ = {#sizeof arbb_type_t #}
-  alignment _ = 0
+  alignment _ = 4
   peek p =  Type <$> liftM id ({#get arbb_type_t->ptr #} p)
   poke p (Type x) = do
     {#set arbb_type_t.ptr #} p x
@@ -30,9 +41,8 @@ instance Storable Type where
 
 newtype Function = Function {fromFunction :: Ptr ()}
 
-
 newtype Variable = Variable {fromVariable :: Ptr ()}
-{# pointer *arbb_variable_t as VariableArray -> Variable#}
+{# pointer *arbb_variable_t as PtrVariable -> Variable#}
 
 instance Storable Variable where
   sizeOf _ = {#sizeof arbb_type_t #}
@@ -44,6 +54,7 @@ instance Storable Variable where
 
 newtype Binding = Binding { fromBinding :: Ptr ()}
 
+newtype Serialized = Serialized { fromSerialized :: Ptr ()}
 
 newtype GlobalVariable = GlobalVariable {fromGlobalVariable :: Ptr ()}
 
@@ -62,8 +73,40 @@ newtype GlobalVariable = GlobalVariable {fromGlobalVariable :: Ptr ()}
 
 --------------------------------------------------------------------------
 
+
 {# fun arbb_wrap_get_default_context as defaultContext   
     { }  -> `Context' Context #}
+
+
+-------------------------------------------------------------------- 
+--   try the 
+--   withDefaultContext $ \ctx -> f ctx 
+--   approach
+--------------------------------------------------------------------
+
+withDefaultContext :: (Context -> IO a) -> IO a 
+withDefaultContext f = 
+   do 
+     alloca $ \ctx -> 
+      do 
+        getDef ctx nullPtr
+        -- Todo: is this Ok?
+        ctx' <- peek ctx    
+        f ctx'
+         
+{# fun arbb_get_default_context as getDef 
+   { id `Ptr Context' ,
+     id `Ptr ()'  } -> `()' #} 
+
+-- TODO: What is this arbb_error_details_t thing ? 
+-- TODO: How take care of errors at all ? 
+
+-- TODO: Apply this approach to other functions
+--       May lead to not needing to wrap everything !
+
+-- TODO: This "brackets" approach may work at other places too ?
+-------------------------------------------------------------------- 
+
  
 {# fun arbb_wrap_get_scalar_type as getScalarType
    { fromContext `Context', 
@@ -78,7 +121,7 @@ newtype GlobalVariable = GlobalVariable {fromGlobalVariable :: Ptr ()}
 
 -- 
 getFunctionType ctx xs ys = getFunctionType_ ctx xs ys (length xs) (length ys) 
--- TODO: Does this REALLY work ?
+
 {# fun arbb_wrap_get_function_type as getFunctionType_ 
    { fromContext `Context',
      withArray*  `[Type]' , 
@@ -139,4 +182,20 @@ getFunctionType ctx xs ys = getFunctionType_ ctx xs ys (length xs) (length ys)
    { fromContext `Context'   ,
      fromVariable `Variable' } -> `Float' #}
 
+serializeFunction fnt = 
+   do 
+     ser <- serializeFunction_ fnt
+     txt <- serializedToString ser
+     freeSerialized ser
+     return txt
+     
+{# fun arbb_wrap_serialize_function as serializeFunction_ 
+   { fromFunction `Function' } -> `Serialized' Serialized #}
+
+{# fun arbb_wrap_get_c_string as serializedToString 
+   { fromSerialized `Serialized' } -> `String' #}
+
+
+{#fun arbb_wrap_free_string as freeSerialized 
+   { fromSerialized `Serialized' } -> `()' #}
 -------------------------------------------------------------------------

@@ -47,3 +47,10 @@ void arbb_wrap_execute(void *fnc,
 		       arbb_variable_t *in);
 
 float arbb_wrap_read_scalar_float(void *ctx, void *var);
+
+
+void *arbb_wrap_serialize_function(void *fnt);
+
+const char *arbb_wrap_get_c_string(void *str);
+
+void arbb_wrap_free_string(void *str); 
