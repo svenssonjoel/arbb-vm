@@ -26,13 +26,39 @@ instance Storable Type where
   peek p =  Type <$> liftM id ({#get arbb_type_t->ptr #} p)
   poke p (Type x) = do
     {#set arbb_type_t.ptr #} p x
- 
 
---------------------------------------------------------------------------
--- 
+
+newtype Function = Function {fromFunction :: Ptr ()}
+
+
+newtype Variable = Variable {fromVariable :: Ptr ()}
+{# pointer *arbb_variable_t as VariableArray -> Variable#}
+
+instance Storable Variable where
+  sizeOf _ = {#sizeof arbb_type_t #}
+  alignment _ = 0
+  peek p =  Variable <$> liftM id ({#get arbb_type_t->ptr #} p)
+  poke p (Variable x) = do
+    {#set arbb_type_t.ptr #} p x
+
+
+newtype Binding = Binding { fromBinding :: Ptr ()}
+
+
+newtype GlobalVariable = GlobalVariable {fromGlobalVariable :: Ptr ()}
+
+
+
+-------------------------------------------------------------------------- 
 
 {# enum arbb_scalar_type_t as ScalarType 
     {underscoreToCase} deriving (Show, Eq) #}
+
+
+
+{# enum arbb_opcode_t as Opcode 
+    {underscoreToCase} deriving (Show, Eq) #}
+
 
 --------------------------------------------------------------------------
 
@@ -49,8 +75,11 @@ instance Storable Type where
      fromType `Type'   , 
      fromType `Type'   } -> `Type' Type #}
    
+
+-- 
+getFunctionType ctx xs ys = getFunctionType_ ctx xs ys (length xs) (length ys) 
 -- TODO: Does this REALLY work ?
-{# fun arbb_wrap_get_function_type as getFunctionType 
+{# fun arbb_wrap_get_function_type as getFunctionType_ 
    { fromContext `Context',
      withArray*  `[Type]' , 
      withArray*  `[Type]' , 
@@ -58,39 +87,55 @@ instance Storable Type where
      cIntConv   `Int'    } -> `Type' Type #}
 
 
+{# fun arbb_wrap_begin_function as beginFunction
+   { fromContext `Context' , 
+     fromType    `Type'    , 
+     withCString* `String'  } -> `Function' Function #}
+
+
+{# fun arbb_wrap_get_parameter as getParameter
+   { fromFunction `Function' ,
+     cIntConv     `Int'      ,
+     cIntConv     `Int'      } ->  `Variable' Variable #}
+
+
+{# fun arbb_wrap_op as op
+   { fromFunction `Function'  ,
+     cFromEnum `Opcode'       , 
+     withArray*  `[Variable]' , 
+     withArray*  `[Variable]' } -> `()' #}   
+
+
+{# fun arbb_wrap_end_function as endFunction
+   { fromFunction `Function' } -> `()' #}
+
+{# fun arbb_wrap_compile as compile
+   { fromFunction `Function' } -> `()' #}
+
+{# fun arbb_wrap_set_binding_null as getNullBinding
+   {  } -> `Binding' Binding #}
+
+{# fun arbb_wrap_create_constant as createConstant 
+   { fromContext `Context' , 
+     fromType    `Type'    , 
+     id          `Ptr ()'  } -> `GlobalVariable' GlobalVariable #}
+
+{# fun arbb_wrap_variable_from_global as variableFromGlobal
+   { fromContext `Context' ,
+     fromGlobalVariable `GlobalVariable' } -> `Variable' Variable #} 
+
+{# fun arbb_wrap_create_global as createGlobal 
+   { fromContext `Context' ,
+     fromType    `Type'    , 
+     withCString* `String'  , 
+     fromBinding `Binding' } -> `GlobalVariable' GlobalVariable #}
+
+{# fun arbb_wrap_execute as execute 
+   { fromFunction `Function'   , 
+     withArray*   `[Variable]' ,
+     withArray*   `[Variable]' } -> `()' #}
+
+{# fun arbb_wrap_read_scalar_float as readScalarFloat 
+   { fromContext `Context'   ,
+     fromVariable `Variable' } -> `Float' #}
 -------------------------------------------------------------------------
-{# fun fun4 as ^ 
-   { fromContext `Context',
-     fromType `Type'   , 
-     fromType `Type'  } -> `()' #} 
-
-
-{# fun fun3 as ^ 
-   { fromContext `Context',
-     fromType `Type'    } -> `()' #} 
-
-{# fun fun2 as ^ 
-   { fromContext `Context'  } -> `()' #} 
-
-{# fun fun1 as ^  
-  {  } -> `()'  #}
-
-
-{- 
-type ArBBContext = Ptr ()
-
-{# pointer *arbb_context_t as ArBBContextPtr -> ArBBContext #}
-
-type ArBBErrorDetails = Ptr ()
-{# pointer *arbb_error_details_t as ArBBErrorDetailsPtr -> ArBBErrorDetails #}
-
-
-
---arbb_error_t arbb_get_default_context(arbb_context_t* out_context,
---                                      arbb_error_details_t* details);
-
-{# fun arbb_get_default_context as arbbGetDefaultContext 
-  { id `ArBBContextPtr', 
-    id `ArBBErrorDetailsPtr'} -> `CInt' id  #}
-
--}

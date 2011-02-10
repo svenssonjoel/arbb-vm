@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* enum { is_input, is_output };  */
+
 void* arbb_wrap_get_default_context() {
   arbb_context_t context;
   arbb_get_default_context(&context, 0);
@@ -64,293 +66,131 @@ void* arbb_wrap_get_function_type(void *context,
   return fn_type.ptr;
 }
 
+void *arbb_wrap_begin_function(void *context, 
+			       void *fn_type, 
+			       char *name) {   /* for pretty prenting only, I Think */
+ arbb_function_t function;                          
+ arbb_type_t t; 
+ arbb_context_t ctx;
 
-/* -------------------------------------------------------------------------
-   Experiments
-   ----------------------------------------------------------------------- */
+ ctx.ptr = context;
+ t.ptr = fn_type;
 
-void fun4(void *ctx, void *t, void *fnt) {
-  arbb_context_t context;                /* what is a context? */
-  context.ptr = ctx;
+ arbb_begin_function(ctx, &function, t, name, 0 /* is remote ? */, 0); 
+									      									      
+ return function.ptr;
+}
+
+/* , b, c; */ 
+void *arbb_wrap_get_parameter(void *fn, int io, int n) {
+  arbb_variable_t a;
+  arbb_function_t function;
+  
+  function.ptr = fn;
  
+  arbb_get_parameter(function, &a, io,  n, 0);
+  
+  return a.ptr;
+}
+
+void arbb_wrap_op(void *fnt, 
+		   arbb_opcode_t op, 
+		   arbb_variable_t *ot, 
+		   arbb_variable_t *it) {
+  
+  arbb_function_t function;
+  function.ptr = fnt;
+
+  arbb_op(function, op, ot, it, 0, 0); 
+  
+}
+
+void arbb_wrap_end_function(void *fnt) {
+  arbb_function_t function; 
+  function.ptr = fnt;
+  arbb_end_function(function, 0);                    
+}
+
+void arbb_wrap_compile(void *fnt) {
+  arbb_function_t function;
+  function.ptr = fnt;
+  arbb_compile(function, 0);
+}
+
+void *arbb_wrap_set_binding_null(){ 
+  arbb_binding_t null_binding;
+  arbb_set_binding_null(&null_binding); /* what is this? */
+  
+  return null_binding.ptr;
+}
+
+void *arbb_wrap_create_constant(void *ctx, 
+				void *t,
+				void *data) { 
+  arbb_context_t context;
   arbb_type_t type;
-  type.ptr = t;
+  arbb_global_variable_t ga; 
   
-  arbb_type_t fn_type;
-  fn_type.ptr = fnt;
-
-  arbb_function_t function;                         
-  {
-
-     /*  It seems you do not need to name the function (replace "add" by NULL, still works)  */
-    arbb_begin_function(context, &function, fn_type, "add", 0, 0); /* float32 add(float32, float32)  */
-      arbb_variable_t a, b, c;                                     
-      enum { is_input, is_output };  /* is_input = 0, is_output = 1 */
-      arbb_get_parameter(function, &a, is_input,  0, 0);           
-      arbb_get_parameter(function, &b, is_input,  1, 0);     /* 1 is the position in the list of inputs  */
-      arbb_get_parameter(function, &c, is_output, 0, 0);
-
-      arbb_variable_t in[] = { a, b };                       /* where are inputs */
-      arbb_variable_t out[] = { c };                         /* where is output */
-      arbb_op(function, arbb_op_add, out, in, 0, 0);         /* perform an operation! */
-    arbb_end_function(function, 0);                          /* } */ 
-  }
-
-  arbb_compile(function, 0);
-
-
-  /* -------------------------------------------------------------------------- 
-
-     -------------------------------------------------------------------------- */
-   
-  float data[] = { 20.0f, 140.0f };  
-  /* int data[] = { 0x0f00ffff, 0x0f00ffff}; */
-  arbb_binding_t null_binding;          /* what is this? */ 
-  arbb_set_binding_null(&null_binding); /* what is this? */
- 
-  arbb_global_variable_t ga, gb, gc;    
-  arbb_create_constant(context, &ga, type, data + 0, 0, 0); 
-  arbb_create_constant(context, &gb, type, data + 1, 0, 0);  /* "Transferring" data to arbb "unit" ? */
-
-  arbb_variable_t in[2];
-  arbb_get_variable_from_global(context, in + 0, ga, 0); 
-  arbb_get_variable_from_global(context, in + 1, gb, 0); /* hook constants to inputs */
-
-  arbb_variable_t out[1];
-
-    /* The name can be NULL here as well and nothing breaks */
-  arbb_create_global(context, &gc, type, "result" , null_binding, 0, 0); /* this on is named ... */
-  arbb_get_variable_from_global(context, out + 0, gc, 0);
-
-  arbb_execute(function, out, in, 0); /* run the computation */
-
-
-  float result = 0;
-  arbb_read_scalar(context, out[0], &result, 0);
-  printf("%f\n", result);
-
+  context.ptr = ctx; 
+  type.ptr = t;
+  arbb_create_constant(context, &ga, type, data, 0, 0); 
+  
+  return ga.ptr;
 }
 
-
-void fun3(void *ctx, void *t) {
-  arbb_context_t context;                /* what is a context? */
+void *arbb_wrap_variable_from_global(void *ctx, void *g) {
+  
+  arbb_context_t context; 
   context.ptr = ctx;
-  /* arbb_get_default_context(&context, 0);*/
+  
+  arbb_global_variable_t ga; 
+  ga.ptr = g; 
+  
+  arbb_variable_t var;
+  
+  arbb_get_variable_from_global(context, &var, ga, 0); 
+
+  return var.ptr;
+}
+/* what are the 2 zeroes about */
+void *arbb_wrap_create_global(void *ctx, void *t, char *name, void *bin) {
+  
+  arbb_context_t context; 
+  context.ptr = ctx; 
   
   arbb_type_t type;
-  type.ptr = t;
-  //arbb_get_scalar_type(context, &type, arbb_f32, 0);  
+  type.ptr = t; 
   
-  arbb_type_t inputs[]  = { type, type };              /* function input list specification   */
-  arbb_type_t outputs[] = { type };                    /* function output specification       */
+  arbb_binding_t null_binding;
+  null_binding.ptr = bin;
+
+  arbb_global_variable_t gc;
+
+  arbb_create_global(context, &gc, type, name , null_binding, 0, 0); 
   
-  arbb_type_t fn_type;
-  arbb_get_function_type(context, &fn_type,
-    sizeof(outputs) / sizeof(*outputs), outputs,       /* \name -> float32 name(float32, float32)   */
-    sizeof(inputs)  / sizeof(*inputs), inputs,
-    0);
-
-  arbb_function_t function;                         
-  {
-
-     /*  It seems you do not need to name the function (replace "add" by NULL, still works)  */
-    arbb_begin_function(context, &function, fn_type, "add", 0, 0); /* float32 add(float32, float32)  */
-      arbb_variable_t a, b, c;                                     
-      enum { is_input, is_output };  /* is_input = 0, is_output = 1 */
-      arbb_get_parameter(function, &a, is_input,  0, 0);           
-      arbb_get_parameter(function, &b, is_input,  1, 0);     /* 1 is the position in the list of inputs  */
-      arbb_get_parameter(function, &c, is_output, 0, 0);
-
-      arbb_variable_t in[] = { a, b };                       /* where are inputs */
-      arbb_variable_t out[] = { c };                         /* where is output */
-      arbb_op(function, arbb_op_add, out, in, 0, 0);         /* perform an operation! */
-    arbb_end_function(function, 0);                          /* } */ 
-  }
-
-  arbb_compile(function, 0);
-
-
-  /* -------------------------------------------------------------------------- 
-
-     -------------------------------------------------------------------------- */
-   
-  float data[] = { 20.0f, 140.0f };  
-  /* int data[] = { 0x0f00ffff, 0x0f00ffff}; */
-  arbb_binding_t null_binding;          /* what is this? */ 
-  arbb_set_binding_null(&null_binding); /* what is this? */
- 
-  arbb_global_variable_t ga, gb, gc;    
-  arbb_create_constant(context, &ga, type, data + 0, 0, 0); 
-  arbb_create_constant(context, &gb, type, data + 1, 0, 0);  /* "Transferring" data to arbb "unit" ? */
-
-  arbb_variable_t in[2];
-  arbb_get_variable_from_global(context, in + 0, ga, 0); 
-  arbb_get_variable_from_global(context, in + 1, gb, 0); /* hook constants to inputs */
-
-  arbb_variable_t out[1];
-
-    /* The name can be NULL here as well and nothing breaks */
-  arbb_create_global(context, &gc, type, "result" , null_binding, 0, 0); /* this on is named ... */
-  arbb_get_variable_from_global(context, out + 0, gc, 0);
-
-  arbb_execute(function, out, in, 0); /* run the computation */
-
-
-  float result = 0;
-  arbb_read_scalar(context, out[0], &result, 0);
-  printf("%f\n", result);
-
+  return gc.ptr;
 }
 
+void arbb_wrap_execute(void *fnc, 
+	     arbb_variable_t *out, 
+	     arbb_variable_t *in){
 
-void fun2(void *ptr) {
-  arbb_context_t context;                /* what is a context? */
-  context.ptr = ptr;
-  /* arbb_get_default_context(&context, 0);*/
-  
-  arbb_type_t type;                                    /*                                     */
-  arbb_get_scalar_type(context, &type, arbb_f32, 0);   /*  float32 type;                      */
-  
-  arbb_type_t inputs[]  = { type, type };              /* function input list specification   */
-  arbb_type_t outputs[] = { type };                    /* function output specification       */
-  
-  arbb_type_t fn_type;
-  arbb_get_function_type(context, &fn_type,
-    sizeof(outputs) / sizeof(*outputs), outputs,       /* \name -> float32 name(float32, float32)   */
-    sizeof(inputs)  / sizeof(*inputs), inputs,
-    0);
-
-  arbb_function_t function;                         
-  {
-
-     /*  It seems you do not need to name the function (replace "add" by NULL, still works)  */
-    arbb_begin_function(context, &function, fn_type, "add", 0, 0); /* float32 add(float32, float32)  */
-      arbb_variable_t a, b, c;                                     
-      enum { is_input, is_output };  /* is_input = 0, is_output = 1 */
-      arbb_get_parameter(function, &a, is_input,  0, 0);           
-      arbb_get_parameter(function, &b, is_input,  1, 0);     /* 1 is the position in the list of inputs  */
-      arbb_get_parameter(function, &c, is_output, 0, 0);
-
-      arbb_variable_t in[] = { a, b };                       /* where are inputs */
-      arbb_variable_t out[] = { c };                         /* where is output */
-      arbb_op(function, arbb_op_add, out, in, 0, 0);         /* perform an operation! */
-    arbb_end_function(function, 0);                          /* } */ 
-  }
-
-  arbb_compile(function, 0);
-
-
-  /* -------------------------------------------------------------------------- 
-
-     -------------------------------------------------------------------------- */
-   
-  float data[] = { 20.0f, 140.0f };  
-  /* int data[] = { 0x0f00ffff, 0x0f00ffff}; */
-  arbb_binding_t null_binding;          /* what is this? */ 
-  arbb_set_binding_null(&null_binding); /* what is this? */
- 
-  arbb_global_variable_t ga, gb, gc;    
-  arbb_create_constant(context, &ga, type, data + 0, 0, 0); 
-  arbb_create_constant(context, &gb, type, data + 1, 0, 0);  /* "Transferring" data to arbb "unit" ? */
-
-  arbb_variable_t in[2];
-  arbb_get_variable_from_global(context, in + 0, ga, 0); 
-  arbb_get_variable_from_global(context, in + 1, gb, 0); /* hook constants to inputs */
-
-  arbb_variable_t out[1];
-
-    /* The name can be NULL here as well and nothing breaks */
-  arbb_create_global(context, &gc, type, "result" , null_binding, 0, 0); /* this on is named ... */
-  arbb_get_variable_from_global(context, out + 0, gc, 0);
-
-  arbb_execute(function, out, in, 0); /* run the computation */
-
-
-  float result = 0;
-  arbb_read_scalar(context, out[0], &result, 0);
-  printf("%f\n", result);
-
+  arbb_function_t function;
+  function.ptr = fnc;
+	      
+  arbb_execute(function, out, in, 0);
 }
 
-
-
-/* fun1. initial test of linking against arbb, tbb, */ 
-void fun1() {
-  arbb_context_t context;                /* what is a context? */
-  arbb_get_default_context(&context, 0); /* are there other "contexts" than default? */ 
+float arbb_wrap_read_scalar_float(void *ctx, void *var) {
+  float result;
   
-  arbb_type_t type;                                    /*                                     */
-  arbb_get_scalar_type(context, &type, arbb_f32, 0);   /*  float32 type;                      */
-  
-  arbb_type_t inputs[]  = { type, type };              /* function input list specification   */
-  arbb_type_t outputs[] = { type };                    /* function output specification       */
-  
-  arbb_type_t fn_type;
-  arbb_get_function_type(context, &fn_type,
-    sizeof(outputs) / sizeof(*outputs), outputs,       /* \name -> float32 name(float32, float32)   */
-    sizeof(inputs)  / sizeof(*inputs), inputs,
-    0);
+  arbb_context_t context;
+  context.ptr = ctx;
 
-  arbb_function_t function;                         
-  {
+  arbb_variable_t out;
+  out.ptr = var;
 
-     /*  It seems you do not need to name the function (replace "add" by NULL, still works)  */
-    arbb_begin_function(context, &function, fn_type, "add", 0, 0); /* float32 add(float32, float32)  */
-      arbb_variable_t a, b, c;                                     
-      enum { is_input, is_output };  /* is_input = 0, is_output = 1 */
-      arbb_get_parameter(function, &a, is_input,  0, 0);           
-      arbb_get_parameter(function, &b, is_input,  1, 0);     /* 1 is the position in the list of inputs  */
-      arbb_get_parameter(function, &c, is_output, 0, 0);
-
-      arbb_variable_t in[] = { a, b };                       /* where are inputs */
-      arbb_variable_t out[] = { c };                         /* where is output */
-      arbb_op(function, arbb_op_add, out, in, 0, 0);         /* perform an operation! */
-    arbb_end_function(function, 0);                          /* } */ 
-  }
-
-  arbb_compile(function, 0);
-
-
-  /* -------------------------------------------------------------------------- 
-
-     -------------------------------------------------------------------------- */
-   
-  float data[] = { 20.0f, 140.0f };  
-  /* int data[] = { 0x0f00ffff, 0x0f00ffff}; */
-  arbb_binding_t null_binding;          /* what is this? */ 
-  arbb_set_binding_null(&null_binding); /* what is this? */
- 
-  arbb_global_variable_t ga, gb, gc;    
-  arbb_create_constant(context, &ga, type, data + 0, 0, 0); 
-  arbb_create_constant(context, &gb, type, data + 1, 0, 0);  /* "Transferring" data to arbb "unit" ? */
-
-  arbb_variable_t in[2];
-  arbb_get_variable_from_global(context, in + 0, ga, 0); 
-  arbb_get_variable_from_global(context, in + 1, gb, 0); /* hook constants to inputs */
-
-  arbb_variable_t out[1];
-
-    /* The name can be NULL here as well and nothing breaks */
-  arbb_create_global(context, &gc, type, "result" , null_binding, 0, 0); /* this on is named ... */
-  arbb_get_variable_from_global(context, out + 0, gc, 0);
-
-  arbb_execute(function, out, in, 0); /* run the computation */
-
-
-  float result = 0;
-  arbb_read_scalar(context, out[0], &result, 0);
-  printf("%f\n", result);
-
+  arbb_read_scalar(context, out, &result, 0);
+  return result;
 }
 
-
-/* 
-  #Are the names (of function and result) only for pretty printing ? 
-     if yes skip that functionality from Haskell side ?
-     
-  #What is the set_binding_null thing ?
-  
-  #Are there other contexts than default?
-
-  #Why is everything in the vm api a void pointer wrapped in a struct ? 
-*/

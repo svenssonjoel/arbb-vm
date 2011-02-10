@@ -16,11 +16,35 @@ void* arbb_wrap_get_function_type(void *context,
 				  arbb_type_t* it, int, int);
 
 
+void *arbb_wrap_begin_function(void *context, 
+			       void *fn_type, 
+			       char *name); 
 
-void fun1(); 
 
-void fun2(void *);
+void *arbb_wrap_get_parameter(void *fn, int io, int n); 
 
-void fun3(void *, void *);
+void arbb_wrap_op(void *fnt, 
+		  arbb_opcode_t op, 
+		  arbb_variable_t *ot, 
+		  arbb_variable_t *it);
 
-void fun4(void *, void *, void *);
+void arbb_wrap_end_function(void *);
+
+void arbb_wrap_compile(void *);
+
+void *arbb_wrap_set_binding_null(); 
+
+void *arbb_wrap_create_constant(void *ctx, 
+				void *t,
+				void *data);
+
+void *arbb_wrap_variable_from_global(void *ctx, void *g);
+
+void *arbb_wrap_create_global(void *ctx, void *t, char *name, void *bin);
+
+void arbb_wrap_execute(void *fnc, 
+		       arbb_variable_t *out, 
+		       arbb_variable_t *in);
+
+float arbb_wrap_read_scalar_float(void *ctx, void *var);
+
