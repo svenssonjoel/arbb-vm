@@ -104,13 +104,14 @@ withDefaultContext f =
 -- TODO: Apply this approach to other functions
 --       May lead to not needing to wrap everything !
 
--- TODO: This "brackets" approach may work at other places too ?
+-- TODO: This "brackets" approach may work at other places too? 
 -------------------------------------------------------------------- 
 
  
 {# fun arbb_wrap_get_scalar_type as getScalarType
    { fromContext `Context', 
      cFromEnum `ScalarType' } -> `Type' Type #}
+
 
 {# fun arbb_wrap_get_binary_function_type as getBinFunctionType
    { fromContext `Context',                 

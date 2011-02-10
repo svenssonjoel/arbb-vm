@@ -1,4 +1,6 @@
-
+{-# OPTIONS -XMultiParamTypeClasses 
+            -XFlexibleContexts 
+            -XFlexibleInstances #-}
 
 import ArbbVM 
 
@@ -6,7 +8,7 @@ import Foreign.Marshal.Array
 import Foreign.Ptr 
 
 import C2HS
-
+ 
 main = withDefaultContext $ \ctx -> 
       do 
        t   <- getScalarType ctx ArbbF32
