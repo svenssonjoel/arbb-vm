@@ -1,0 +1,9 @@
+
+
+[2011.02.11] {Log started}
+
+Joel and I talked about issues having to do with managing pointers to
+ArBB garbage collected data, which uses reference counting.  Haskell
+ForeignPtr's could, in their finalizer, call a reference count
+decrement function on the ArBB side if that is necessary.
+

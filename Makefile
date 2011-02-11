@@ -30,4 +30,6 @@ runtests:
 #	@for exe in $(TESTEXES); do echo "\n========================================"; './$exe'; done
 
 clean:
-	rm -f *.o *.hi *.chi ArbbVM.hs $(TESTEXES)
+	rm -f *.o *.hi *.chi Intel/ArbbVM.hs Intel/*.hi Intel/*.o Intel/*.chi Intel/*.chs.h
+	rm -f $(TESTEXES) $(TESTS:.hs=.hi) $(TESTS:.hs=.o)
+	cd cbits; $(MAKE) clean
