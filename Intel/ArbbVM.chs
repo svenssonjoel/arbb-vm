@@ -1,6 +1,6 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 
-module ArbbVM where
+module Intel.ArbbVM where
 
 import Foreign.C.Types
 import Foreign.C.String
@@ -13,7 +13,7 @@ import C2HS
 
 
 #include <arbb_vmapi.h>
-#include "arbb_vmwrap.h"
+#include "cbits/arbb_vmwrap.h"
 
 -- ----------------------------------------------------------------------
 

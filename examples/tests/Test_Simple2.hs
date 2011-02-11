@@ -2,7 +2,7 @@
             -XFlexibleContexts 
             -XFlexibleInstances #-}
 
-import ArbbVM 
+import Intel.ArbbVM 
 
 import Foreign.Marshal.Array
 import Foreign.Ptr 
@@ -62,4 +62,3 @@ main = withDefaultContext $ \ctx ->
           putStrLn "\nNow a ArBB-serialized function:"
           ser <- serializeFunction myfun;
           putStrLn ser
-      

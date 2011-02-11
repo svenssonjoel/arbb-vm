@@ -1,6 +1,6 @@
 
 
-import ArbbVM 
+import Intel.ArbbVM 
 
 import Foreign.Marshal.Array
 import Foreign.Ptr 

@@ -1,30 +1,33 @@
 
 # NOTE: This Makefile assumes that you have sources "install_environment_vars.sh"
 
-all: ArbbVM.hs tests
-
-# ARRBD=/opt/intel/arbb/latest/
-# ARRB_ARCH=ia32
-# ARRB_ARCH=intel64
-
-ArbbVM.hs: ArbbVM.chs 
-	c2hs ArbbVM.chs 
-
-
-arbb_vmwrap.o: arbb_vmwrap.c 
-	gcc -c arbb_vmwrap.c -o arbb_vmwrap.o 
-# -I$(ARBBD)/include
-
 TESTS= \
-   Test.hs Test2.hs \
+   examples/tests/Test_Simple1.hs \
+   examples/tests/Test_Simple2.hs \
    examples/tests/Test_MultipleDefaultContextCalls.hs
 
 TESTEXES = $(TESTS:.hs=.exe)
 
+
+all: Intel/ArbbVM.hs tests
+
+# Preprocessing step:
+Intel/ArbbVM.hs: Intel/ArbbVM.chs 
+	c2hs Intel/ArbbVM.chs 
+
+# Using an external Makefile for the cbits for now...
+cbits/arbb_vmwrap.o: 
+	cd cbits; $(MAKE)
+
 tests: $(TESTEXES)
 
-%.exe: %.hs arbb_vmwrap.o
-	ghc -o $@ --make $< arbb_vmwrap.o -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
+%.exe: %.hs cbits/arbb_vmwrap.o
+	ghc -o $@ --make $< cbits/arbb_vmwrap.o -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
+
+runtests: 
+	echo $(TESTEXES) | xargs -n1 bash -c 
+# Eek, having the usual shell scripting quotation problems:
+#	@for exe in $(TESTEXES); do echo "\n========================================"; './$exe'; done
 
 clean:
 	rm -f *.o *.hi *.chi ArbbVM.hs $(TESTEXES)

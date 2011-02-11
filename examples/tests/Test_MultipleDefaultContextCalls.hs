@@ -2,7 +2,7 @@
 -- Verifies that multiple calls to default context return the SAME
 -- address.
 
-import ArbbVM 
+import Intel.ArbbVM 
 import Foreign.Ptr 
 import System.Exit
 
