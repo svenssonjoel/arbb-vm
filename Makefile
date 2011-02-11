@@ -1,7 +1,7 @@
 
 # NOTE: This Makefile assumes that you have sources "install_environment_vars.sh"
 
-all: ArbbVM.hs Test Test2
+all: ArbbVM.hs tests
 
 # ARRBD=/opt/intel/arbb/latest/
 # ARRB_ARCH=ia32
@@ -15,14 +15,16 @@ arbb_vmwrap.o: arbb_vmwrap.c
 	gcc -c arbb_vmwrap.c -o arbb_vmwrap.o 
 # -I$(ARBBD)/include
 
-Test: Test.hs arbb_vmwrap.o
-	ghc --make Test.hs arbb_vmwrap.o -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
+TESTS= \
+   Test.hs Test2.hs \
+   examples/tests/Test_MultipleDefaultContextCalls.hs
 
-Test2: Test2.hs arbb_vmwrap.o
-	ghc --make Test2.hs arbb_vmwrap.o -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
+TESTEXES = $(TESTS:.hs=.exe)
+
+tests: $(TESTEXES)
+
+%.exe: %.hs arbb_vmwrap.o
+	ghc -o $@ --make $< arbb_vmwrap.o -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
 
 clean:
-	rm -f *.o *.hi *.chi ArbbVM.hs Test Test2
-
-
-
+	rm -f *.o *.hi *.chi ArbbVM.hs $(TESTEXES)
