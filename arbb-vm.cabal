@@ -1,0 +1,43 @@
+Name:           arbb-vm
+Version:        0.1.1
+
+License:                BSD3
+License-file:           LICENSE
+Stability:              Beta
+Maintainer:		Joel Svensson<joels@chalmers.edu>
+Author:			Joel Svensson<joels@chalmers.edu>
+
+Copyright:              Copyright (c) 2011 Intel Corporation
+Synopsis:               FFI binding to the Intel Array Building Blocks (ArBB) virtual machine.
+HomePage:               git://github.com/svenssonjoel/arbb-vm/wiki
+Description: 
+   DESCRIPTION GOES HERE.
+
+Category: Foreign
+Cabal-Version: >=1.8
+Tested-With: GHC == 7.0.1
+
+build-type: Simple
+
+source-repository head
+  type:     git
+  location: git://github.com/svenssonjoel/arbb-vm.git
+
+
+----------------------------------------------------------------------------------------------------
+library
+  build-depends:  base >= 4 && < 5, haskell98
+
+  exposed-modules:  Intel.ArbbVM
+  GHC-Options: -O2 
+  extra-libraries: tbb, arbb, pthread
+  -- FIXME: How do we read an environment variable?
+  extra-lib-dirs: /opt/intel/arbb/latest/lib/intel64
+  include-dirs: /opt/intel/arbb/latest/include
+
+  C-sources: 
+      cbits/arbb_vmwrap.c
+--    , cbits/arbb_vmwrap.h
+
+  Include-Dirs: cbits
+
