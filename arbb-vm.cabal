@@ -4,8 +4,8 @@ Version:        0.1.1
 License:                BSD3
 License-file:           LICENSE
 Stability:              Beta
-Maintainer:		Joel Svensson<joels@chalmers.edu>
-Author:			Joel Svensson<joels@chalmers.edu>
+Maintainer:		Joel Svensson<svensson.bj@gmail.com>
+Author:			Joel Svensson<svensson.bj@gmail.com>
 
 Copyright:              Copyright (c) 2011 Intel Corporation
 Synopsis:               FFI binding to the Intel Array Building Blocks (ArBB) virtual machine.

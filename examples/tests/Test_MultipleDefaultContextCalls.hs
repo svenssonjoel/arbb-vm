@@ -16,5 +16,5 @@ main = do
 
      if n1 == n2 then 
        putStrLn$ "Addresses the same, as expected."
-     else 
+      else 
        exitFailure

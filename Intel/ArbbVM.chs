@@ -13,7 +13,7 @@ import C2HS
 
 
 #include <arbb_vmapi.h>
-#include "cbits/arbb_vmwrap.h"
+#include "../cbits/arbb_vmwrap.h"
 
 -- ----------------------------------------------------------------------
 
