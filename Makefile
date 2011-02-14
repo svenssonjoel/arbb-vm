@@ -2,6 +2,7 @@
 # NOTE: This Makefile assumes that you have sources "install_environment_vars.sh"
 
 TESTS= \
+   examples/tests/Test_Simple2.hs \
    examples/tests/Test_Simple1.hs \
    examples/tests/Test_MultipleDefaultContextCalls.hs
 
@@ -32,4 +33,5 @@ runtests:
 clean:
 	rm -f *.o *.hi *.chi Intel/ArbbVM.hs Intel/*.hi Intel/*.o Intel/*.chi Intel/*.chs.h
 	rm -f $(TESTEXES) $(TESTS:.hs=.hi) $(TESTS:.hs=.o)
-	cd cbits; $(MAKE) clean
+
+#cd cbits; $(MAKE) clean
