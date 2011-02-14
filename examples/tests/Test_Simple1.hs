@@ -7,11 +7,18 @@ import Foreign.Ptr
 
 import C2HS
 
+readScalarOfSize n ctx v = 
+    allocaBytes n $ \ptr -> 
+       do       
+        readScalar ctx v ptr 
+        peek (castPtr ptr)
+
+
 main = do 
-     ctx <- defaultContext 
+     ctx <- getDefaultContext 
      t   <- getScalarType ctx ArbbF32
      fnt <- getFunctionType ctx [t] [t,t,t] 
-     myfun <- beginFunction ctx fnt "add" 
+     myfun <- beginFunction ctx fnt "add" 0
      a     <- getParameter myfun 0 0 
      b     <- getParameter myfun 0 1
      c     <- getParameter myfun 0 2
@@ -20,7 +27,7 @@ main = do
      op myfun ArbbOpMul [d] [c,d]
      endFunction myfun
      compile myfun
-     binding <- getNullBinding 
+     binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 
      withArray [10.0, 20.0,30.0 :: Float] $ \ input -> 
@@ -35,6 +42,6 @@ main = do
           v4 <- variableFromGlobal ctx r 
           execute myfun [v4] [v1,v2,v3]
           -- TODO: Figure out how to best access results (of various types) 
-          result <- readScalarFloat ctx v4
+          result <- readScalarOfSize 4 ctx v4 :: IO Float
           putStrLn (show result) 
       

@@ -3,7 +3,6 @@
 
 TESTS= \
    examples/tests/Test_Simple1.hs \
-   examples/tests/Test_Simple2.hs \
    examples/tests/Test_MultipleDefaultContextCalls.hs
 
 TESTEXES = $(TESTS:.hs=.exe)
@@ -16,13 +15,14 @@ Intel/ArbbVM.hs: Intel/ArbbVM.chs
 	c2hs Intel/ArbbVM.chs 
 
 # Using an external Makefile for the cbits for now...
-cbits/arbb_vmwrap.o: 
-	cd cbits; $(MAKE)
+# cbits/arbb_vmwrap.o: 
+# 	cd cbits; $(MAKE)
 
 tests: $(TESTEXES)
 
-%.exe: %.hs cbits/arbb_vmwrap.o
-	ghc -o $@ --make $< cbits/arbb_vmwrap.o -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
+# cbits/arbb_vmwrap.o cbits/arbb_vmwrap.o
+%.exe: %.hs 
+	ghc -o $@ --make $<  -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
 
 runtests: 
 	echo $(TESTEXES) | xargs -n1 bash -c 
