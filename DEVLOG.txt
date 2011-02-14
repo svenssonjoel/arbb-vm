@@ -7,3 +7,16 @@ ArBB garbage collected data, which uses reference counting.  Haskell
 ForeignPtr's could, in their finalizer, call a reference count
 decrement function on the ArBB side if that is necessary.
 
+
+
+[2011:02:15] 
+
+Entry by Joel Svensson: 
+Swapped out the files that were in the repo for a new attempt. 
+This version uses an alternative header file called arbb_alt.h 
+(I placed that in cbits, it is now the only thing in cbits). 
+With this approach the wrappers are nolonger needed.  
+arbb_alt.h simply gives alternative type signatures to all the 
+calls available in the arbb vm.
+If the original arbb-vmapi.h header specifies a struct containing 
+a pointer to void, the alternative says just pointer to void. 
