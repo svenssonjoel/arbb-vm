@@ -31,9 +31,13 @@ library
   exposed-modules:  Intel.ArbbVM
   GHC-Options: -O2 
   extra-libraries: tbb, arbb, pthread
-  -- FIXME: How do we read an environment variable?
-  extra-lib-dirs: /opt/intel/arbb/latest/lib/intel64
   include-dirs: /opt/intel/arbb/latest/include
+
+  -- FIXME: How do we read an environment variable?
+  if arch( x86_64 ) 
+    extra-lib-dirs: /opt/intel/arbb/latest/lib/intel64
+  else
+    extra-lib-dirs: /opt/intel/arbb/latest/lib/ia32
 
   C-sources: 
       cbits/arbb_vmwrap.c
