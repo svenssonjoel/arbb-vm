@@ -360,6 +360,21 @@ createConstant ctx t d =
       id      `Ptr ()' , 
       id      `Ptr (Ptr ())' } -> `Error' cToEnum #} 
 --  alloca- `ErrorDetails' peekErrorDet*
+--arbb_error_t arbb_create_local(arbb_function_t function,
+--                               arbb_variable_t* out_var,
+--                               arbb_type_t type,
+--                               const char* name,
+--                               arbb_error_details_t* details);
+
+createLocal fnt t name = 
+  createLocal' fnt t name nullPtr >>= throwIfErrorIO
+{# fun arbb_create_local as createLocal'
+    { fromFunction `Function'  ,        
+      alloca- `Variable' peekVariable*  ,
+      fromType `Type' ,
+      withCString* `String' ,
+      id `Ptr (Ptr ())'  } -> `Error' cToEnum #} 
+
 
 -- variableFromGlobal
 variableFromGlobal ctx g =
