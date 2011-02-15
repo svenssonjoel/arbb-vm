@@ -359,12 +359,6 @@ createConstant ctx t d =
       id      `Ptr ()' ,
       id      `Ptr ()' , 
       id      `Ptr (Ptr ())' } -> `Error' cToEnum #} 
---  alloca- `ErrorDetails' peekErrorDet*
---arbb_error_t arbb_create_local(arbb_function_t function,
---                               arbb_variable_t* out_var,
---                               arbb_type_t type,
---                               const char* name,
---                               arbb_error_details_t* details);
 
 createLocal fnt t name = 
   createLocal' fnt t name nullPtr >>= throwIfErrorIO
@@ -501,25 +495,26 @@ continue fnt = continue' fnt nullPtr >>= \x -> throwIfErrorIO (x,())
 
 
 -- if then else 
-{-
+
 ifBranch f v = ifBranch' f v nullPtr >>= \x -> throwIfErrorIO (x,())
 
-(#fun arbb_if as ifBranch'     
-      { fromFunction `Function' , 
-        fromVariable `Variable' , 
-        id `Ptr (Ptr ())' } -> `Error' cToEnum #}
--}
-{-
+{# fun arbb_if as ifBranch' 
+   { fromFunction `Function' ,
+     fromVariable `Variable' ,
+     id `Ptr (Ptr ())'  } -> `Error' cToEnum #}
+
+
+
 elseBranch f = elseBranch' f nullPtr >>= \x -> throwIfErrorIO (x,())
  
 {#fun arbb_else as elseBranch' 
       { fromFunction `Function' ,
         id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
--}
-{-
+
+
 endIf f = endIf' f nullPtr >>= \x -> throwIfErrorIO (x,())
 
 {#fun arbb_end_if as endIf' 
       { fromFunction `Function' ,
         id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
--}
+
