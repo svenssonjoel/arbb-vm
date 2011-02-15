@@ -20,3 +20,4 @@ arbb_alt.h simply gives alternative type signatures to all the
 calls available in the arbb vm.
 If the original arbb-vmapi.h header specifies a struct containing 
 a pointer to void, the alternative says just pointer to void. 
+

@@ -48,6 +48,7 @@ newtype Variable = Variable {fromVariable :: Ptr ()}
 newtype GlobalVariable = GlobalVariable {fromGlobalVariable :: Ptr ()}
 newtype Binding = Binding {fromBinding :: Ptr ()}
 newtype Function = Function {fromFunction :: Ptr ()}
+newtype VMString = VMString {fromVMString :: Ptr ()}
 
 -- ----------------------------------------------------------------------
 -- ENUMS
@@ -74,7 +75,8 @@ peekGlobalVariable ptr = do { res <- peek ptr; return $ GlobalVariable res}
 peekVariable ptr = do { res <- peek ptr; return $ Variable res} 
 peekContext  ptr = do { res <- peek ptr; return $ Context res}    
 peekBinding  ptr = do { res <- peek ptr; return $ Binding res}         
- 
+peekVMString ptr = do { res <- peek ptr; return $ VMString res} 
+
 withTypeArray = withArray . (fmap fromType) 
 withVariableArray = withArray . (fmap fromVariable) 
 
@@ -370,3 +372,23 @@ writeScalar ctx v ptr =
      fromVariable `Variable' , 
      id  `Ptr ()' ,
      id  `Ptr (Ptr ())' } -> `Error' cToEnum #}   
+
+
+--arbb_error_t arbb_serialize_function(arbb_function_t function,
+--                                     arbb_string_t* out_text,
+--                                     arbb_error_details_t* details);
+
+serializeFunction fun = 
+   serializeFunction' fun nullPtr >>= throwIfErrorIO 
+
+-- TODO: use finalizer to remove VMString ? (ForeignPtr)
+{# fun arbb_serialize_function as serializeFunction'
+   { fromFunction `Function'  , 
+     alloca- `VMString' peekVMString*,
+     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
+  
+
+
+--const char* arbb_get_c_string(arbb_string_t string);
+{# fun pure arbb_get_c_string as getCString 
+   { fromVMString `VMString' } -> `String' peekCString* #}

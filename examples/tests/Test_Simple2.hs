@@ -44,6 +44,8 @@ main = do
           v3 <- variableFromGlobal ctx g3;
           
           execute myfun [v3] [v1,v2]
+          str <- serializeFunction myfun 
+          putStrLn (getCString str)
           -- TODO: Figure out how to best access results (of various types) 
           -- result <- readScalarOfSize 4 ctx v3 :: IO Float 
           -- putStrLn (show result)
