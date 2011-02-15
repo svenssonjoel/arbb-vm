@@ -4,6 +4,7 @@
 TESTS= \
    examples/tests/Test_Simple2.hs \
    examples/tests/Test_Simple1.hs \
+   examples/tests/Test_Reduce1.hs \
    examples/tests/Test_MultipleDefaultContextCalls.hs
 
 TESTEXES = $(TESTS:.hs=.exe)

@@ -57,13 +57,20 @@ newtype VMString = VMString {fromVMString :: Ptr ()}
    {underscoreToCase} deriving (Show, Eq) #}
 
 {# enum arbb_scalar_type_t as ScalarType 
-   {underscoreToCase} deriving (Show,Eq) #}
+   {underscoreToCase} deriving (Show, Eq) #}
 
 {# enum arbb_opcode_t as Opcode 
-   {underscoreToCase} deriving (Show,Eq) #}
+   {underscoreToCase} deriving (Show, Eq) #}
 
-{#enum arbb_call_opcode_t as CallOpCode 
-   {underscoreToCase} deriving (Show,Eq) #}
+{# enum arbb_call_opcode_t as CallOpCode 
+   {underscoreToCase} deriving (Show, Eq) #}
+
+{# enum arbb_loop_type_t as LoopType 
+   {underscoreToCase} deriving (Show, Eq) #}
+
+{# enum arbb_loop_block_t as LoopBlock
+   {underscoreToCase} deriving (Show, Eq) #} 
+
 
 -- ----------------------------------------------------------------------
 -- Helpers
@@ -290,6 +297,31 @@ op f opcode outp inp =
     -- alloca- `ErrorDetails' peekErrorDet* 
 
 
+--arbb_error_t arbb_op_dynamic(arbb_function_t function,
+--                             arbb_opcode_t opcode,
+--                             unsigned int num_outputs,
+--                             const arbb_variable_t* outputs,
+--                             unsigned int num_inputs,
+--                             const arbb_variable_t* inputs,
+--                             void* debug_data_ptrs[],
+--                             arbb_error_details_t* details);
+opDynamic fnt opc outp inp = 
+    opDynamic' fnt opc nout outp nin inp nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())      
+   where 
+     nin = length inp 
+     nout = length outp  
+     
+{# fun arbb_op_dynamic as opDynamic' 
+   { fromFunction `Function' ,
+     cFromEnum    `Opcode'   ,
+     cIntConv     `Int'      , 
+     withVariableArray* `[Variable]' ,
+     cIntConv     `Int'      , 
+     withVariableArray* `[Variable]' ,
+     id `Ptr (Ptr ())' ,
+     id `Ptr (Ptr ())' } ->  `Error' cToEnum #}
+
+
 -- ----------------------------------------------------------------------
 -- COMPILE AND RUN
 
@@ -392,3 +424,87 @@ serializeFunction fun =
 --const char* arbb_get_c_string(arbb_string_t string);
 {# fun pure arbb_get_c_string as getCString 
    { fromVMString `VMString' } -> `String' peekCString* #}
+
+-- ----------------------------------------------------------------------
+-- Flowcontrol
+
+
+
+-- LOOPS 
+
+--arbb_error_t arbb_begin_loop(arbb_function_t function,
+--                             arbb_loop_type_t loop_type,
+--                             arbb_error_details_t* details);
+
+beginLoop fnt kind = 
+  beginLoop' fnt kind nullPtr >>= \x -> throwIfErrorIO (x,())
+
+{# fun arbb_begin_loop as beginLoop' 
+   { fromFunction `Function' ,
+     cFromEnum `LoopType'    ,
+     id `Ptr (Ptr ())'  } ->  `Error' cToEnum #}
+
+beginLoopBlock fnt block =           
+  beginLoopBlock' fnt block nullPtr >>= \x -> throwIfErrorIO (x,()) 
+
+{# fun arbb_begin_loop_block as beginLoopBlock'
+   { fromFunction `Function'   ,
+     cFromEnum    `LoopBlock'  ,
+     id `Ptr (Ptr ())'        } -> `Error' cToEnum #} 
+
+
+loopCondition fnt var = 
+  loopCondition' fnt var nullPtr  >>= \x -> throwIfErrorIO (x,()) 
+
+{#fun arbb_loop_condition as loopCondition'
+      { fromFunction `Function'   , 
+        fromVariable `Variable'   , 
+        id `Ptr (Ptr ())'         } -> `Error' cToEnum #}
+
+
+
+
+endLoop fnt = endLoop' fnt nullPtr >>= \x -> throwIfErrorIO (x,()) 
+ 
+{#fun arbb_end_loop as endLoop' 
+      { fromFunction `Function' ,
+        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+
+
+break fnt = break' fnt nullPtr >>= \x -> throwIfErrorIO (x,())
+
+{#fun arbb_break as break' 
+      { fromFunction `Function' ,
+        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+
+continue fnt = continue' fnt nullPtr >>= \x -> throwIfErrorIO (x,())
+
+{#fun arbb_continue as continue' 
+      { fromFunction `Function' ,
+        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+
+
+
+-- if then else 
+{-
+ifBranch f v = ifBranch' f v nullPtr >>= \x -> throwIfErrorIO (x,())
+
+(#fun arbb_if as ifBranch'     
+      { fromFunction `Function' , 
+        fromVariable `Variable' , 
+        id `Ptr (Ptr ())' } -> `Error' cToEnum #}
+-}
+{-
+elseBranch f = elseBranch' f nullPtr >>= \x -> throwIfErrorIO (x,())
+ 
+{#fun arbb_else as elseBranch' 
+      { fromFunction `Function' ,
+        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+-}
+{-
+endIf f = endIf' f nullPtr >>= \x -> throwIfErrorIO (x,())
+
+{#fun arbb_end_if as endIf' 
+      { fromFunction `Function' ,
+        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+-}
