@@ -226,16 +226,11 @@ createGlobal ctx t name b =
    { alloca- `Binding' peekBinding*  } -> `()'#} 
   
 
---createDenseBinding ::  Context -> Ptr (Ptr ()) -> Word -> [Word64] -> [Word64] ->  IO Binding
-createDenseBinding ::  Context -> Ptr () -> Word -> [CULLong] -> [CULLong] ->  IO Binding
-
-
-#if 0
+--createDenseBinding ::  Context -> Ptr () -> Word -> [CULLong] -> [CULLong] ->  IO Binding
+--createDenseBinding ::  Context -> Ptr () -> Word -> [Integer] -> [Integer] ->  IO Binding
+createDenseBinding ::  Context -> Ptr () -> Word -> [Word64] -> [Word64] ->  IO Binding
 createDenseBinding ctx d dim sizes pitches = 
-  createDenseBinding' ctx d dim sizes' pitches' nullPtr >>= throwIfErrorIO
- where
-   sizes' = map fromIntegral sizes
-   pitches' = map fromIntegral pitches
+  createDenseBinding' ctx d dim sizes pitches nullPtr >>= throwIfErrorIO
            
 {# fun arbb_create_dense_binding as createDenseBinding'  
    { fromContext `Context'  ,
@@ -243,12 +238,14 @@ createDenseBinding ctx d dim sizes pitches =
      id `Ptr ()' ,
 --     cIntConv `Int' ,
      cIntConv `Word' ,
-     withArray* `[CULLong]',
-     withArray* `[CULLong]', 
+--     withCULArray* `[Integer]',
+--     withCULArray* `[Integer]', 
+     withCULArray* `[Word64]',
+     withCULArray* `[Word64]', 
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
-#else
-createDenseBinding = undefined
-#endif
+ where
+   withCULArray xs = withArray (map fromIntegral xs)
+
 
 -- ----------------------------------------------------------------------
 -- FUNCTIONS 
