@@ -225,20 +225,21 @@ createGlobal ctx t name b =
 
 
 createDenseBinding ctx d dim sizes pitches = 
-  createDenseBinding' ctx d dim sizes' pitches' nullPtr >>= throwIfErrorIO
- where
-   sizes' = map fromIntegral sizes
-   pitches' = map fromIntegral pitches
+  createDenseBinding' ctx d dim sizes pitches nullPtr >>= throwIfErrorIO
+ -- where
+   -- sizes' = map fromIntegral sizes
+   -- pitches' = map fromIntegral pitches
            
 {# fun arbb_create_dense_binding as createDenseBinding'  
    { fromContext `Context'  ,
      alloca- `Binding' peekBinding* ,
      id `Ptr ()' ,
      cIntConv `Int' ,
-     withArray* `[CULLong]',
-     withArray* `[CULLong]', 
+     withCULArray* `[Integer]',
+     withCULArray* `[Integer]', 
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
-
+ where
+   withCULArray xs = withArray (map fromIntegral xs)
 
 -- ----------------------------------------------------------------------
 -- FUNCTIONS 
