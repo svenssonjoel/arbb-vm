@@ -8,8 +8,6 @@ import Foreign.C.String
 import Foreign.Ptr
 import Foreign.Storable
 
-import Control.Applicative
-import Control.Monad
 import Control.Exception
 
 import Data.Typeable
