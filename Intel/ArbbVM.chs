@@ -13,6 +13,7 @@ import Control.Monad
 import Control.Exception
 
 import Data.Typeable
+import Data.Word
 
 import C2HS
 
@@ -117,6 +118,7 @@ throwIfErrorIO (error_code,a) =
 -- Inputs: None
 -- Outputs: The default context.
 
+getDefaultContext :: IO Context
 getDefaultContext = getDefaultContext' nullPtr >>= throwIfErrorIO
 
 {# fun arbb_get_default_context as getDefaultContext' 
@@ -130,6 +132,7 @@ getDefaultContext = getDefaultContext' nullPtr >>= throwIfErrorIO
 -- ----------------------------------------------------------------------
 -- getScalarType. 
 
+getScalarType :: Context -> ScalarType -> IO Type
 getScalarType ctx st = getScalarType' ctx st (nullPtr) >>= throwIfErrorIO
    
 {# fun arbb_get_scalar_type as getScalarType' 
@@ -223,7 +226,11 @@ createGlobal ctx t name b =
    { alloca- `Binding' peekBinding*  } -> `()'#} 
   
 
+--createDenseBinding ::  Context -> Ptr (Ptr ()) -> Word -> [Word64] -> [Word64] ->  IO Binding
+createDenseBinding ::  Context -> Ptr () -> Word -> [CULLong] -> [CULLong] ->  IO Binding
 
+
+#if 0
 createDenseBinding ctx d dim sizes pitches = 
   createDenseBinding' ctx d dim sizes' pitches' nullPtr >>= throwIfErrorIO
  where
@@ -234,11 +241,14 @@ createDenseBinding ctx d dim sizes pitches =
    { fromContext `Context'  ,
      alloca- `Binding' peekBinding* ,
      id `Ptr ()' ,
-     cIntConv `Int' ,
+--     cIntConv `Int' ,
+     cIntConv `Word' ,
      withArray* `[CULLong]',
      withArray* `[CULLong]', 
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
-
+#else
+createDenseBinding = undefined
+#endif
 
 -- ----------------------------------------------------------------------
 -- FUNCTIONS 

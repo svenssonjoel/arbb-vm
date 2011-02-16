@@ -40,7 +40,8 @@ library
     extra-lib-dirs: /opt/intel/arbb/latest/lib/ia32
 
   C-sources: 
-      cbits/arbb_vmwrap.c
+-- [2011.02.15] Don't need this at the moment because of the arbb_alt hack:
+--      cbits/arbb_vmwrap.c
 --    , cbits/arbb_vmwrap.h
 
   Include-Dirs: cbits

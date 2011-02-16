@@ -12,7 +12,12 @@ TESTS= \
 TESTEXES = $(TESTS:.hs=.exe)
 
 
-all: Intel/ArbbVM.hs tests
+all: lib tests
+
+lib: Intel/ArbbVM.o
+
+Intel/ArbbVM.o: Intel/ArbbVM.hs
+	ghc --make $<
 
 # Preprocessing step:
 Intel/ArbbVM.hs: Intel/ArbbVM.chs 
