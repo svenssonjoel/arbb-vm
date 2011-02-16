@@ -10,6 +10,7 @@ import Foreign.Ptr
 
 import C2HS
 
+len = 2^22-1
 
 main = do 
      ctx <- getDefaultContext 
@@ -31,13 +32,13 @@ main = do
      binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 
-     withArray [1.0 :: Float | _ <- [0..1023]] $ \ i1 -> 
-      withArray [1.0 :: Float | _ <- [0..1023]] $ \ i2 ->   
+     withArray [1.0 :: Float | _ <- [0..len]] $ \ i1 -> 
+      withArray [1.0 :: Float | _ <- [0..len]] $ \ i2 ->   
        withArray [0 :: Float] $ \ o -> 
         do
          
-          b1 <- createDenseBinding ctx (castPtr i1) 1 [1024] [4] 
-          b2 <- createDenseBinding ctx (castPtr i2) 1 [1024] [4]       
+          b1 <- createDenseBinding ctx (castPtr i1) 1 [len] [4] 
+          b2 <- createDenseBinding ctx (castPtr i2) 1 [len] [4]       
           b3 <- createDenseBinding ctx (castPtr o) 1 [1] [4]
          
          

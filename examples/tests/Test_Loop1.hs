@@ -23,6 +23,16 @@ ifThenElse f c t e =
    e -- op myfun ArbbOpDiv [c] [a,a]
    endIf f
 
+while ctx f cond body = 
+   do 
+     beginLoop f ArbbLoopWhile
+     beginLoopBlock f ArbbLoopBlockCond
+     cond
+     beginLoopBlock f ArbbLoopBlockBody
+     body 
+     endLoop f     
+
+
 -----------------------------------------------------------------------------
 -- Main
 main = do 
@@ -38,18 +48,34 @@ main = do
      tmp <- createLocal myfun t "tmp"
      op myfun ArbbOpCopy [tmp] [a]     
 
+{-
+     while ctx myfun 
+       ( -- condition 
+        do
+         bt <- getScalarType ctx ArbbBoolean         
+         lc <- createLocal myfun bt "loopcond"
+         op myfun ArbbOpLess [lc] [tmp,b]      -- Loop on False
+         loopCondition myfun lc 
+       )
+       -- body 
+       (op myfun ArbbOpAdd [tmp] [tmp,a])      
+-}
+     
+     -- TODO: This program fails on O3 !!! (works on O2)  
+     -- TODO: Write the C version of this  and and see if it crashes too. 
      beginLoop myfun ArbbLoopWhile
      beginLoopBlock myfun ArbbLoopBlockCond
      bt <- getScalarType ctx ArbbBoolean         
-     lc <- createLocal myfun bt "loopcond"
-     op myfun ArbbOpLess [lc] [tmp,b]      -- Loop on False
+     lc <- createLocal myfun bt "a"
+     op myfun ArbbOpGreater [lc] [b,tmp]      
      loopCondition myfun lc 
 
      beginLoopBlock myfun ArbbLoopBlockBody
-     (op myfun ArbbOpAdd [tmp] [tmp,a]) 
+     --(op myfun ArbbOpAdd [tmp] [tmp,a]) 
+     op myfun ArbbOpAdd [tmp] [a,tmp]
      endLoop myfun     
 
-     op myfun ArbbOpCopy [c] [tmp]
+     op myfun ArbbOpCopy [c] [tmp]          
     
      endFunction myfun
      compile myfun
