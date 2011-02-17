@@ -20,7 +20,7 @@ import C2HS
   
 {- TODOs 
 
-   DONE Figure out the error_details_t thing.
+   DONE: Figure out the error_details_t thing.
       - Pass a null pointer in, and don't care about them.   
        
    
@@ -38,6 +38,11 @@ newtype GlobalVariable = GlobalVariable {fromGlobalVariable :: Ptr ()}
 newtype Binding = Binding {fromBinding :: Ptr ()}
 newtype Function = Function {fromFunction :: Ptr ()}
 newtype VMString = VMString {fromVMString :: Ptr ()}
+
+-- types to support aux functionality
+newtype AttributeMap = AttributeMap {fromAttributeMap :: Ptr ()}
+-- TODO: there is a struct called arbb_attribute_key_value_t 
+--       that needs to be handeld.
 
 -- ----------------------------------------------------------------------
 -- ENUMS
@@ -60,7 +65,13 @@ newtype VMString = VMString {fromVMString :: Ptr ()}
 {# enum arbb_loop_block_t as LoopBlock
    {underscoreToCase} deriving (Show, Eq) #} 
 
+{# enum arbb_range_access_mode_t as RangeAccessMode 
+   {underscoreToCase} deriving (Show, Eq) #}
 
+-- enums to support aux functionality 
+{# enum arbb_attribute_type_t as AttributeType 
+   {underscoreToCase} deriving (Show, Eq) #}
+ 
 -- ----------------------------------------------------------------------
 -- Helpers
 -- ----------------------------------------------------------------------
@@ -76,6 +87,7 @@ peekVMString ptr = do { res <- peek ptr; return $ VMString res}
 
 withTypeArray = withArray . (fmap fromType) 
 withVariableArray = withArray . (fmap fromVariable) 
+withIntArray xs = withArray (fmap fromIntegral xs)
 
 -- ----------------------------------------------------------------------
 -- Exception
@@ -137,7 +149,7 @@ getScalarType ctx st = getScalarType' ctx st (nullPtr) >>= throwIfErrorIO
 -- Error handling 
 
 -- These are sort of unusable now, since the error_details_t field is never used 
--- TODO: REMOVE THESE 
+-- TODO: Keep theese in case we add more detailed error handling. 
 
 --ARBB_VM_EXPORT
 --const char* arbb_get_error_message(arbb_error_details_t error_details);
@@ -165,7 +177,7 @@ sizeOf ctx t = sizeOf' ctx t nullPtr >>= throwIfErrorIO
   
 {# fun arbb_sizeof_type as sizeOf' 
    { fromContext `Context'    ,
-     alloca-     `Integer' peekCULLong*    ,
+     alloca-     `Word64' peekCULLong*    ,
      fromType    `Type'       , 
      id          `Ptr (Ptr ())' } -> `Error' cToEnum #}
   where peekCULLong x = 
@@ -211,6 +223,7 @@ createGlobal ctx t name b =
 {# fun pure arbb_is_binding_null as isBindingNull
    { fromBinding `Binding' } -> `Bool'  cToBool #} 
 
+-- TODO: see if this needs to be done differently
 {# fun arbb_set_binding_null as getBindingNull 
    { alloca- `Binding' peekBinding*  } -> `()'#} 
   
@@ -229,12 +242,23 @@ createDenseBinding ctx d dim sizes pitches =
      cIntConv `Word' ,
 --     withCULArray* `[Integer]',
 --     withCULArray* `[Integer]', 
-     withCULArray* `[Word64]',
-     withCULArray* `[Word64]', 
+     withIntArray* `[Word64]',
+     withIntArray* `[Word64]', 
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
- where
-   withCULArray xs = withArray (map fromIntegral xs)
 
+--arbb_error_t arbb_free_binding(arbb_context_t context,
+--                               arbb_binding_t binding,
+--                               arbb_error_details_t* details);
+
+freeBinding ctx bind = 
+  freeBinding' ctx bind nullPtr >>= \x -> throwIfErrorIO (x,()) 
+
+{# fun arbb_free_binding as freeBinding'
+   { fromContext `Context'  ,
+     fromBinding `Binding'  ,
+     id `Ptr (Ptr ())'      } -> `Error' cToEnum #}
+
+   
 
 -- ----------------------------------------------------------------------
 -- FUNCTIONS 
@@ -343,6 +367,12 @@ compile f = compile' f nullPtr >>= \x -> throwIfErrorIO (x,())
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
 -- alloca- `ErrorDetails' peekErrorDet*
 
+
+--arbb_error_t arbb_finish(arbb_error_details_t* details);
+finish = finish' nullPtr >>= \x -> throwIfErrorIO (x,())
+{# fun arbb_finish as finish' 
+   { id `Ptr (Ptr ())'} -> `Error' cToEnum #}
+
 -- ----------------------------------------------------------------------
 -- Variables, Constants ..
 
@@ -427,7 +457,9 @@ serializeFunction fun =
      alloca- `VMString' peekVMString*,
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
   
-
+--void arbb_free_string(arbb_string_t string);
+{# fun arbb_free_string as freeVMString
+   { fromVMString `VMString'  } -> `()' #} 
 
 --const char* arbb_get_c_string(arbb_string_t string);
 {# fun pure arbb_get_c_string as getCString 
@@ -439,11 +471,6 @@ serializeFunction fun =
 
 
 -- LOOPS 
-
---arbb_error_t arbb_begin_loop(arbb_function_t function,
---                             arbb_loop_type_t loop_type,
---                             arbb_error_details_t* details);
-
 beginLoop fnt kind = 
   beginLoop' fnt kind nullPtr >>= \x -> throwIfErrorIO (x,())
 
@@ -517,3 +544,92 @@ endIf f = endIf' f nullPtr >>= \x -> throwIfErrorIO (x,())
       { fromFunction `Function' ,
         id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
 
+
+
+-- ----------------------------------------------------------------------
+-- Alternative means of data movement 
+
+mapToHost ctx var pitch mode = 
+   mapToHost' ctx var pitch mode nullPtr >>= throwIfErrorIO
+
+{# fun arbb_map_to_host as mapToHost'
+   { fromContext  `Context'     ,
+     fromVariable `Variable'    , 
+     alloca- `Ptr ()' peek*     , 
+     withIntArray* `[Word64]'    ,
+     cFromEnum `RangeAccessMode' ,
+     id `Ptr (Ptr ())'  } -> `Error' cToEnum #} 
+
+
+
+
+
+-- ----------------------------------------------------------------------
+-- null and isThisNull ? 
+
+
+-- int arbb_is_refcountable_null(arbb_refcountable_t object);
+
+
+-- void arbb_set_refcountable_null(arbb_refcountable_t* object);
+
+
+-- int arbb_is_error_details_null(arbb_error_details_t object);
+
+
+-- void arbb_set_error_details_null(arbb_error_details_t* object);
+
+
+-- int arbb_is_string_null(arbb_string_t object);
+
+
+-- void arbb_set_string_null(arbb_string_t* object);
+
+ 
+-- int arbb_is_context_null(arbb_context_t object);
+
+
+-- void arbb_set_context_null(arbb_context_t* object);
+
+-- int arbb_is_function_null(arbb_function_t object);
+
+
+-- void arbb_set_function_null(arbb_function_t* object);
+
+
+-- int arbb_is_variable_null(arbb_variable_t object);
+
+
+-- void arbb_set_variable_null(arbb_variable_t* object);
+
+
+-- int arbb_is_global_variable_null(arbb_global_variable_t object);
+
+
+-- void arbb_set_global_variable_null(arbb_global_variable_t* object);
+
+
+-- int arbb_is_binding_null(arbb_binding_t object);
+
+
+-- void arbb_set_binding_null(arbb_binding_t* object);
+
+
+-- int arbb_is_type_null(arbb_type_t object);
+
+
+-- void arbb_set_type_null(arbb_type_t* object);
+
+-- void arbb_cxx_set_stack_trace_null(arbb_cxx_stack_trace_t* object);
+
+
+-- int arbb_cxx_is_stack_trace_null(arbb_cxx_stack_trace_t object);
+
+
+-- void arbb_set_attribute_map_null(arbb_attribute_map_t* object);
+
+
+-- int arbb_is_attribute_map_null(arbb_attribute_map_t object);
+
+-- ----------------------------------------------------------------------
+-- Auxiliary functionality
