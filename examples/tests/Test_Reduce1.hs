@@ -1,7 +1,6 @@
 
 -- -----------------------------------------------------------------------------
--- Test_Simple2.hs 
--- sum up all elements of an array 
+-- Test_Reduce1 
 
 import Intel.ArbbVM 
 

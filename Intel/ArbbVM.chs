@@ -61,7 +61,7 @@ newtype VMString = VMString {fromVMString :: Ptr ()}
 {# enum arbb_opcode_t as Opcode 
    {underscoreToCase} deriving (Show, Eq) #}
 
-{# enum arbb_call_opcode_t as CallOpCode 
+{# enum arbb_call_opcode_t as CallOpcode 
    {underscoreToCase} deriving (Show, Eq) #}
 
 {# enum arbb_loop_type_t as LoopType 
@@ -326,6 +326,25 @@ opDynamic fnt opc outp inp =
      id `Ptr (Ptr ())' ,
      id `Ptr (Ptr ())' } ->  `Error' cToEnum #}
 
+
+--arbb_error_t arbb_call_op(arbb_function_t caller,
+--                          arbb_call_opcode_t opcode,
+--                          arbb_function_t callee,
+--                          const arbb_variable_t* outputs,
+--                          const arbb_variable_t* inputs,
+--                         arbb_error_details_t* details);
+--
+
+callOp caller opc callee outp inp = 
+  callOp' caller opc callee outp inp nullPtr >>= \x -> throwIfErrorIO (x,()) 
+
+{# fun arbb_call_op as callOp'
+   { fromFunction `Function' ,
+     cFromEnum    `CallOpcode' ,
+     fromFunction `Function' ,
+     withVariableArray* `[Variable]' ,
+     withVariableArray* `[Variable]' , 
+     id `Ptr (Ptr ())'  } -> `Error'  cToEnum #}
 
 -- ----------------------------------------------------------------------
 -- COMPILE AND RUN
