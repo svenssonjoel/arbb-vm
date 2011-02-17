@@ -54,6 +54,11 @@ main = do
      endFunction myfun
      compile myfun
      binding <- getBindingNull 
+
+     str <- serializeFunction myfun 
+     putStrLn "External representation of generated function:"
+     putStrLn (getCString str)
+
      -- This part gets messy! 
      -- TODO: Clean up! 
      withArray [1, 100, 0 :: Int] $ \ input -> 

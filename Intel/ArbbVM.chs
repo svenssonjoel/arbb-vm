@@ -267,6 +267,7 @@ getFunctionType ctx outp inp =
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
      --alloca- `ErrorDetails' peekErrorDet* 
 
+beginFunction :: Context -> Type -> String -> Int -> IO Function
 beginFunction ctx t name remote = 
   beginFunction' ctx t name remote nullPtr >>= throwIfErrorIO 
 
@@ -279,6 +280,7 @@ beginFunction ctx t name remote =
      id `Ptr (Ptr ())' } -> `Error' cToEnum #}
     -- alloca- `ErrorDetails' peekErrorDet* 
 
+endFunction :: Function -> IO ()
 endFunction f = 
    endFunction' f nullPtr >>= (\x ->  throwIfErrorIO (x,()))   
  
@@ -290,7 +292,7 @@ endFunction f =
 -- ----------------------------------------------------------------------
 -- op
 
-
+op :: Function -> Opcode -> [Variable] -> [Variable] -> IO ()
 op f opcode outp inp = 
     op' f opcode outp inp nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())
   

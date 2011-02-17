@@ -12,6 +12,9 @@ TESTS= \
 
 TESTEXES = $(TESTS:.hs=.exe)
 
+# Set this to arbb_dev (instead of 'arbb') to respect ARBB_OPT_LEVEL
+# ARBB_LIB= arbb_dev
+ARBB_LIB= arbb
 
 all: lib tests
 
@@ -32,7 +35,10 @@ tests: $(TESTEXES)
 
 # cbits/arbb_vmwrap.o cbits/arbb_vmwrap.o
 %.exe: %.hs 
-	ghc -o $@ --make $<  -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -larbb -lpthread 
+	ghc -o $@ --make $<  -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -l$(ARBB_LIB) -lpthread 
+
+temp:
+	ghc -o examples/vm_haskell/Mandel.exe --make examples/vm_haskell/Mandel.hs -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -l$(ARBB_LIB) -lpthread 
 
 runtests: 
 	echo $(TESTEXES) | xargs -n1 bash -c 
