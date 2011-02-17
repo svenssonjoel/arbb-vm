@@ -13,15 +13,16 @@ readScalarOfSize n ctx v =
         readScalar ctx v ptr 
         peek (castPtr ptr)
 
------------------------------------------------------------------------------
--- ifThenElse  
-ifThenElse f c t e =
-  do
-   ifBranch f c      
-   t -- op myfun ArbbOpSub [c] [a,a]
-   elseBranch f 
-   e -- op myfun ArbbOpDiv [c] [a,a]
-   endIf f
+
+while ctx f cond body = 
+   do 
+     beginLoop f ArbbLoopWhile
+     beginLoopBlock f ArbbLoopBlockCond
+     cond
+     beginLoopBlock f ArbbLoopBlockBody
+     body 
+     endLoop f     
+
 
 -----------------------------------------------------------------------------
 -- Main
@@ -38,18 +39,41 @@ main = do
      tmp <- createLocal myfun t "tmp"
      op myfun ArbbOpCopy [tmp] [a]     
 
+{-
+     while ctx myfun 
+       ( -- condition 
+        do
+         bt <- getScalarType ctx ArbbBoolean         
+         lc <- createLocal myfun bt "loopcond"
+         op myfun ArbbOpLess [lc] [tmp,b]      -- Loop on False
+         loopCondition myfun lc 
+       )
+       -- body 
+       (op myfun ArbbOpAdd [tmp] [tmp,a])      
+-}
+     
+     -- TODO: This program fails on O3 !!! (works on O2)  
+     -- TODO: Write the C version of this  and and see if it crashes too. 
+     bt <- getScalarType ctx ArbbBoolean         
+     lc <- createLocal myfun bt "condvar"
+    
+
+{-
+ while (tmp < b) {
+   tmp = tmp + 1;
+ }
+-}
      beginLoop myfun ArbbLoopWhile
      beginLoopBlock myfun ArbbLoopBlockCond
-     bt <- getScalarType ctx ArbbBoolean         
-     lc <- createLocal myfun bt "loopcond"
-     op myfun ArbbOpLess [lc] [tmp,b]      -- Loop on False
-     loopCondition myfun lc 
-
+     op myfun ArbbOpLess [lc] [tmp,b]      
+     loopCondition myfun lc -- exit loop if true (something seems wrong) 
+   
      beginLoopBlock myfun ArbbLoopBlockBody
-     (op myfun ArbbOpAdd [tmp] [tmp,a]) 
+     --(op myfun ArbbOpAdd [tmp] [tmp,a]) 
+     op myfun ArbbOpAdd [tmp] [a,tmp]
      endLoop myfun     
-
-     op myfun ArbbOpCopy [c] [tmp]
+ 
+     op myfun ArbbOpCopy [c] [tmp]          
     
      endFunction myfun
      compile myfun
@@ -61,7 +85,7 @@ main = do
 
      -- This part gets messy! 
      -- TODO: Clean up! 
-     withArray [1, 100, 0 :: Int] $ \ input -> 
+     withArray [1, 100, 0 :: Word32] $ \ input -> 
         do 
 
           g1 <- createConstant ctx t (castPtr input)

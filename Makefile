@@ -8,6 +8,8 @@ TESTS= \
    examples/tests/Test_DotProd.hs \
    examples/tests/Test_Conditional1.hs \
    examples/tests/Test_Loop1.hs \
+   examples/tests/Test_Constants.hs \
+   examples/tests/Test_Map1.hs \
    examples/tests/Test_MultipleDefaultContextCalls.hs
 
 TESTEXES = $(TESTS:.hs=.exe)
