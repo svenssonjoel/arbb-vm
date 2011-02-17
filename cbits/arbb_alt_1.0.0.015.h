@@ -1,5 +1,5 @@
 /****
-***** Copyright 2010-2011 Intel Corporation All Rights Reserved.
+***** Copyright 2010 Intel Corporation All Rights Reserved.
 *****
 ***** The source code, information and material contained herein are owned by Intel Corporation or its suppliers  *****
 ***** or licensors, and title to such Material remains with Intel Corporation or its suppliers or licensors.      *****
@@ -12,6 +12,8 @@
 ***** or conferred upon you, either expressly, by implication, inducement, estoppel or otherwise. Any license     *****
 ***** under such intellectual property rights must be express and approved by Intel in writing.
 ****/
+
+/**** Copyright Ends ****/
 
 #ifndef ARBB_VM_API_H
 #define ARBB_VM_API_H
@@ -30,7 +32,7 @@
 #  endif
 #endif
 
-#if defined(_WIN32) && !defined(__GNUC__)
+#if defined(_WIN32)
   typedef __int64 int64_t;
   typedef unsigned __int64 uint64_t;
   typedef __int32 int32_t;
@@ -54,14 +56,14 @@ extern "C" {
 //typedef struct {
 //  void* ptr;
 //} arbb_context_t;
-  typedef void *arbb_context_t;
+typedef void *arbb_context_t;
 
 /// A reference-countable object in the VM API.
 /// @see @ref arbb_virtual_machine_refcounting
 //typedef struct {
 //  void* ptr;
 //} arbb_refcountable_t;
-  typedef void *arbb_refcountable_t;
+typedef void  *arbb_refcountable_t;
 
 /// A structure representing detailed error information from a function call.
 ///
@@ -69,19 +71,20 @@ extern "C" {
 //typedef struct {
 //  void* ptr;
 //} arbb_error_details_t;
-  typedef void *arbb_error_details_t;
+typedef void *arbb_error_details_t;
+
 /// A global variable or constant.
 /// This structure can be converted to an arbb_refcountable_t.
 //typedef struct {
 //  void* ptr;
 //} arbb_global_variable_t;
-  typedef void *arbb_global_variable_t;
+typedef void *arbb_global_variable_t;
 
 /// A variable in the VM.
 //typedef struct {
 //  void* ptr;
 //} arbb_variable_t;
-  typedef void *arbb_variable_t;
+typedef void *arbb_variable_t;
 
 /// A function in the VM.
 ///
@@ -89,13 +92,13 @@ extern "C" {
 //typedef struct {
 //  void* ptr;
 //} arbb_function_t;
-  typedef void *arbb_function_t;
+typedef void *arbb_function_t;
 
 /// A type for a variable or function.
 //typedef struct {
 //  void* ptr;
 //} arbb_type_t;
-  typedef void *arbb_type_t;
+typedef void *arbb_type_t;
 
 /// A binding specification to indicate a binding between host data and global variables.
 ///
@@ -103,27 +106,26 @@ extern "C" {
 //typedef struct {
 //  void* ptr;
 //} arbb_binding_t;
-  typedef void *arbb_binding_t;
-
+typedef void *arbb_binding_t;
 /// A string returned by the VM API.
 //typedef struct {
 //  void* ptr;
 //} arbb_string_t;
-  typedef void *arbb_string_t;
+typedef void *arbb_string_t;
 
 /// A C/C++ stack trace.
 /// @see arbb_cxx_store_stack_trace, arbb_cxx_release_stack_trace, arbb_cxx_get_frame_count
 //typedef struct {
 //  void* ptr;
 //} arbb_cxx_stack_trace_t;
-  typedef void *arbb_cxx_stack_trace_t;
+typedef void *arbb_cxx_stack_trace_t;
 
 /// A frame in a C/C++ stack trace.
 /// @see arbb_cxx_get_frame, arbb_cxx_get_frame_property
 //typedef struct {
 //  void* ptr;
 //} arbb_cxx_frame_t;
-  typedef void *arbb_cxx_frame_t;
+typedef void *arbb_cxx_frame_t;
 
 /// The set of frame properties which can be queried.
 /// @see arbb_cxx_get_frame_property
@@ -157,8 +159,7 @@ typedef struct {
 //typedef struct {
 //  void* ptr;
 //} arbb_attribute_map_t;
-  typedef void *arbb_attribute_map_t;
-
+typedef void *arbb_attribute_map_t;
 
 /// The set of supported attribute value types.
 /// @see arbb_lookup_attribute
@@ -168,25 +169,6 @@ typedef enum {
   arbb_attribute_pointer, ///< A void pointer. The result of @ref arbb_lookup_attribute is only safe to cast to the same type as passed to @ref arbb_create_attribute_map.
 } arbb_attribute_type_t;
 
-/// Defines a pointer to a callback function that the VM will call to request file name
-///   and line number information from the front end.  The VM will call this function 
-///   when it is gathering debug information for an arbb_op for which the front end has
-///   set a ‘debug_info’ attribute.  The @p debug_info parameter passed to this call will
-///   be the pointer that the front end stored in that attribute. The front end should use 
-///   the @p debug_info to determine the file name and line number in the user code that
-///   should be associated with the operation in question.
-///
-/// @return A Boolean value depending on the result of the operation:
-///  - true if the front end was able to provide line number information
-//   - false if the front end was not able to provide line number information
-
-/*  TODO c2hs complains about this function pointer type
-typedef bool (*arbb_source_info_provider_t)(arbb_context_t context,
-                                            void*          attribute_value,
-                                            char**         out_function_name,
-                                            char**         out_file_name,
-                                            unsigned int*  out_line_number);
-*/
 /// @}
 
 /// @defgroup arbb_virtual_machine_null_function Null Object Functions
@@ -856,9 +838,7 @@ typedef enum {
 /// immediately. The number of inputs and outputs of the given opcode
 /// must be static. The arguments passed to the @p outputs and @p inputs
 /// parameters must be arrays of length matching the operation
-/// arity. If @p attributes is not a null pointer, the attribute map pointed to
-/// by @p attributes is attached to the operation. ArBB assumes ownership
-/// of the attribute map and * @p attributes is set to a null object.
+/// arity.
 ///
 /// @return An error code depending on the result of the operation:
 ///  - ::arbb_error_none if the operation succeeded.
@@ -874,7 +854,6 @@ arbb_error_t arbb_op(arbb_function_t function,
                      const arbb_variable_t* outputs,
                      const arbb_variable_t* inputs,
                      void* debug_data_ptrs[],
-                     arbb_attribute_map_t* attributes,
                      arbb_error_details_t* details);
 
 /// Adds a new instruction to the given function or executes the
@@ -883,10 +862,7 @@ arbb_error_t arbb_op(arbb_function_t function,
 /// immediately. The provided opcode must have a dynamic number of
 /// inputs and/or outputs. The arguments passed to the @p outputs and
 /// @p inputs parameters must be arrays of length @p num_outputs and
-/// @p num_inputs, respectively. If @p attributes is not a null pointer, the
-/// attribute map pointed to by @p attributes is attached to the operation
-/// and ArBB assumes ownership of the attribute map and * @p attributes is
-/// set to a null object.
+/// @p num_inputs, respectively.
 ///
 /// @return An error code depending on the result of the operation:
 ///  - ::arbb_error_none if the operation succeeded.
@@ -897,8 +873,6 @@ arbb_error_t arbb_op(arbb_function_t function,
 ///  - ::arbb_error_invalid_argument if the opcode has a static number of arguments.
 ///  - ::arbb_error_invalid_argument if either the @p inputs or @p outputs of the
 ///    opcode has a static size that does not match the provided size.
-///  - ::arbb_error_invalid_argument if @p attributes is not a null pointer but
-///    points to a null object
 ///  - ::arbb_error_scoping if the given function is not currently being defined.
 ARBB_VM_EXPORT
 arbb_error_t arbb_op_dynamic(arbb_function_t function,
@@ -908,7 +882,6 @@ arbb_error_t arbb_op_dynamic(arbb_function_t function,
                              unsigned int num_inputs,
                              const arbb_variable_t* inputs,
                              void* debug_data_ptrs[],
-                             arbb_attribute_map_t* attributes,
                              arbb_error_details_t* details);
 
 /// @}
@@ -942,8 +915,6 @@ typedef enum {
 ///  - ::arbb_error_invalid_argument if any of the entries in @p inputs are null objects.
 ///  - ::arbb_error_invalid_argument if any of the variables provided in @p inputs
 ///      or @p outputs do not match the function's signature appropriately.
-///  - ::arbb_error_invalid_argument if @p attributes is not a null pointer but
-///    points to a null object
 ///  - ::arbb_error_scoping if @p caller is not currently being defined.
 ///  - ::arbb_error_scoping if @p callee has not been defined yet.
 ARBB_VM_EXPORT
@@ -1356,13 +1327,6 @@ arbb_error_t arbb_top_function(arbb_context_t context,
 /// @defgroup arbb_virtual_machine_stack_trace C/C++ Stack Traces
 /// @{
 
-/// Enables stack trace capture and profiling support. Until this function is called,
-/// @ref arbb_cxx_store_stack_trace() returns null ::arbb_cxx_stack_trace_t objects.
-/// @return An error code depending on the result of the operation:
-///  - ::arbb_error_none if the operation succeeded.
-ARBB_VM_EXPORT
-arbb_error_t arbb_cxx_enable_profiling();
-
 /// Returns an arbb_cxx_stack_trace_t object that contains debug information about
 /// all frames in the C/C++ stack trace, where the first frame is the frame
 /// that called arbb_cxx_store_stack_trace. If a stack trace could not be
@@ -1494,29 +1458,6 @@ arbb_error_t arbb_lookup_attribute(arbb_context_t context,
                                    void** out_value,
                                    arbb_error_details_t* details);
 
-/// @}
-
-/// @defgroup arbb_source_info functions
-/// @{
-
-/// Registers a callback function that the VM will use to allow the front end to 
-///   extract file name and line number information from the an attribute that
-///   the front end has associated with an arbb_op. If a callback function had 
-///   previously been registered with the same key, the new callback function 
-///   will replace the previous callback function.
-///
-/// @return An error code depending on the result of the operation:
-///  - ::arbb_error_none if the operation succeeded
-///  - ::arbb_error_invalid_argument if @p callback is a null pointer.  
-
-/* TODO c2hs (i undefined the type arbb_source_info_provider_t 
-ARBB_VM_EXPORT
-arbb_error_t arbb_register_source_info_provider(arbb_context_t context, 
-                                                arbb_attribute_key_t key,
-                                                arbb_source_info_provider_t callback,
-                                                arbb_error_details_t* details);
-
-*/
 /// @}
 
 /// @}

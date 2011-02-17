@@ -305,7 +305,7 @@ endFunction f =
 
 -- Operations on scalaras 
 op f opcode outp inp = 
-    op' f opcode outp inp nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())
+    op' f opcode outp inp nullPtr nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())
   
 {# fun arbb_op as op'
    { fromFunction `Function' ,
@@ -313,12 +313,20 @@ op f opcode outp inp =
      withVariableArray* `[Variable]' ,
      withVariableArray* `[Variable]' , 
      id `Ptr (Ptr ())'  ,
+     id `Ptr (Ptr ())'  , 
      id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
     -- alloca- `ErrorDetails' peekErrorDet* 
 
 -- Operation that works on arrays of various length
 opDynamic fnt opc outp inp = 
-    opDynamic' fnt opc nout outp nin inp nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())      
+    opDynamic' fnt 
+               opc 
+               nout 
+               outp 
+               nin 
+               inp 
+               nullPtr 
+               nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())      
    where 
      nin = length inp 
      nout = length outp  
@@ -330,6 +338,7 @@ opDynamic fnt opc outp inp =
      withVariableArray* `[Variable]' ,
      cIntConv     `Int'      , 
      withVariableArray* `[Variable]' ,
+     id `Ptr (Ptr ())' ,
      id `Ptr (Ptr ())' ,
      id `Ptr (Ptr ())' } ->  `Error' cToEnum #}
 
