@@ -20,10 +20,10 @@ import C2HS
   
 {- TODOs 
 
-   Figure out the error_details_t thing.
-    - Pass a null pointer in, and don't care about them.   
+   DONE Figure out the error_details_t thing.
+      - Pass a null pointer in, and don't care about them.   
        
-
+   
    
 -}
 
@@ -31,16 +31,6 @@ import C2HS
 -- ----------------------------------------------------------------------
 
 newtype Context = Context {fromContext :: Ptr ()} 
-
-{-
-instance Storable Context where
-  sizeOf _ = {#sizeof arbb_context_t #}
-  alignment _ = 4
-  peek p =  peek (castPtr p)   
-      
-  poke p x = poke (castPtr p) x
--}
-
 newtype ErrorDetails = ErrorDetails {fromErrorDetails :: Ptr ()} 
 newtype Type = Type {fromType :: Ptr ()} 
 newtype Variable = Variable {fromVariable :: Ptr ()}
@@ -74,6 +64,7 @@ newtype VMString = VMString {fromVMString :: Ptr ()}
 -- ----------------------------------------------------------------------
 -- Helpers
 -- ----------------------------------------------------------------------
+-- Todo: This is code duplication, clean up
 peekErrorDet  ptr = do { res <- peek ptr; return $ ErrorDetails res}
 peekType  ptr = do { res <- peek ptr; return $ Type res}    
 peekFunction  ptr = do { res <- peek ptr; return $ Function res}    
@@ -286,9 +277,9 @@ endFunction f =
   ---alloca- `ErrorDetails' peekErrorDet*
 
 -- ----------------------------------------------------------------------
--- op
+-- Operations of various kinds
 
-
+-- Operations on scalaras 
 op f opcode outp inp = 
     op' f opcode outp inp nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())
   
@@ -301,15 +292,7 @@ op f opcode outp inp =
      id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
     -- alloca- `ErrorDetails' peekErrorDet* 
 
-
---arbb_error_t arbb_op_dynamic(arbb_function_t function,
---                             arbb_opcode_t opcode,
---                             unsigned int num_outputs,
---                             const arbb_variable_t* outputs,
---                             unsigned int num_inputs,
---                             const arbb_variable_t* inputs,
---                             void* debug_data_ptrs[],
---                             arbb_error_details_t* details);
+-- Operation that works on arrays of various length
 opDynamic fnt opc outp inp = 
     opDynamic' fnt opc nout outp nin inp nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())      
    where 
@@ -326,15 +309,7 @@ opDynamic fnt opc outp inp =
      id `Ptr (Ptr ())' ,
      id `Ptr (Ptr ())' } ->  `Error' cToEnum #}
 
-
---arbb_error_t arbb_call_op(arbb_function_t caller,
---                          arbb_call_opcode_t opcode,
---                          arbb_function_t callee,
---                          const arbb_variable_t* outputs,
---                          const arbb_variable_t* inputs,
---                         arbb_error_details_t* details);
---
-
+-- callOp can be used to map a function over an array 
 callOp caller opc callee outp inp = 
   callOp' caller opc callee outp inp nullPtr >>= \x -> throwIfErrorIO (x,()) 
 
