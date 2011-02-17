@@ -13,15 +13,6 @@ readScalarOfSize n ctx v =
         readScalar ctx v ptr 
         peek (castPtr ptr)
 
------------------------------------------------------------------------------
--- ifThenElse  
-ifThenElse f c t e =
-  do
-   ifBranch f c      
-   t -- op myfun ArbbOpSub [c] [a,a]
-   elseBranch f 
-   e -- op myfun ArbbOpDiv [c] [a,a]
-   endIf f
 
 while ctx f cond body = 
    do 
