@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, ScopedTypeVariables #-}
 
 import Intel.ArbbVM 
 import Intel.ArbbVM.Convenience
@@ -13,12 +13,6 @@ import Data.Int
 import Data.Serialize
 import Data.ByteString.Internal
 
-readScalarOfSize n ctx v = 
-    allocaBytes n $ \ptr -> 
-       do       
-        readScalar ctx v ptr 
-        peek (castPtr ptr)
-
 -----------------------------------------------------------------------------
 
 -- withSerialized :: Serialize a => a -> (Ptr () -> b) -> b
@@ -27,8 +21,13 @@ withSerialized x fn =
    withForeignPtr fptr (fn . castPtr)
  where 
    (fptr,_,_) = toForeignPtr (encode x)
-  
 
+newConstant :: Storable a => Context -> Type -> a -> IO Variable 
+newConstant ctx t n = 
+  do           
+   tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
+   variableFromGlobal ctx tmp
+  
 -----------------------------------------------------------------------------
 -- Main
 main = do 
@@ -52,38 +51,39 @@ main = do
      tmp <- createLocal myfun arrty "tmp" 
 
 #if 1
+     x  <- newConstant ctx ity (100::Int32)
+     y  <- newConstant ctx ity (30::Int32)
+     quux <- createLocal myfun bty "quux"
+     putStrLn "Before ArbbOpLess"
+     op myfun ArbbOpLess [quux] [x,y]
+     putStrLn "After ArbbOpLess"
+
+     foo :: Int32 <- readScalarOfSize 4 ctx y
+     putStrLn$ "Did a readScalarOfSize: "++ show foo
+
+     zer     <- newConstant ctx ity (0::Int32)
+     one     <- newConstant ctx ity (1::Int32)
+     max     <- newConstant ctx ity (100::Int32)
      counter <- createLocal myfun ity "counter"
-     bound  <- withSerialized (100::Int32) $ createConstant ctx ity 
-     bound' <- variableFromGlobal ctx bound
+     op myfun ArbbOpCopy [counter] [zer]
+     putStrLn "Counter initialized..."
 
-     op myfun ArbbOpCopy [counter] [bound']
      while myfun (do
-         bt <- getScalarType ctx ArbbBoolean         
-         lc <- createLocal myfun bt "loopcond"
+         lc <- createLocal myfun bty "loopcond"
 	 putStrLn "Inside while condition..."
--- HAVING TROUBLE WITH THIS LINE:
-         op myfun ArbbOpLess [lc] [counter,b]      -- Loop on False
+         op myfun ArbbOpLess [lc] [counter,max]
 	 putStrLn "Done with ArbbOpLess"
---         op myfun ArbbOpLess [lc] [b,b]      -- Loop on False
      	 return lc)
---      (return ())
-      (op myfun ArbbOpAdd [counter] [counter,a])
+      (op myfun ArbbOpAdd [counter] [counter,one])
 
-     -- beginLoop      myfun ArbbLoopWhile
-     -- beginLoopBlock myfun ArbbLoopBlockCond
-     -- bty <- getScalarType ctx ArbbBoolean         
-     -- lc  <- createLocal myfun bty "loopcond"
-     -- op myfun ArbbOpLess [lc] [counter,b]      -- Loop on False
-     -- loopCondition myfun lc 
-     -- beginLoopBlock myfun ArbbLoopBlockBody
-     -- (op myfun ArbbOpAdd [counter] [counter,a])
-     -- endLoop myfun     
+     putStrLn "Done emitting while"
 #endif
      ------------------------------------------------------------
 
      op myfun ArbbOpMul [tmp] [a,b]       
      opDynamic myfun ArbbOpAddReduce [c] [tmp]
 
+     putStrLn "At end of function"
      endFunction myfun
      ------------------------------------------------------------
 

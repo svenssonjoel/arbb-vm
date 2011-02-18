@@ -11,11 +11,15 @@
 module Intel.ArbbVM.Convenience 
  (
   ifThenElse,
-  while
+  while,
+  readScalarOfSize
  )
 where
 
 import Intel.ArbbVM 
+import Foreign.Marshal.Array
+import Foreign.Ptr 
+import C2HS
 
 -- ifThenElse  
 ifThenElse f c t e =
@@ -44,3 +48,13 @@ while f cond body =
 
 
 -- global/constant shortcuts
+
+readScalarOfSize :: Storable b => Int -> Context -> Variable -> IO b
+readScalarOfSize n ctx v = 
+    allocaBytes n $ \ptr -> 
+       do       
+        readScalar ctx v ptr 
+        peek (castPtr ptr)
+
+-- TODO: readScalar of storable
+

@@ -1,18 +1,12 @@
 
 
 import Intel.ArbbVM 
+import Intel.ArbbVM.Convenience
 
 import Foreign.Marshal.Array
 import Foreign.Ptr 
 
 import C2HS
-
-readScalarOfSize n ctx v = 
-    allocaBytes n $ \ptr -> 
-       do       
-        readScalar ctx v ptr 
-        peek (castPtr ptr)
-
 
 main = do 
      ctx <- getDefaultContext 

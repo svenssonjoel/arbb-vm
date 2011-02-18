@@ -8,14 +8,6 @@ import Foreign.Ptr
 
 import C2HS
 
-readScalarOfSize n ctx v = 
-    allocaBytes n $ \ptr -> 
-       do       
-        readScalar ctx v ptr 
-        peek (castPtr ptr)
-
-
-
 -----------------------------------------------------------------------------
 -- Main
 main = do 
