@@ -25,9 +25,9 @@ mandel max_depth c = loop 0 0
     | fn(z) >= 2.0   = i
     | otherwise      = loop (i+1) (z*z + c) 
 
-mandelDef = 
- do 
-    return ()
+-- mandelDef = 
+--  do 
+--     return ()
   
 -----------------------------------------------------------------------------
 -- Main

@@ -10,48 +10,27 @@ import Foreign.ForeignPtr
 import C2HS
 
 
-main = do 
-     ctx   <- getDefaultContext 
-     sty   <- getScalarType ctx ArbbI32
-     fnt   <- getFunctionType ctx [sty] [sty] 
-     one   <- newConstant ctx sty (1::Int32)
-     ten   <- newConstant ctx sty (10::Int32)
+main = arbbSession$ do 
+     sty   <- getScalarType_  ArbbI32
+     
+     fun1 <- funDef_ "fun1" [sty] [sty] $ \ [out] [inp] -> do
 
--- This is not allowed:
---     dummy <- getFunctionType ctx [] [] 
+        fun2 <- funDef_ "fun2" [sty] [sty] $ \ [out] [inp] -> do
+           one <- const_ ArbbI32 (1 ::Int32)
+	   op_ ArbbOpCopy [out] [inp]
+	   op_ ArbbOpAdd  [out] [out,one]
 
-     ------------------------------------------------------------
-     myfun <- beginFunction ctx fnt "foo" 0
-     inp   <- getParameter myfun 0 0 
-     out   <- getParameter myfun 1 0
+        ten <- const_ ArbbI32 (10::Int32)
+	call_ fun2 [out] [inp]
+	op_ ArbbOpAdd  [out] [out,ten]
 
-     ------------------------------
-     -- This is not a nested function because it doesn't have a link
-     -- to the parent, but it is an "interleaved" function in the VM stream.
-     fun2 <- beginFunction ctx fnt "bar" 0
-     a    <- getParameter fun2 0 0 
-     b    <- getParameter fun2  1 0
-     op fun2 ArbbOpCopy [b] [a]
-     op fun2 ArbbOpAdd  [b] [b,one]
-     endFunction fun2
-     ------------------------------
+     liftIO$ putStrLn "Done compiling function, now executing..."
+     x       <- const_ ArbbI32 (100::Int32)
+     binding <- getBindingNull_
+     g       <- createGlobal_ sty "res" binding
+     y       <- variableFromGlobal_ g
 
-     op myfun ArbbOpCopy [out] [inp]
-     callOp myfun ArbbOpCall fun2 [out] [inp]
+     execute_ fun1 [y] [x]
 
-     op myfun ArbbOpAdd  [out] [out,ten]
-     endFunction myfun
-     ------------------------------------------------------------
-     putStrLn "Done streaming function AST."
-     compile myfun
-     putStrLn "Done compiling function, now executing..."
-
-     x <- newConstant ctx sty (100::Int32)
-
-     binding <- getBindingNull 
-     g <- createGlobal ctx sty "res" binding
-     y <- variableFromGlobal ctx g     
-     execute myfun [y] [x]
-
-     result <- readScalarOfSize 4 ctx y :: IO Int32
-     putStrLn$ "Result from function application: "++ show result
+     result :: Int32 <- readScalar_ y 
+     liftIO$ putStrLn$ "Result from function application: "++ show result
