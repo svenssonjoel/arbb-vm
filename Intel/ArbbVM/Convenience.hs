@@ -1,5 +1,4 @@
-
-
+{-# LANGUAGE CPP #-}
 
 {- |  
 
@@ -9,19 +8,21 @@
  -}
 
 module Intel.ArbbVM.Convenience 
- (
-  ifThenElse,
-  while,
-  readScalarOfSize,
-  newConstant
- )
+ -- (
+ --  ifThenElse,
+ --  while,
+ --  readScalarOfSize,
+ --  newConstant
+ -- )
 where
 
-import Intel.ArbbVM 
+--import qualified Intel.ArbbVM as VM
+import Intel.ArbbVM as VM
 import Data.Serialize
 import Data.ByteString.Internal
 import Foreign.Marshal.Array
 import Foreign.ForeignPtr
+import Foreign.Storable as Storable
 import Foreign.Ptr 
 import C2HS
 
@@ -37,9 +38,62 @@ type EmitArbb = S.StateT ArbbEmissionState IO
 -- all have global scope to ArBB however.)
 type ArbbEmissionState = (Context, [Function])
 
-
 --------------------------------------------------------------------------------
 -- Convenience functions for common patterns:
+
+#define L S.lift$
+
+arbbSession :: EmitArbb a -> IO a 
+arbbSession m = 
+  do ctx <- getDefaultContext
+     (a,s) <- S.runStateT m (ctx,[])
+     return a
+
+getFun msg = 
+ do (_,ls) <- S.get
+    case ls of 
+      [] -> error$ msg ++" when not inside a function"
+      (h:t) -> return h
+
+op_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb ()
+op_ code out inp = 
+ do fun <- getFun "Convenience.op_ cannot execute an Opcode"
+    L op fun code out inp
+
+if_ :: Variable -> EmitArbb a -> EmitArbb a1 -> EmitArbb ()
+if_ c t e =
+  do fun <- getFun "Convenience.if_ cannot execute a conditional"
+     L ifBranch fun c 
+     t -- op myfun ArbbOpSub [c] [a,a]
+     L elseBranch fun 
+     e -- op myfun ArbbOpDiv [c] [a,a]
+     L endIf fun
+
+-- | An ArBB while loop.  Must be called inside a function definition.
+while_ :: (EmitArbb Variable) -> EmitArbb a -> EmitArbb a
+while_ cond body = 
+   do fun <- getFun "Convenience.while_ cannot execute a while loop"
+      L beginLoop fun ArbbLoopWhile
+      L beginLoopBlock fun ArbbLoopBlockCond
+      lc <- cond
+      L loopCondition fun lc 
+      L beginLoopBlock fun ArbbLoopBlockBody
+      result <- body 
+      L endLoop fun
+      return result
+
+readScalar_ :: (Num a, Storable a) =>  Variable -> EmitArbb a
+readScalar_ v = 
+  do (ctx,_) <- S.get
+     let z = 0
+	 size = Storable.sizeOf z
+     x <- L readScalarOfSize size ctx v 
+     return (x+z)
+
+
+
+--------------------------------------------------------------------------------
+-- OBSOLETE: These were some helpers that didn't use the EmitArbb monad.
 
 ifThenElse :: Function -> Variable -> IO a -> IO a1 -> IO ()
 ifThenElse f c t e =
@@ -85,6 +139,12 @@ newConstant ctx t n =
    tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
    variableFromGlobal ctx tmp
 
+newConstantAlt :: Storable a => Context -> ScalarType -> a -> IO Variable 
+newConstantAlt ctx st n = 
+  do           
+   t   <- getScalarType ctx st       
+   tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
+   variableFromGlobal ctx tmp
 
 -- global/constant shortcuts
 
