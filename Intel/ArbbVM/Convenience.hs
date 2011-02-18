@@ -14,6 +14,7 @@ module Intel.ArbbVM.Convenience
    arbbSession, EmitArbb,  
    if_, while_, readScalar_,
    funDef_, funDefS_, call_, op_, 
+   opDynamic_,
 
    const_, int32_, float64_,
    incr_int32_, 
@@ -25,6 +26,9 @@ module Intel.ArbbVM.Convenience
 
    getBindingNull_, getScalarType_, variableFromGlobal_,
    getFunctionType_, createGlobal_, createLocal_,
+   
+   getDenseType_,
+   createDenseBinding_,
 
    liftIO, liftMs
  )
@@ -86,6 +90,11 @@ op_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb ()
 op_ code out inp = 
  do fun <- getFun "Convenience.op_ cannot execute an Opcode"
     L op fun code out inp
+
+opDynamic_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb ()
+opDynamic_ code out inp = 
+  do fun <- getFun "Convenience.opDynamic_ cannot execute an Opcode"
+     L opDynamic fun code out inp
 
 if_ :: Variable -> EmitArbb a -> EmitArbb a1 -> EmitArbb ()
 if_ c t e =
@@ -195,17 +204,22 @@ liftMs fn ls =
 lift1 :: (Context -> a -> IO b)           -> a           -> EmitArbb b
 lift2 :: (Context -> a -> b -> IO c)      -> a -> b      -> EmitArbb c
 lift3 :: (Context -> a -> b -> c -> IO d) -> a -> b -> c -> EmitArbb d
+lift4 :: (Context -> a -> b -> c -> d -> IO e) -> a -> b -> c -> d -> EmitArbb e
 
-lift1 fn a     = do ctx <- getCtx; L fn ctx a 
-lift2 fn a b   = do ctx <- getCtx; L fn ctx a b
-lift3 fn a b c = do ctx <- getCtx; L fn ctx a b c
+lift1 fn a       = do ctx <- getCtx; L fn ctx a 
+lift2 fn a b     = do ctx <- getCtx; L fn ctx a b
+lift3 fn a b c   = do ctx <- getCtx; L fn ctx a b c
+lift4 fn a b c d = do ctx <- getCtx; L fn ctx a b c d
 
 compile_ fn      = liftIO$ compile fn
 execute_ a b c   = liftIO$ execute a b c
 
 getBindingNull_  = liftIO getBindingNull
 
+createDenseBinding_ = lift4 createDenseBinding
+
 getScalarType_      = lift1 getScalarType
+getDenseType_       = lift2 getDenseType  
 variableFromGlobal_ = lift1 variableFromGlobal
 getFunctionType_    = lift2 getFunctionType
 createGlobal_       = lift3 createGlobal
