@@ -1,6 +1,7 @@
 
 
 import Intel.ArbbVM 
+import Intel.ArbbVM.Convenience
 
 import Foreign.Marshal.Array
 import Foreign.Ptr 
@@ -12,16 +13,6 @@ readScalarOfSize n ctx v =
        do       
         readScalar ctx v ptr 
         peek (castPtr ptr)
-
------------------------------------------------------------------------------
--- ifThenElse  
-ifThenElse f c t e =
-  do
-   ifBranch f c      
-   t -- op myfun ArbbOpSub [c] [a,a]
-   elseBranch f 
-   e -- op myfun ArbbOpDiv [c] [a,a]
-   endIf f
 
 
 

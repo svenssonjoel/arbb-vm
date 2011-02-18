@@ -28,7 +28,8 @@ source-repository head
 library
   build-depends:  base >= 4 && < 5, haskell98
 
-  exposed-modules:  Intel.ArbbVM
+  exposed-modules: Intel.ArbbVM
+                 , Intel.ArbbVM.Convenience
   GHC-Options: -O2 
   extra-libraries: tbb, arbb, pthread
   include-dirs: /opt/intel/arbb/latest/include

@@ -63,6 +63,8 @@ main = do
    tmp = tmp + 1;
  }
 -}
+
+#if 0 
      beginLoop myfun ArbbLoopWhile
      beginLoopBlock myfun ArbbLoopBlockCond
      op myfun ArbbOpLess [lc] [tmp,b]      
@@ -72,7 +74,11 @@ main = do
      --(op myfun ArbbOpAdd [tmp] [tmp,a]) 
      op myfun ArbbOpAdd [tmp] [a,tmp]
      endLoop myfun     
- 
+#else
+#endif
+
+
+
      op myfun ArbbOpCopy [c] [tmp]          
     
      endFunction myfun
