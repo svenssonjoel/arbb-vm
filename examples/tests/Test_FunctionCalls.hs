@@ -37,9 +37,8 @@ main = do
      ------------------------------
 
      op myfun ArbbOpCopy [out] [inp]
--- What's the scoping of functions?  And how do I call one?
--- This doesn't work:
---     execute fun2 [out] [inp]
+     callOp myfun ArbbOpCall fun2 [out] [inp]
+
      op myfun ArbbOpAdd  [out] [out,ten]
      endFunction myfun
      ------------------------------------------------------------
