@@ -26,7 +26,9 @@ source-repository head
 
 ----------------------------------------------------------------------------------------------------
 library
-  build-depends:  base >= 4 && < 5, haskell98
+  build-depends: base >= 4 && < 5, haskell98
+               , mtl >= 2.0 
+               , bytestring
 
   exposed-modules: Intel.ArbbVM
                  , Intel.ArbbVM.Convenience

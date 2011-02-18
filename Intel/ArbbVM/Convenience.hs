@@ -31,14 +31,17 @@ import qualified  Control.Monad.State.Strict as S
 -- The monad for emitting Arbb code.  
 type EmitArbb = S.StateT ArbbEmissionState IO
 
--- We put the context and a stack of function types into the background.
+-- We put the context and a stack of function types into the
+-- background.  Note, we need the stack of functions because we allow
+-- nested function definitions at this convenience layer.  (They will
+-- all have global scope to ArBB however.)
 type ArbbEmissionState = (Context, [Function])
 
 
 --------------------------------------------------------------------------------
 -- Convenience functions for common patterns:
 
--- ifThenElse  
+ifThenElse :: Function -> Variable -> IO a -> IO a1 -> IO ()
 ifThenElse f c t e =
   do
    ifBranch f c      
