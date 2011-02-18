@@ -201,7 +201,7 @@ getDenseType ctx t dim = getDenseType' ctx t dim nullPtr >>= throwIfErrorIO
 -- ----------------------------------------------------------------------
 -- createGlobal 
 
-
+createGlobal :: Context -> Type -> String -> Binding -> IO GlobalVariable
 createGlobal ctx t name b = 
    createGlobal' ctx t name b nullPtr nullPtr >>= throwIfErrorIO 
              
@@ -263,7 +263,7 @@ freeBinding ctx bind =
 -- ----------------------------------------------------------------------
 -- FUNCTIONS 
 
-
+getFunctionType :: Context -> [Type] -> [Type] -> IO Type
 getFunctionType ctx outp inp = 
   do 
     let outlen = length outp

@@ -12,16 +12,36 @@ module Intel.ArbbVM.Convenience
  (
   ifThenElse,
   while,
-  readScalarOfSize
+  readScalarOfSize,
+  newConstant
  )
 where
 
 import Intel.ArbbVM 
+import Data.Serialize
+import Data.ByteString.Internal
 import Foreign.Marshal.Array
+import Foreign.ForeignPtr
 import Foreign.Ptr 
 import C2HS
 
--- ifThenElse  
+import qualified  Control.Monad.State.Strict as S 
+
+--------------------------------------------------------------------------------
+-- The monad for emitting Arbb code.  
+type EmitArbb = S.StateT ArbbEmissionState IO
+
+-- We put the context and a stack of function types into the
+-- background.  Note, we need the stack of functions because we allow
+-- nested function definitions at this convenience layer.  (They will
+-- all have global scope to ArBB however.)
+type ArbbEmissionState = (Context, [Function])
+
+
+--------------------------------------------------------------------------------
+-- Convenience functions for common patterns:
+
+ifThenElse :: Function -> Variable -> IO a -> IO a1 -> IO ()
 ifThenElse f c t e =
   do
    ifBranch f c      
@@ -45,10 +65,30 @@ while f cond body =
      endLoop f     
 
 -- fun Defs
+-- funDef :: Type -> Syntax -> [Type] -> ([Syntax] -> EasyEmit ()) -> EasyEmit ObjFun
+
+--funDef :: Type -> Syntax -> [Type] -> ([Variable] -> EmitArbb ()) -> EmitArbb ObjFun
+--funDef = undefined
+
+
+-- Works not just for arrays but anything serializable:
+withSerialized :: Serialize a => a -> (Ptr () -> IO b) -> IO b
+withSerialized x fn =    
+   withForeignPtr fptr (fn . castPtr)
+ where 
+   (fptr,_,_) = toForeignPtr (encode x)
+
+newConstant :: Storable a => Context -> Type -> a -> IO Variable 
+newConstant ctx t n = 
+  do           
+   -- Could use withSerialized possibly...
+   tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
+   variableFromGlobal ctx tmp
 
 
 -- global/constant shortcuts
 
+-- readScalarOfSize :: Storable b => Int -> Context -> Variable -> EmitArbb b
 readScalarOfSize :: Storable b => Int -> Context -> Variable -> IO b
 readScalarOfSize n ctx v = 
     allocaBytes n $ \ptr -> 
@@ -56,5 +96,8 @@ readScalarOfSize n ctx v =
         readScalar ctx v ptr 
         peek (castPtr ptr)
 
--- TODO: readScalar of storable
+-- TODO: readScalar of storable should be able to determine size.
 
+
+--------------------------------------------------------------------------------
+-- Complex numbers.
