@@ -25,13 +25,53 @@ mandel max_depth c = loop 0 0
     | fn(z) >= 2.0   = i
     | otherwise      = loop (i+1) (z*z + c) 
 
--- mandelDef = 
---  do 
---     return ()
+
+
+mandelDef :: EmitArbb Function
+mandelDef = do
+  funDefS_ "mandel" [ArbbI32] [ArbbI32, ArbbF64] $ \ [out] [maxdepth, c] -> do
+     
+     [zer,one,max] <- mapM int32_ [0, 1, 100] -- Constants.
+     twof <- float64_ 2.0
+
+     counter <- local_int32_ "counter"
+     op_ ArbbOpCopy [counter] [zer]
+     while_ 
+       (do
+	  lc1 <- local_bool_ "loopcond1"
+	  lc2 <- local_bool_ "loopcond2"
+	  lc3 <- local_bool_ "loopcond3"
+	  op_ ArbbOpLess   [lc1] [counter,max]
+	  op_ ArbbOpLess   [lc2] [c,twof]
+	  op_ ArbbOpLogAnd [lc3] [lc1,lc2]
+	  return lc3
+       )
+       (do 
+	   incr_int32_ counter 
+	   return ()
+       )
+
+     op_ ArbbOpCopy [out] [counter]
+     return ()
   
 -----------------------------------------------------------------------------
--- Main
-main = do 
+
+main = arbbSession$ do 
+  liftIO$ putStrLn$ "Starting..."
+
+  mandel <- mandelDef
+
+  res <- global_nobind_int32_ "res"
+  liftMs (execute_ mandel [res]) 
+	 [int32_ 100, float64_ 1.3]
+
+  result :: Int32 <- readScalar_ res
+  liftIO$ putStrLn$ "Result from function application: "++ show result
+  
+
+-----------------------------------------------------------------------------
+
+main0 = do 
 
 --     let size = 10 * 1024 * 1024 
      let size = 1024 
@@ -51,7 +91,6 @@ main = do
 
      tmp <- createLocal myfun arrty "tmp" 
 
-#if 1
      x  <- newConstant ctx ity (100::Int32)
      y  <- newConstant ctx ity (30::Int32)
      quux <- createLocal myfun bty "quux"
@@ -78,7 +117,6 @@ main = do
       (op myfun ArbbOpAdd [counter] [counter,one])
 
      putStrLn "Done emitting while"
-#endif
      ------------------------------------------------------------
 
      op myfun ArbbOpMul [tmp] [a,b]       
@@ -122,7 +160,7 @@ main = do
           -- access result
           result <- peekArray 1 (castPtr out :: Ptr Float) 
           putStrLn $ show $ result
-          
+
          
 {- 
 
