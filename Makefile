@@ -15,6 +15,8 @@ TESTS= \
    examples/tests/Test_MultipleDefaultContextCalls.hs \
    examples/tests/Test_FunctionCalls.hs
 
+SRC = Intel/ArbbVM.hs Intel/ArbbVM/Convenience.hs
+
 TESTEXES = $(TESTS:.hs=.exe)
 
 # Set this to arbb_dev (instead of 'arbb') to respect ARBB_OPT_LEVEL
@@ -39,6 +41,7 @@ Intel/ArbbVM.hs: Intel/ArbbVM.chs
 tests: $(TESTEXES)
 
 # cbits/arbb_vmwrap.o cbits/arbb_vmwrap.o
+# %.exe: %.hs $(SRC)
 %.exe: %.hs 
 	ghc -o $@ --make $<  -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -l$(ARBB_LIB) -lpthread 
 

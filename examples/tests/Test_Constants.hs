@@ -13,14 +13,6 @@ readScalarOfSize n ctx v =
         readScalar ctx v ptr 
         peek (castPtr ptr)
 
--- TODO: Build a small library of these helpers 
---       But first figure out what works best ! 
-newConstant :: Storable a => Context -> Type -> a -> IO Variable 
-newConstant ctx t n = 
-  do           
-   tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
-   variableFromGlobal ctx tmp
-
 newConstantAlt :: Storable a => Context -> ScalarType -> a -> IO Variable 
 newConstantAlt ctx st n = 
   do           
