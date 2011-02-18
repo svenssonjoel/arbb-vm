@@ -15,18 +15,6 @@ import Data.ByteString.Internal
 
 -----------------------------------------------------------------------------
 
--- withSerialized :: Serialize a => a -> (Ptr () -> b) -> b
-withSerialized :: Serialize a => a -> (Ptr () -> IO b) -> IO b
-withSerialized x fn =    
-   withForeignPtr fptr (fn . castPtr)
- where 
-   (fptr,_,_) = toForeignPtr (encode x)
-
-newConstant :: Storable a => Context -> Type -> a -> IO Variable 
-newConstant ctx t n = 
-  do           
-   tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
-   variableFromGlobal ctx tmp
   
 -----------------------------------------------------------------------------
 -- Main

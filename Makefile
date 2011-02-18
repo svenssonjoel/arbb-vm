@@ -10,7 +10,8 @@ TESTS= \
    examples/tests/Test_Loop1.hs \
    examples/tests/Test_Constants.hs \
    examples/tests/Test_Map1.hs \
-   examples/tests/Test_MultipleDefaultContextCalls.hs
+   examples/tests/Test_MultipleDefaultContextCalls.hs \
+   examples/tests/Err_NestedFuns.hs
 
 TESTEXES = $(TESTS:.hs=.exe)
 
