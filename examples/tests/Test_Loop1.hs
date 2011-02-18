@@ -51,10 +51,9 @@ main = do
      beginLoop myfun ArbbLoopWhile
      beginLoopBlock myfun ArbbLoopBlockCond
      op myfun ArbbOpLess [lc] [tmp,b]      
-     loopCondition myfun lc -- exit loop if true (something seems wrong) 
+     loopCondition myfun lc 
    
      beginLoopBlock myfun ArbbLoopBlockBody
-     --(op myfun ArbbOpAdd [tmp] [tmp,a]) 
      op myfun ArbbOpAdd [tmp] [a,tmp]
      endLoop myfun     
 #else

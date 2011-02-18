@@ -13,7 +13,7 @@ import Control.Exception
 import Data.Typeable
 import Data.Word
 
-import C2HS
+import C2HS 
 
 
 #include "../cbits/arbb_alt.h"
@@ -26,7 +26,6 @@ import C2HS
    
    
 -}
-
 
 -- ----------------------------------------------------------------------
 
