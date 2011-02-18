@@ -10,7 +10,8 @@
 
 module Intel.ArbbVM.Convenience 
  (
-  ifThenElse
+  ifThenElse,
+  while
  )
 where
 
@@ -27,3 +28,19 @@ ifThenElse f c t e =
 
 
 -- while loops
+while :: Function -> (IO Variable) -> IO a1 -> IO ()
+while f cond body = 
+   do 
+     beginLoop f ArbbLoopWhile
+     beginLoopBlock f ArbbLoopBlockCond
+     lc <- cond
+     loopCondition f lc 
+
+     beginLoopBlock f ArbbLoopBlockBody
+     body 
+     endLoop f     
+
+-- fun Defs
+
+
+-- global/constant shortcuts

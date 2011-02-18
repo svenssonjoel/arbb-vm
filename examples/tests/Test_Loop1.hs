@@ -1,6 +1,6 @@
-
-
+{-# LANGUAGE CPP #-}
 import Intel.ArbbVM 
+import Intel.ArbbVM.Convenience
 
 import Foreign.Marshal.Array
 import Foreign.Ptr 
@@ -12,16 +12,6 @@ readScalarOfSize n ctx v =
        do       
         readScalar ctx v ptr 
         peek (castPtr ptr)
-
-
-while ctx f cond body = 
-   do 
-     beginLoop f ArbbLoopWhile
-     beginLoopBlock f ArbbLoopBlockCond
-     cond
-     beginLoopBlock f ArbbLoopBlockBody
-     body 
-     endLoop f     
 
 
 -----------------------------------------------------------------------------
@@ -75,6 +65,16 @@ main = do
      op myfun ArbbOpAdd [tmp] [a,tmp]
      endLoop myfun     
 #else
+     while myfun 
+       ( -- condition 
+        do
+         bt <- getScalarType ctx ArbbBoolean         
+         lc <- createLocal myfun bt "loopcond"
+         op myfun ArbbOpLess [lc] [tmp,b]      -- Loop on False
+	 return lc
+       )
+       -- body 
+       (op myfun ArbbOpAdd [tmp] [tmp,a])      
 #endif
 
 
