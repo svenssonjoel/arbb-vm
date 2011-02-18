@@ -26,20 +26,18 @@ main = do
      out   <- getParameter myfun 1 0
 
      ------------------------------
-     -- This should generate an error because I don't think nested
-     -- functions are allowed.
+     -- This is not a nested function because it doesn't have a link
+     -- to the parent, but it is an "interleaved" function in the VM stream.
      fun2 <- beginFunction ctx fnt "bar" 0
      a    <- getParameter fun2 0 0 
      b    <- getParameter fun2  1 0
      op fun2 ArbbOpCopy [b] [a]
      op fun2 ArbbOpAdd  [b] [b,one]
      endFunction fun2
-
---     fun2 <- beginFunction ctx dummy "bar" 0
---     endFunction fun2
      ------------------------------
 
      op myfun ArbbOpCopy [out] [inp]
+-- What's the scoping of functions?  And how do I call one?
 -- This doesn't work:
 --     execute fun2 [out] [inp]
      op myfun ArbbOpAdd  [out] [out,ten]
