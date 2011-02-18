@@ -8,12 +8,26 @@
  -}
 
 module Intel.ArbbVM.Convenience 
- -- (
- --  ifThenElse,
- --  while,
- --  readScalarOfSize,
- --  newConstant
- -- )
+ (
+   ifThenElse, while, readScalarOfSize, newConstant,
+
+   arbbSession, EmitArbb,  
+   if_, while_, readScalar_,
+   funDef_, funDefS_, call_, op_, 
+
+   const_, int32_, float64_,
+   incr_int32_, 
+
+   local_bool_, local_int32_, 
+   global_nobind_, global_nobind_int32_,
+
+   compile_, execute_,
+
+   getBindingNull_, getScalarType_, variableFromGlobal_,
+   getFunctionType_, createGlobal_, createLocal_,
+
+   liftIO, liftMs
+ )
 where
 
 --import qualified Intel.ArbbVM as VM
@@ -61,7 +75,6 @@ getFun msg =
       [] -> error$ msg ++" when not inside a function"
       (h:t) -> return h
 
-
 getCtx = 
  do (ctx,_) <- S.get
     return ctx
@@ -102,7 +115,6 @@ const_ st n =
   do ctx <- getCtx
      L newConstantAlt ctx st n
 
-
 readScalar_ :: (Num a, Storable a) =>  Variable -> EmitArbb a
 readScalar_ v = 
   do ctx <- getCtx
@@ -134,8 +146,16 @@ funDef_ name outty inty userbody =
 
      -- EXPERIMENTAL!  Compile immediately!!
      L compile fun
-
      return fun
+
+-- Umm... what's a good naming convention here?
+funDefS_ :: String -> [ScalarType] -> [ScalarType] -> FunBody  -> EmitArbb Function
+funDefS_ name outs ins body =
+  do 
+     outs' <- mapM getScalarType_ outs
+     ins'  <- mapM getScalarType_ ins
+     funDef_ name outs' ins' body
+  
 
 call_ :: Function -> [Variable] -> [Variable] -> EmitArbb ()
 call_ fun out inp = 
@@ -143,8 +163,33 @@ call_ fun out inp =
      caller <- getFun "Convenience.call_ cannot call function"
      L callOp caller ArbbOpCall fun out inp
 
+--------------------------------------------------------------------------------
+-- Iteration Patterns.
+
+-- for_range_ :: Variable -> Variable -> (i -> EmitArbb ()) -> EmitArbb ()
+
+-- This uses C-style [inclusive,exclusive) ranges.
+-- for_constRange_ :: Int -> Int -> (i -> EmitArbb ()) -> EmitArbb ()
+-- for_range_ start end body = do 
+--    counter <- local_int32_ "counter"
+--    op_ ArbbOpCopy [counter] [zer]
+--    while_ (do
+--        lc <- local_bool_ "loopcond"
+--        op_ ArbbOpLess [lc] [counter,max]
+--        return lc)
+--     (op_ ArbbOpAdd [counter] [counter,one])
+
+
 
 --------------------------------------------------------------------------------
+
+-- liftM for lists
+liftMs :: Monad m => ([a] -> m b) -> [m a] -> m b
+-- liftMs fn ls = liftM fn (sequence ls)
+liftMs fn ls = 
+  sequence ls >>= fn
+  -- do ls' <- sequence ls 
+  --    fn ls'
 
 -- These let us lift the slew of ArbbVM functions that expect a Context as a first argument.
 lift1 :: (Context -> a -> IO b)           -> a           -> EmitArbb b
@@ -164,8 +209,47 @@ getScalarType_      = lift1 getScalarType
 variableFromGlobal_ = lift1 variableFromGlobal
 getFunctionType_    = lift2 getFunctionType
 createGlobal_       = lift3 createGlobal
+
+
+createLocal_ :: Type -> String -> EmitArbb Variable
+createLocal_ ty name = do f <- getFun "Convenience.createLocal_ cannot create local"
+			  L createLocal f ty name
+
 -- ... TODO ...  Keep going.
 
+--------------------------------------------------------------------------------
+
+-- Lazy, lazy, lazy: here are even more shorthands.
+
+int32_ :: Integral t => t -> EmitArbb Variable 
+int32_ n = const_ ArbbI32 (fromIntegral n ::Int32)
+
+float64_ :: Double -> EmitArbb Variable 
+float64_ = const_ ArbbF64 
+-- TODO... Keep going...
+
+incr_int32_ :: Variable -> EmitArbb ()
+incr_int32_ var = do one <- int32_ 1
+		     op_ ArbbOpAdd [var] [var,one] 
+
+
+------------------------------------------------------------
+
+local_bool_ name = do bty <- getScalarType_ ArbbBoolean
+		      createLocal_ bty name
+
+local_int32_ name = do ity <- getScalarType_ ArbbI32
+		       createLocal_ ity name
+
+
+global_nobind_ ty name = 
+  do binding <- getBindingNull_
+     g       <- createGlobal_ ty name binding
+     variableFromGlobal_ g
+
+global_nobind_int32_ name = 
+  do sty <- getScalarType_ ArbbI32
+     global_nobind_ sty name
 
 --------------------------------------------------------------------------------
 -- OBSOLETE: These were some helpers that didn't use the EmitArbb monad.
