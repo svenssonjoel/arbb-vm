@@ -15,24 +15,23 @@ main = arbbSession$ do
      sty   <- getScalarType_  ArbbI32
      dty   <- getDenseType_ sty 1 
 
-     reduce <- funDef_ "reduceAdd" [dty] [dty] $ \ [out] [inp] -> do
-        opDynamic_ ArbbOpAddReduce  [out] [inp]
+     --reduce <- funDef_ "reduceAdd" [dty] [dty] $ \ [out] [inp] -> do
+     --   opDynamic_ ArbbOpAddReduce  [out] [inp]
 
+-- STRANGENESS BEGINS HERE      
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
-        tmp <- createLocal_ sty "tmp1"
-        op_ ArbbOpCopy [tmp] [a]  
-        op_ ArbbOpAdd [tmp] [tmp,b]      
-        op_ ArbbOpCopy [out] [tmp]
-    
+        op_ ArbbOpAdd [out] [a,b]      
+      
      
      reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
         len <- createLocal_ sty "len"
-        tmp <- createLocal_ sty "tmp"
-        op_ ArbbOpLength [len] [inp] 
-        op_ ArbbOpCopy   [tmp] [len]
-        call_ add [tmp] [tmp,len] -- causes arbb_error_internal further down 
-        op_ ArbbOpCopy   [out] [tmp] 
+        op_ ArbbOpLength [len] [inp]
+        
+        call_ add [out] [len,len]
+-- ERROR DOESN'T SHOW UNTIL EXECUTE          
 
+        -- op_ ArbbOpCopy   [out] [len]
+       
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
@@ -62,11 +61,11 @@ main = arbbSession$ do
      execute_ reduce2 [y] [v1]     
      liftIO$ putStrLn "f" 
      
-{-
+
      result2 :: Int32 <- readScalar_ y 
 
      
-     liftIO$ putStrLn$ "Result: "++ show result
+  --   liftIO$ putStrLn$ "Result: "++ show result
      liftIO$ putStrLn$ "Result2: "++ show result2   
-  -}   
+    
      
