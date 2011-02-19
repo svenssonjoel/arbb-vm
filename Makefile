@@ -5,6 +5,7 @@ TESTS= \
    examples/tests/Test_Simple2.hs \
    examples/tests/Test_Simple1.hs \
    examples/tests/Test_Reduce1.hs \
+   examples/tests/Test_Reduce2.hs \
    examples/tests/Test_DotProd.hs \
    examples/tests/Test_Conditional1.hs \
    examples/tests/Test_Loop1.hs \
@@ -47,7 +48,8 @@ temp:
 	ghc -o examples/vm_haskell/Mandel.exe --make examples/vm_haskell/Mandel.hs -L$(ARBBD)/lib/$(ARBB_ARCH) -ltbb -l$(ARBB_LIB) -lpthread 
 
 runtests: 
-	echo $(TESTEXES) | xargs -n1 bash -c 
+	echo $(TESTEXES) | xargs -n1 ./run_one_test.sh
+#	echo $(TESTEXES) | xargs -n1 bash -c 
 # Eek, having the usual shell scripting quotation problems:
 #	@for exe in $(TESTEXES); do echo "\n========================================"; './$exe'; done
 

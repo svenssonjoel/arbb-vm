@@ -14,6 +14,7 @@ module Intel.ArbbVM.Convenience
    arbbSession, EmitArbb,  
    if_, while_, readScalar_,
    funDef_, funDefS_, call_, op_, 
+   opDynamic_,
 
    const_, int32_, float64_,
    incr_int32_, copy_,
@@ -25,7 +26,8 @@ module Intel.ArbbVM.Convenience
 
    getBindingNull_, getScalarType_, variableFromGlobal_,
    getFunctionType_, createGlobal_, createLocal_,
-   createDenseBinding_, 
+
+   createDenseBinding_,  getDenseType_,
 
    withArray_, 
 
@@ -91,6 +93,11 @@ op_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb ()
 op_ code out inp = 
  do fun <- getFun "Convenience.op_ cannot execute an Opcode"
     L op fun code out inp
+
+opDynamic_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb ()
+opDynamic_ code out inp = 
+  do fun <- getFun "Convenience.opDynamic_ cannot execute an Opcode"
+     L opDynamic fun code out inp
 
 if_ :: Variable -> EmitArbb a -> EmitArbb a1 -> EmitArbb ()
 if_ c t e =
@@ -219,6 +226,7 @@ lift3 fn a b c   = do ctx <- getCtx; L fn ctx a b c
 lift4 fn a b c d = do ctx <- getCtx; L fn ctx a b c d
 
 getScalarType_      = lift1 getScalarType
+getDenseType_       = lift2 getDenseType  
 variableFromGlobal_ = lift1 variableFromGlobal
 getFunctionType_    = lift2 getFunctionType
 createGlobal_       = lift3 createGlobal

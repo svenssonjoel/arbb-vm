@@ -17,16 +17,6 @@ import C2HS
 
 
 #include "../cbits/arbb_alt.h"
-  
-{- TODOs 
-
-   DONE: Figure out the error_details_t thing.
-      - Pass a null pointer in, and don't care about them.   
-       
-   
-   
--}
-
 -- ----------------------------------------------------------------------
 
 newtype Context = Context {fromContext :: Ptr ()} 
@@ -92,7 +82,7 @@ withIntArray xs = withArray (fmap fromIntegral xs)
 -- Exception
 -- ----------------------------------------------------------------------
 
-data ArbbVMException = ArbbVMException Error
+data ArbbVMException = ArbbVMException Error String
   deriving (Eq, Show, Typeable)
 
 
@@ -104,11 +94,27 @@ instance Exception ArbbVMException
 --     if fromEnum error_code > 0 then throw (ArbbVMException error_code) 
 --                                else a 
 
+-- TODO: Phase out 
 throwIfErrorIO  :: (Error,a) -> IO a 
 throwIfErrorIO (error_code,a) = 
-     if fromEnum error_code > 0 then throwIO (ArbbVMException error_code) 
+     if fromEnum error_code > 0 then throwIO (ArbbVMException error_code "") 
                                 else return a 
 
+-- TODO: phase in
+throwIfErrorIO1 :: (Error,a,ErrorDetails) -> IO a 
+throwIfErrorIO1 (error_code,a,error_det) = 
+   if fromEnum error_code > 0 
+    then do 
+      str <- getErrorMessage error_det
+      freeErrorDetails error_det
+      throwIO (ArbbVMException error_code str)
+    else return a
+    
+throwIfErrorIO0 :: (Error,ErrorDetails) -> IO ()
+throwIfErrorIO0 (error_code, error_det) = 
+   throwIfErrorIO1 (error_code, (), error_det)  
+
+                     
 -- ----------------------------------------------------------------------
 -- BINDINGS 
 -- ----------------------------------------------------------------------
@@ -119,12 +125,12 @@ throwIfErrorIO (error_code,a) =
 -- Outputs: The default context.
 
 getDefaultContext :: IO Context
-getDefaultContext = getDefaultContext' nullPtr >>= throwIfErrorIO
+getDefaultContext = getDefaultContext' >>= throwIfErrorIO1
 
 {# fun arbb_get_default_context as getDefaultContext' 
    { alloca- `Context' peekContext* , 
-     id      `Ptr (Ptr ())'    } -> `Error' cToEnum #} 
-    -- alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
+     alloca- `ErrorDetails' peekErrorDet*   } -> `Error' cToEnum #} 
+    -- id      `Ptr (Ptr ())'  } -> `Error' cToEnum #} 
 
 
     
@@ -133,38 +139,29 @@ getDefaultContext = getDefaultContext' nullPtr >>= throwIfErrorIO
 -- getScalarType. 
 
 getScalarType :: Context -> ScalarType -> IO Type
-getScalarType ctx st = getScalarType' ctx st (nullPtr) >>= throwIfErrorIO
+getScalarType ctx st = getScalarType' ctx st >>= throwIfErrorIO1
    
 {# fun arbb_get_scalar_type as getScalarType' 
    { fromContext `Context' , 
      alloca-     `Type' peekType* ,
      cFromEnum   `ScalarType' ,
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
-    -- alloca-     `ErrorDetails' peekErrorDet*  
+     alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
+    -- id `Ptr (Ptr ())'  
   
      
 
 -- ----------------------------------------------------------------------
 -- Error handling 
 
--- These are sort of unusable now, since the error_details_t field is never used 
--- TODO: Keep theese in case we add more detailed error handling. 
-
---ARBB_VM_EXPORT
---const char* arbb_get_error_message(arbb_error_details_t error_details);
+   
 {# fun arbb_get_error_message as getErrorMessage 
    { fromErrorDetails `ErrorDetails' } -> `String' #} 
 
 
---ARBB_VM_EXPORT
---arbb_error_t arbb_get_error_code(arbb_error_details_t error_details);
 {# fun arbb_get_error_code as getErrorCode 
    { fromErrorDetails `ErrorDetails' } -> `Error' cToEnum #}
 
 
-
---ARBB_VM_EXPORT
---void arbb_free_error_details(arbb_error_details_t error_details);
 {# fun arbb_free_error_details as freeErrorDetails 
    { fromErrorDetails `ErrorDetails' } -> `()' #}
 
@@ -172,37 +169,37 @@ getScalarType ctx st = getScalarType' ctx st (nullPtr) >>= throwIfErrorIO
 -- ----------------------------------------------------------------------
 -- sizeOf 
 
-sizeOf ctx t = sizeOf' ctx t nullPtr >>= throwIfErrorIO
+sizeOf ctx t = sizeOf' ctx t >>= throwIfErrorIO1
   
 {# fun arbb_sizeof_type as sizeOf' 
    { fromContext `Context'    ,
      alloca-     `Word64' peekCULLong*    ,
      fromType    `Type'       , 
-     id          `Ptr (Ptr ())' } -> `Error' cToEnum #}
+     alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
   where peekCULLong x = 
            do 
             res <- peek x 
             return (fromIntegral res)
 
--- alloca-     `ErrorDetails' peekErrorDet*
+-- id          `Ptr (Ptr ())'
 
 -- ----------------------------------------------------------------------
 -- getDenseType
-getDenseType ctx t dim = getDenseType' ctx t dim nullPtr >>= throwIfErrorIO
+getDenseType ctx t dim = getDenseType' ctx t dim >>= throwIfErrorIO1
             
 {# fun arbb_get_dense_type as getDenseType' 
    { fromContext `Context'   ,
      alloca-     `Type'   peekType* ,
      fromType    `Type'      , 
      cIntConv    `Int'       ,
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}  
---  alloca-     `ErrorDetails' peekErrorDet*
+     alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}  
+--  id `Ptr (Ptr ())'
 -- ----------------------------------------------------------------------
 -- createGlobal 
 
 createGlobal :: Context -> Type -> String -> Binding -> IO GlobalVariable
 createGlobal ctx t name b = 
-   createGlobal' ctx t name b nullPtr nullPtr >>= throwIfErrorIO 
+   createGlobal' ctx t name b nullPtr >>= throwIfErrorIO1 
              
 {# fun arbb_create_global as createGlobal'
    { fromContext  `Context'     ,
@@ -211,10 +208,10 @@ createGlobal ctx t name b =
      withCString* `String'      , 
      fromBinding  `Binding'     , 
      id           `Ptr ()'      ,
-     id           `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+     alloca-      `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #} 
      
 
-     --alloca-      `ErrorDetails' peekErrorDet* 
+     --id           `Ptr (Ptr ())'
      
 -- ----------------------------------------------------------------------
 -- Bindings
@@ -231,7 +228,7 @@ createGlobal ctx t name b =
 --createDenseBinding ::  Context -> Ptr () -> Word -> [Integer] -> [Integer] ->  IO Binding
 createDenseBinding ::  Context -> Ptr () -> Word -> [Word64] -> [Word64] ->  IO Binding
 createDenseBinding ctx d dim sizes pitches = 
-  createDenseBinding' ctx d dim sizes pitches nullPtr >>= throwIfErrorIO
+  createDenseBinding' ctx d dim sizes pitches >>= throwIfErrorIO1
            
 {# fun arbb_create_dense_binding as createDenseBinding'  
    { fromContext `Context'  ,
@@ -243,19 +240,16 @@ createDenseBinding ctx d dim sizes pitches =
 --     withCULArray* `[Integer]', 
      withIntArray* `[Word64]',
      withIntArray* `[Word64]', 
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
+     alloca-      `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #}
 
---arbb_error_t arbb_free_binding(arbb_context_t context,
---                               arbb_binding_t binding,
---                               arbb_error_details_t* details);
 
 freeBinding ctx bind = 
-  freeBinding' ctx bind nullPtr >>= \x -> throwIfErrorIO (x,()) 
+  freeBinding' ctx bind >>= throwIfErrorIO0 
 
 {# fun arbb_free_binding as freeBinding'
    { fromContext `Context'  ,
      fromBinding `Binding'  ,
-     id `Ptr (Ptr ())'      } -> `Error' cToEnum #}
+     alloca-      `ErrorDetails' peekErrorDet*     } -> `Error' cToEnum #}
 
    
 
@@ -267,7 +261,7 @@ getFunctionType ctx outp inp =
   do 
     let outlen = length outp
         inlen  = length inp
-    getFunctionType' ctx outlen outp inlen inp nullPtr >>= throwIfErrorIO 
+    getFunctionType' ctx outlen outp inlen inp >>= throwIfErrorIO1 
  
 {# fun arbb_get_function_type as getFunctionType' 
    { fromContext `Context'     ,
@@ -276,12 +270,12 @@ getFunctionType ctx outp inp =
      withTypeArray* `[Type]'   , 
      cIntConv `Int'            , 
      withTypeArray* `[Type]'   ,
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
-     --alloca- `ErrorDetails' peekErrorDet* 
+     alloca-      `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
+     --id `Ptr (Ptr ())'
 
 beginFunction :: Context -> Type -> String -> Int -> IO Function
 beginFunction ctx t name remote = 
-  beginFunction' ctx t name remote nullPtr >>= throwIfErrorIO 
+  beginFunction' ctx t name remote >>= throwIfErrorIO1 
 
 {# fun arbb_begin_function as beginFunction'
    { fromContext `Context'   ,
@@ -289,17 +283,17 @@ beginFunction ctx t name remote =
      fromType `Type'   ,
      withCString* `String'  ,
      cIntConv     `Int'    ,
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
-    -- alloca- `ErrorDetails' peekErrorDet* 
+     alloca-      `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
+     -- alloca- `ErrorDetails' peekErrorDet* 
 
 endFunction :: Function -> IO ()
 endFunction f = 
-   endFunction' f nullPtr >>= (\x ->  throwIfErrorIO (x,()))   
+   endFunction' f  >>= throwIfErrorIO0
  
 {#fun arbb_end_function as endFunction' 
       { fromFunction `Function'    ,
-        id `Ptr (Ptr ())'  } -> `Error' cToEnum #}
-  ---alloca- `ErrorDetails' peekErrorDet*
+        alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #}
+  ---id `Ptr (Ptr ())'
 
 -- ----------------------------------------------------------------------
 -- Operations of various kinds
@@ -307,7 +301,7 @@ endFunction f =
 -- Operations on scalaras 
 op :: Function -> Opcode -> [Variable] -> [Variable] -> IO ()
 op f opcode outp inp = 
-    op' f opcode outp inp nullPtr nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())
+    op' f opcode outp inp nullPtr nullPtr >>= throwIfErrorIO0
   
 {# fun arbb_op as op'
    { fromFunction `Function' ,
@@ -316,7 +310,7 @@ op f opcode outp inp =
      withVariableArray* `[Variable]' , 
      id `Ptr (Ptr ())'  ,
      id `Ptr (Ptr ())'  , 
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+     alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #} 
     -- alloca- `ErrorDetails' peekErrorDet* 
 
 -- Operation that works on arrays of various length
@@ -328,7 +322,7 @@ opDynamic fnt opc outp inp =
                nin 
                inp 
                nullPtr 
-               nullPtr nullPtr >>= \x -> throwIfErrorIO (x,())      
+               nullPtr >>= throwIfErrorIO0      
    where 
      nin = length inp 
      nout = length outp  
@@ -342,11 +336,11 @@ opDynamic fnt opc outp inp =
      withVariableArray* `[Variable]' ,
      id `Ptr (Ptr ())' ,
      id `Ptr (Ptr ())' ,
-     id `Ptr (Ptr ())' } ->  `Error' cToEnum #}
+     alloca- `ErrorDetails' peekErrorDet*  } ->  `Error' cToEnum #}
 
 -- callOp can be used to map a function over an array 
 callOp caller opc callee outp inp = 
-  callOp' caller opc callee outp inp nullPtr >>= \x -> throwIfErrorIO (x,()) 
+  callOp' caller opc callee outp inp >>= throwIfErrorIO0
 
 {# fun arbb_call_op as callOp'
    { fromFunction `Function' ,
@@ -354,35 +348,31 @@ callOp caller opc callee outp inp =
      fromFunction `Function' ,
      withVariableArray* `[Variable]' ,
      withVariableArray* `[Variable]' , 
-     id `Ptr (Ptr ())'  } -> `Error'  cToEnum #}
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error'  cToEnum #}
 
 -- ----------------------------------------------------------------------
 -- COMPILE AND RUN
 
-execute f outp inp = execute' f outp inp nullPtr >>= \x -> throwIfErrorIO (x,())
-
+-- execute f outp inp = execute' f outp inp nullPtr >>= \x -> throwIfErrorIO (x,())
+execute f outp inp = 
+   execute' f outp inp >>= throwIfErrorIO0          
+ 
 {# fun arbb_execute as execute' 
    { fromFunction `Function'   ,        
      withVariableArray* `[Variable]' ,
      withVariableArray* `[Variable]' , 
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 --     alloca- `ErrorDetails' peekErrorDet*  
 
-compile f = compile' f nullPtr >>= \x -> throwIfErrorIO (x,())
-  -- do 
-  --  (error_code, erro_details) <- compile' f
-   -- return ()
+compile f = compile' f >>= throwIfErrorIO0
 
 {# fun arbb_compile as compile' 
    { fromFunction `Function' ,
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
--- alloca- `ErrorDetails' peekErrorDet*
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
-
---arbb_error_t arbb_finish(arbb_error_details_t* details);
-finish = finish' nullPtr >>= \x -> throwIfErrorIO (x,())
+finish = finish' >>= throwIfErrorIO0
 {# fun arbb_finish as finish' 
-   { id `Ptr (Ptr ())'} -> `Error' cToEnum #}
+   {alloca- `ErrorDetails' peekErrorDet*} -> `Error' cToEnum #}
 
 -- ----------------------------------------------------------------------
 -- Variables, Constants ..
@@ -390,69 +380,66 @@ finish = finish' nullPtr >>= \x -> throwIfErrorIO (x,())
 
 -- createConstant
 createConstant ctx t d = 
-   createConstant' ctx t d nullPtr nullPtr >>= throwIfErrorIO
+   createConstant' ctx t d nullPtr >>= throwIfErrorIO1
   
 {# fun arbb_create_constant as createConstant' 
    { fromContext `Context'  ,
      alloca- `GlobalVariable' peekGlobalVariable*  ,
      fromType `Type'   , 
-      id      `Ptr ()' ,
-      id      `Ptr ()' , 
-      id      `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+     id      `Ptr ()' ,
+     id      `Ptr ()' , 
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 createLocal fnt t name = 
-  createLocal' fnt t name nullPtr >>= throwIfErrorIO
+  createLocal' fnt t name >>= throwIfErrorIO1
 {# fun arbb_create_local as createLocal'
     { fromFunction `Function'  ,        
       alloca- `Variable' peekVariable*  ,
       fromType `Type' ,
       withCString* `String' ,
-      id `Ptr (Ptr ())'  } -> `Error' cToEnum #} 
+      alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #} 
 
 
 -- variableFromGlobal
 variableFromGlobal ctx g =
-   variableFromGlobal' ctx g nullPtr >>= throwIfErrorIO 
-
-
+   variableFromGlobal' ctx g >>= throwIfErrorIO1
 
 {# fun arbb_get_variable_from_global as variableFromGlobal'
    { fromContext `Context'   ,
      alloca- `Variable' peekVariable* ,
      fromGlobalVariable `GlobalVariable' ,
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
--- alloca- `ErrorDetails' peekErrorDet*
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
+
 
 -- getParameter
 getParameter f n m = 
-  getParameter' f n m nullPtr >>= throwIfErrorIO
+  getParameter' f n m >>= throwIfErrorIO1
  
 {# fun arbb_get_parameter as getParameter' 
    { fromFunction `Function'   ,
      alloca- `Variable' peekVariable* ,
      cIntConv `Int'  , 
      cIntConv `Int'  , 
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
---alloca- `ErrorDetails' peekErrorDet*
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
 readScalar ctx v ptr = 
-   readScalar' ctx v ptr nullPtr >>= \x -> throwIfErrorIO (x,())
+   readScalar' ctx v ptr >>= throwIfErrorIO0
 
 {# fun arbb_read_scalar as readScalar' 
    { fromContext `Context'  ,
      fromVariable `Variable' , 
      id          `Ptr ()'   ,
-     id `Ptr (Ptr ())'  } -> `Error' cToEnum #}
---alloca- `ErrorDetails' peekErrorDet*
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
+
 
 writeScalar ctx v ptr = 
-  writeScalar' ctx v ptr nullPtr >>= \x -> throwIfErrorIO (x,()) 
+  writeScalar' ctx v ptr >>= throwIfErrorIO0
 
 {# fun arbb_write_scalar as writeScalar' 
    { fromContext `Context' ,
      fromVariable `Variable' , 
      id  `Ptr ()' ,
-     id  `Ptr (Ptr ())' } -> `Error' cToEnum #}   
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}   
 
 
 --arbb_error_t arbb_serialize_function(arbb_function_t function,
@@ -460,13 +447,13 @@ writeScalar ctx v ptr =
 --                                     arbb_error_details_t* details);
 
 serializeFunction fun = 
-   serializeFunction' fun nullPtr >>= throwIfErrorIO 
+   serializeFunction' fun >>= throwIfErrorIO1
 
 -- TODO: use finalizer to remove VMString ? (ForeignPtr)
 {# fun arbb_serialize_function as serializeFunction'
    { fromFunction `Function'  , 
      alloca- `VMString' peekVMString*,
-     id `Ptr (Ptr ())' } -> `Error' cToEnum #}
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
   
 --void arbb_free_string(arbb_string_t string);
 {# fun arbb_free_string as freeVMString
@@ -483,77 +470,77 @@ serializeFunction fun =
 
 -- LOOPS 
 beginLoop fnt kind = 
-  beginLoop' fnt kind nullPtr >>= \x -> throwIfErrorIO (x,())
+  beginLoop' fnt kind >>= throwIfErrorIO0
 
 {# fun arbb_begin_loop as beginLoop' 
    { fromFunction `Function' ,
      cFromEnum `LoopType'    ,
-     id `Ptr (Ptr ())'  } ->  `Error' cToEnum #}
+     alloca- `ErrorDetails' peekErrorDet*  } ->  `Error' cToEnum #}
 
 beginLoopBlock fnt block =           
-  beginLoopBlock' fnt block nullPtr >>= \x -> throwIfErrorIO (x,()) 
+  beginLoopBlock' fnt block >>= throwIfErrorIO0 
 
 {# fun arbb_begin_loop_block as beginLoopBlock'
    { fromFunction `Function'   ,
      cFromEnum    `LoopBlock'  ,
-     id `Ptr (Ptr ())'        } -> `Error' cToEnum #} 
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 
 loopCondition fnt var = 
-  loopCondition' fnt var nullPtr  >>= \x -> throwIfErrorIO (x,()) 
+  loopCondition' fnt var >>= throwIfErrorIO0
 
 {#fun arbb_loop_condition as loopCondition'
       { fromFunction `Function'   , 
         fromVariable `Variable'   , 
-        id `Ptr (Ptr ())'         } -> `Error' cToEnum #}
+        alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
 
 
 
-endLoop fnt = endLoop' fnt nullPtr >>= \x -> throwIfErrorIO (x,()) 
+endLoop fnt = endLoop' fnt >>= throwIfErrorIO0
  
 {#fun arbb_end_loop as endLoop' 
       { fromFunction `Function' ,
-        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+        alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 
-break fnt = break' fnt nullPtr >>= \x -> throwIfErrorIO (x,())
+break fnt = break' fnt  >>= throwIfErrorIO0
 
 {#fun arbb_break as break' 
       { fromFunction `Function' ,
-        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+        alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
-continue fnt = continue' fnt nullPtr >>= \x -> throwIfErrorIO (x,())
+continue fnt = continue' fnt >>= throwIfErrorIO0
 
 {#fun arbb_continue as continue' 
       { fromFunction `Function' ,
-        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+        alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 
 
 -- if then else 
 
-ifBranch f v = ifBranch' f v nullPtr >>= \x -> throwIfErrorIO (x,())
+ifBranch f v = ifBranch' f v >>= throwIfErrorIO0
 
 {# fun arbb_if as ifBranch' 
    { fromFunction `Function' ,
      fromVariable `Variable' ,
-     id `Ptr (Ptr ())'  } -> `Error' cToEnum #}
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
 
 
-elseBranch f = elseBranch' f nullPtr >>= \x -> throwIfErrorIO (x,())
+elseBranch f = elseBranch' f >>= throwIfErrorIO0
  
 {#fun arbb_else as elseBranch' 
       { fromFunction `Function' ,
-        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+        alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 
-endIf f = endIf' f nullPtr >>= \x -> throwIfErrorIO (x,())
+endIf f = endIf' f >>= throwIfErrorIO0
 
 {#fun arbb_end_if as endIf' 
       { fromFunction `Function' ,
-        id `Ptr (Ptr ())' } -> `Error' cToEnum #} 
+        alloca- `ErrorDetails' peekErrorDet*} -> `Error' cToEnum #} 
 
 
 
@@ -561,7 +548,7 @@ endIf f = endIf' f nullPtr >>= \x -> throwIfErrorIO (x,())
 -- Alternative means of data movement 
 
 mapToHost ctx var pitch mode = 
-   mapToHost' ctx var pitch mode nullPtr >>= throwIfErrorIO
+   mapToHost' ctx var pitch mode >>= throwIfErrorIO1
 
 {# fun arbb_map_to_host as mapToHost'
    { fromContext  `Context'     ,
@@ -569,7 +556,7 @@ mapToHost ctx var pitch mode =
      alloca- `Ptr ()' peek*     , 
      withIntArray* `[Word64]'    ,
      cFromEnum `RangeAccessMode' ,
-     id `Ptr (Ptr ())'  } -> `Error' cToEnum #} 
+     alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #} 
 
 
 
