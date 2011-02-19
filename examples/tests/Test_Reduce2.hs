@@ -12,7 +12,7 @@ import C2HS
 
 
 main = arbbSession$ do 
-     sty   <- getScalarType_  ArbbI32
+     sty   <- getScalarType_  ArbbI64
      dty   <- getDenseType_ sty 1 
 
      --reduce <- funDef_ "reduceAdd" [dty] [dty] $ \ [out] [inp] -> do
@@ -24,10 +24,20 @@ main = arbbSession$ do
       
      
      reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
-        len <- createLocal_ sty "len"
-        op_ ArbbOpLength [len] [inp]
+        --sizeT <- getScalarType_  ArbbIsize     
+      --  len   <- createLocal_ dty "len"
+      --  tmp   <- createLocal_ sty "tmp"
+        one <- const_ ArbbI64 (1 :: Word64)    
         
-        call_ add [out] [len,len]
+      --  op_ ArbbOpLength [len] [inp]
+      --  op_ ArbbOpIndex  [tmp] [len,one]
+        --op_ ArbbOpCopyLength [tmp] [len]
+       
+        --call_ add [len] [one,one]
+        op_ ArbbOpAdd  [out] [one,one]  
+      --  op_ ArbbOpCopy [out] [tmp]
+        
+        
 -- ERROR DOESN'T SHOW UNTIL EXECUTE          
 
         -- op_ ArbbOpCopy   [out] [len]
@@ -35,10 +45,10 @@ main = arbbSession$ do
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
-     i_data  <- liftIO$ newArray (replicate 1024 1 :: [Word32])
-     o_data  <- liftIO$ newArray [0 :: Word32]
-     i_array <- createDenseBinding_ (castPtr i_data) 1 [1024] [4]
-     o_array <- createDenseBinding_ (castPtr o_data) 1 [1] [4] 
+     i_data  <- liftIO$ newArray (replicate 1024 1 :: [Word64])
+     o_data  <- liftIO$ newArray [0 :: Word64]
+     i_array <- createDenseBinding_ (castPtr i_data) 1 [1024] [8]
+     o_array <- createDenseBinding_ (castPtr o_data) 1 [1] [8] 
      liftIO$ putStrLn "a"  
     
      g_in  <- createGlobal_  dty "in" i_array;       
@@ -62,7 +72,7 @@ main = arbbSession$ do
      liftIO$ putStrLn "f" 
      
 
-     result2 :: Int32 <- readScalar_ y 
+     result2 :: Word64 <- readScalar_ y 
 
      
   --   liftIO$ putStrLn$ "Result: "++ show result
