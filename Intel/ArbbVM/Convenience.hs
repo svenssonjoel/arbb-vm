@@ -16,15 +16,18 @@ module Intel.ArbbVM.Convenience
    funDef_, funDefS_, call_, op_, 
 
    const_, int32_, float64_,
-   incr_int32_, 
+   incr_int32_, copy_,
 
-   local_bool_, local_int32_, 
+   local_bool_, local_int32_, local_float64_, 
    global_nobind_, global_nobind_int32_,
 
-   compile_, execute_,
+   compile_, execute_, serializeFunction_, 
 
    getBindingNull_, getScalarType_, variableFromGlobal_,
    getFunctionType_, createGlobal_, createLocal_,
+   createDenseBinding_, 
+
+   withArray_, 
 
    liftIO, liftMs
  )
@@ -34,9 +37,11 @@ where
 import Intel.ArbbVM as VM
 
 import Control.Monad
+import Data.IORef
 import Data.Serialize
 import Data.ByteString.Internal
 import Foreign.Marshal.Array
+import Foreign.Marshal.Alloc
 import Foreign.ForeignPtr
 import Foreign.Storable as Storable
 import Foreign.Ptr 
@@ -179,7 +184,18 @@ call_ fun out inp =
 --        return lc)
 --     (op_ ArbbOpAdd [counter] [counter,one])
 
-
+-- Lifting higher order ops like this is trickier.
+withArray_ :: Storable a => [a] -> (Ptr a -> EmitArbb b) -> EmitArbb b
+withArray_ ls body = 
+ do state <- S.get
+    ref   <- L newIORef state
+    let body2 ptr = do (a,s2) <- S.runStateT (body ptr) state
+     		       writeIORef ref s2
+     		       return a
+    res    <- L withArray ls body2
+    state2 <- L readIORef ref
+    S.put state2
+    return res
 
 --------------------------------------------------------------------------------
 
@@ -192,28 +208,36 @@ liftMs fn ls =
   --    fn ls'
 
 -- These let us lift the slew of ArbbVM functions that expect a Context as a first argument.
-lift1 :: (Context -> a -> IO b)           -> a           -> EmitArbb b
-lift2 :: (Context -> a -> b -> IO c)      -> a -> b      -> EmitArbb c
-lift3 :: (Context -> a -> b -> c -> IO d) -> a -> b -> c -> EmitArbb d
+lift1 :: (Context -> a -> IO b)                -> a                -> EmitArbb b
+lift2 :: (Context -> a -> b -> IO c)           -> a -> b           -> EmitArbb c
+lift3 :: (Context -> a -> b -> c -> IO d)      -> a -> b -> c      -> EmitArbb d
+lift4 :: (Context -> a -> b -> c -> d -> IO e) -> a -> b -> c -> d -> EmitArbb e
 
-lift1 fn a     = do ctx <- getCtx; L fn ctx a 
-lift2 fn a b   = do ctx <- getCtx; L fn ctx a b
-lift3 fn a b c = do ctx <- getCtx; L fn ctx a b c
-
-compile_ fn      = liftIO$ compile fn
-execute_ a b c   = liftIO$ execute a b c
-
-getBindingNull_  = liftIO getBindingNull
+lift1 fn a       = do ctx <- getCtx; L fn ctx a 
+lift2 fn a b     = do ctx <- getCtx; L fn ctx a b
+lift3 fn a b c   = do ctx <- getCtx; L fn ctx a b c
+lift4 fn a b c d = do ctx <- getCtx; L fn ctx a b c d
 
 getScalarType_      = lift1 getScalarType
 variableFromGlobal_ = lift1 variableFromGlobal
 getFunctionType_    = lift2 getFunctionType
 createGlobal_       = lift3 createGlobal
 
-
 createLocal_ :: Type -> String -> EmitArbb Variable
 createLocal_ ty name = do f <- getFun "Convenience.createLocal_ cannot create local"
 			  L createLocal f ty name
+
+createDenseBinding_ = lift4 createDenseBinding
+
+----------------------------------------
+-- These are easy ones, no Context or Function argument:
+
+compile_ fn      = liftIO$ compile fn
+execute_ a b c   = liftIO$ execute a b c
+serializeFunction_ = liftIO . serializeFunction
+getBindingNull_  = liftIO getBindingNull
+
+
 
 -- ... TODO ...  Keep going.
 
@@ -232,6 +256,7 @@ incr_int32_ :: Variable -> EmitArbb ()
 incr_int32_ var = do one <- int32_ 1
 		     op_ ArbbOpAdd [var] [var,one] 
 
+copy_ v1 v2 = op_ ArbbOpCopy [v1] [v2]
 
 ------------------------------------------------------------
 
@@ -241,6 +266,8 @@ local_bool_ name = do bty <- getScalarType_ ArbbBoolean
 local_int32_ name = do ity <- getScalarType_ ArbbI32
 		       createLocal_ ity name
 
+local_float64_ name = do ty <- getScalarType_ ArbbF64
+		         createLocal_ ty name
 
 global_nobind_ ty name = 
   do binding <- getBindingNull_

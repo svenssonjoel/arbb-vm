@@ -17,7 +17,10 @@ fi
 echo Found ArBB directory at: $ARBBD
 
 # export C_INCLUDE_PATH=/opt/intel/arbb/latest/include/:$C_INCLUDE_PATH
-export C_INCLUDE_PATH=$ARBBD/include/:$C_INCLUDE_PATH
+#export C_INCLUDE_PATH=$ARBBD/include/:$C_INCLUDE_PATH
+
+# RRN: I ran into trouble with C_INCLUDE_PATH and g++
+export CPATH=$ARBBD/include/:$CPATH
 
 export DYLD_LIBRARY_PATH=$ARBBD/lib/$ARBB_ARCH/:$DYLD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$ARBBD/lib/$ARBB_ARCH/:$LD_LIBRARY_PATH

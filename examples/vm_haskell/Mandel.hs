@@ -13,6 +13,7 @@ import Data.Complex
 import Data.Int
 import Data.Serialize
 import Data.ByteString.Internal
+import System.Environment
 
 -----------------------------------------------------------------------------
 
@@ -31,23 +32,28 @@ mandelDef :: EmitArbb Function
 mandelDef = do
   funDefS_ "mandel" [ArbbI32] [ArbbI32, ArbbF64] $ \ [out] [maxdepth, c] -> do
      
-     [zer,one,max] <- mapM int32_ [0, 1, 100] -- Constants.
-     twof <- float64_ 2.0
+     [zer,one,max] <- mapM int32_   [0, 1, 100] -- Constants.
+     [zerf, twof]  <- mapM float64_ [0.0, 2.0]
 
      counter <- local_int32_ "counter"
-     op_ ArbbOpCopy [counter] [zer]
+     z       <- local_float64_ "z"
+     copy_ counter zer
+     copy_ z zerf
+
      while_ 
        (do
-	  lc1 <- local_bool_ "loopcond1"
-	  lc2 <- local_bool_ "loopcond2"
-	  lc3 <- local_bool_ "loopcond3"
+	  lc1 <- local_bool_ "bool1"
+	  lc2 <- local_bool_ "bool2"
+	  lc3 <- local_bool_ "bool3"
 	  op_ ArbbOpLess   [lc1] [counter,max]
-	  op_ ArbbOpLess   [lc2] [c,twof]
+	  op_ ArbbOpLess   [lc2] [z, twof]
 	  op_ ArbbOpLogAnd [lc3] [lc1,lc2]
 	  return lc3
        )
        (do 
 	   incr_int32_ counter 
+           op_ ArbbOpMul [z] [z,z];
+           op_ ArbbOpAdd [z] [z,c];
 	   return ()
        )
 
@@ -56,112 +62,113 @@ mandelDef = do
   
 -----------------------------------------------------------------------------
 
+print_ = liftIO . putStrLn
+
+--_ = withArray + 3
+
+runMandel :: (Int, Int, Int) -> EmitArbb ()
+runMandel (max_row, max_col, max_depth) = 
+ do 
+    mandel <- mandelDef
+
+    withArray_ [0..1023 :: Float] $ \ i1 ->        
+      withArray_ [0..1023 :: Float] $ \ o  -> do
+        print_$ "With array1 " ++ show (ptrToIntPtr i1) 
+        print_$ "With array2 " ++ show (ptrToIntPtr o) 
+         
+        b1  <- createDenseBinding_ (castPtr i1) 1 [1024] [4] 
+        b2  <- createDenseBinding_ (castPtr o)  1 [1024] [4]
+
+        str <- serializeFunction_ mandel
+	print_ "Generated mandel kernel:"
+	print_ (getCString str)
+
+        return ()
+     --      g1 <- createGlobal ctx t "in1" b1
+     --      g2 <- createGlobal ctx t "out" b2
+     --      v1 <- variableFromGlobal ctx g1
+     --      v2 <- variableFromGlobal ctx g2
+          
+     --      execute caller [v2] [v1]
+     --      putStrLn (getCString str)
+     --      result <- peekArray 1024 (castPtr o :: Ptr Float) 
+     --      putStrLn $ show $ result
+
+
+    res    <- global_nobind_int32_ "res"
+    liftMs (execute_ mandel [res]) [int32_ 100, float64_ 0.33]
+    result :: Int32 <- readScalar_ res
+
+    liftIO$ putStrLn$ "Mandel checksum: "++ show result
+         
+    return ()
+
+
 main = arbbSession$ do 
-  liftIO$ putStrLn$ "Starting..."
 
-  mandel <- mandelDef
+  args <- liftIO$ getArgs  
+  let dims = 
+       case args of
+	  --[]      -> runMandel 1 1 3   -- Should output 57.
+	  []      -> (4, 4, 3)   -- Should output 57.
+	  [a,b,c] -> (read a, read b, read c)
 
-  res <- global_nobind_int32_ "res"
-  liftMs (execute_ mandel [res]) 
-	 [int32_ 100, float64_ 1.3]
+  liftIO$ putStrLn$ "Running mandel with max row/col/depth: "++ show dims
 
-  result :: Int32 <- readScalar_ res
-  liftIO$ putStrLn$ "Result from function application: "++ show result
+  runMandel dims
+
   
-
 -----------------------------------------------------------------------------
 
-main0 = do 
+#if 0
+type Pair = (Int16, Int16)
 
---     let size = 10 * 1024 * 1024 
-     let size = 1024 
+dynAPI = True -- TEMPTOGGLE
 
-     ctx   <- getDefaultContext 
-     bty   <- getScalarType ctx ArbbBoolean         
-     sty   <- getScalarType ctx ArbbF32
-     ity   <- getScalarType ctx ArbbI32
-     arrty <- getDenseType ctx sty 1 
-     fnt <- getFunctionType ctx [arrty] [arrty,arrty] 
+mandelProg :: Int -> Int -> Int -> GraphCode Int
+mandelProg max_row max_col max_depth = 
+    do --dat      :: ItemCol Pair (Complex Double) <- newItemCol
+       pixel    :: ItemCol Pair Int              <- newItemCol
+       
+       let mandelStep tag@(i,j) = 
+	    let z = (r_scale * (fromIntegral j) + r_origin) :+ 
+  		    (c_scale * (fromIntegral i) + c_origin) in
+	    do tid <- stepUnsafeIO myThreadId
+	       --stepPutStr$ "["++ show tid ++"] Mandel Step executing: "++ show tag ++ "\n"
+	       --cplx <- get dat tag
+	       put pixel tag (mandel max_depth z)
 
-     ------------------------------------------------------------
-     myfun <- beginFunction ctx fnt "sum" 0
-     a     <- getParameter myfun 0 0 -- max depth
-     b     <- getParameter myfun 0 1 -- 
-     c     <- getParameter myfun 1 0
+       position :: TagCol  Pair <- prescribeNT [mandelStep] 
 
-     tmp <- createLocal myfun arrty "tmp" 
+       initialize $ 
+        forM_ [0..max_row-1] $ \i -> 
+         forM_ [0..max_col-1] $ \j ->
+          let (_i,_j) = (fromIntegral i, fromIntegral j)
+	      z = (r_scale * (fromIntegral j) + r_origin) :+ 
+  		  (c_scale * (fromIntegral i) + c_origin) in
+	  do -- put dat (_i,_j) z
+	     if dynAPI
+	       then forkStep$ mandelStep (_i,_j)
+	       else putt position (_i,_j)
 
-     x  <- newConstant ctx ity (100::Int32)
-     y  <- newConstant ctx ity (30::Int32)
-     quux <- createLocal myfun bty "quux"
-     putStrLn "Before ArbbOpLess"
-     op myfun ArbbOpLess [quux] [x,y]
-     putStrLn "After ArbbOpLess"
+       -- Final result, count coordinates of the  pixels with a certain value:
+       finalize $ do 
+        --stepPutStr$ "Finalize action begun...\n"
+	foldM (\acc i -> 
+          foldM (\acc j -> 
+	           do --stepPutStr$ " ... try get pixel "++ show (i,j) ++"\n "
+		      p <- get pixel (fromIntegral i, fromIntegral j)
+		      --stepPutStr$ " GET PIXEL SUCCESSFUL "++ show (i,j) ++"\n "
+		      if p == max_depth
+   		       then return (acc + (i*max_col + j))
+   		       else return acc)
+	        acc [0..max_col-1]
+              ) 0 [0..max_row-1] 
+       
+   where 
+    r_origin = -2                            :: Double
+    r_scale  = 4.0 / (fromIntegral max_row)  :: Double
+    c_origin = -2.0                          :: Double
+    c_scale = 4.0 / (fromIntegral max_col)   :: Double
 
-     foo :: Int32 <- readScalarOfSize 4 ctx y
-     putStrLn$ "Did a readScalarOfSize: "++ show foo
-
-     zer     <- newConstant ctx ity (0::Int32)
-     one     <- newConstant ctx ity (1::Int32)
-     max     <- newConstant ctx ity (100::Int32)
-     counter <- createLocal myfun ity "counter"
-     op myfun ArbbOpCopy [counter] [zer]
-     putStrLn "Counter initialized..."
-
-     while myfun (do
-         lc <- createLocal myfun bty "loopcond"
-	 putStrLn "Inside while condition..."
-         op myfun ArbbOpLess [lc] [counter,max]
-	 putStrLn "Done with ArbbOpLess"
-     	 return lc)
-      (op myfun ArbbOpAdd [counter] [counter,one])
-
-     putStrLn "Done emitting while"
-     ------------------------------------------------------------
-
-     op myfun ArbbOpMul [tmp] [a,b]       
-     opDynamic myfun ArbbOpAddReduce [c] [tmp]
-
-     putStrLn "At end of function"
-     endFunction myfun
-     ------------------------------------------------------------
-
-     putStrLn "Done streaming function AST."
-     compile myfun
-     putStrLn "Done compiling function."
-     binding <- getBindingNull 
-     -- This part gets messy! 
-     -- TODO: Clean up! 
-     withArray [1.0 :: Float | _ <- [0..size-1]] $ \ i1 -> 
-      withArray [1.0 :: Float | _ <- [0..size-1]] $ \ i2 ->   
-       withArray [0 :: Float] $ \ out -> 
-        do
-         
-          b1 <- createDenseBinding ctx (castPtr i1) 1 [size] [4] 
-          b2 <- createDenseBinding ctx (castPtr i2) 1 [size] [4]       
-          b3 <- createDenseBinding ctx (castPtr out) 1 [1] [4]         
-         
-          g1 <- createGlobal ctx arrty "in1" b1
-          g2 <- createGlobal ctx arrty "in2" b2
-          g3 <- createGlobal ctx arrty "out" b3  
-         
-          v1 <- variableFromGlobal ctx g1
-          v2 <- variableFromGlobal ctx g2
-          v3 <- variableFromGlobal ctx g3      
-          
-          --r  <- createGlobal ctx t "result" binding
-          --v2 <- variableFromGlobal ctx r 
-          
-          execute myfun [v3] [v1,v2]
-          str <- serializeFunction myfun 
-	  putStrLn "External representation of generated function:"
-          putStrLn (getCString str)
-        
-          -- access result
-          result <- peekArray 1 (castPtr out :: Ptr Float) 
-          putStrLn $ show $ result
-
-         
-{- 
-
--}
+#endif
