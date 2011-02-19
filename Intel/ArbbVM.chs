@@ -95,10 +95,10 @@ instance Exception ArbbVMException
 --                                else a 
 
 -- TODO: Phase out 
-throwIfErrorIO  :: (Error,a) -> IO a 
-throwIfErrorIO (error_code,a) = 
-     if fromEnum error_code > 0 then throwIO (ArbbVMException error_code "") 
-                                else return a 
+--throwIfErrorIO  :: (Error,a) -> IO a 
+--throwIfErrorIO (error_code,a) = 
+--     if fromEnum error_code > 0 then throwIO (ArbbVMException error_code "") 
+--                                else return a 
 
 -- TODO: phase in
 throwIfErrorIO1 :: (Error,a,ErrorDetails) -> IO a 
