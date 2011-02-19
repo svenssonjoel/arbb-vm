@@ -181,7 +181,9 @@ call_ :: Function -> [Variable] -> [Variable] -> EmitArbb ()
 call_ fun out inp = 
   do -- At the point of the call the *caller* is on the top of the stack:
      caller <- getFun "Convenience.call_ cannot call function"
+     when debug_fundef$ print_ "Call_: got caller function, emitting call opcode..."
      L callOp caller ArbbOpCall fun out inp
+     when debug_fundef$ print_ "Call_: Done emitting call opcode."
 
 --------------------------------------------------------------------------------
 -- Iteration Patterns.
