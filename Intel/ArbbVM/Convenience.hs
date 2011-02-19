@@ -16,7 +16,7 @@ module Intel.ArbbVM.Convenience
    funDef_, funDefS_, call_, op_, 
    opDynamic_,
 
-   const_, int32_, float64_,
+   const_, int32_, int64_, float64_,
    incr_int32_, copy_,
 
    local_bool_, local_int32_, local_float64_, 
@@ -137,12 +137,16 @@ readScalar_ v =
 
 type FunBody = [Variable] -> [Variable] -> EmitArbb ()
 
+debug_fundef = True
+
 funDef_ :: String -> [Type] -> [Type] -> FunBody  -> EmitArbb Function
 funDef_ name outty inty userbody = 
   do 
      ctx <- getCtx
      fnt     <- L getFunctionType ctx outty inty
      fun     <- L beginFunction ctx fnt name 0
+
+     when debug_fundef$ print_$ "["++name++"] Function begun."
      invars  <- L forM [0 .. length inty  - 1]   (getParameter fun 0)
      outvars <- L forM [0 .. length outty - 1]   (getParameter fun 1)
 
@@ -150,14 +154,18 @@ funDef_ name outty inty userbody =
      S.modify (\ (c,ls) -> (c, fun:ls))
 
      -- Now generate body:
+     when debug_fundef$ print_$ "["++name++"]  Begin body codgen..."
      userbody outvars invars
+     when debug_fundef$ print_$ "["++name++"]  Done body codgen."
 
      -- Pop off the stack:
      S.modify (\ (c, h:t) -> (c, t))
      L endFunction fun
 
      -- EXPERIMENTAL!  Compile immediately!!
+     when debug_fundef$ print_$ "["++name++"] Function ended. Compiling..."
      L compile fun
+     when debug_fundef$ print_$ "["++name++"] Done compiling."
      return fun
 
 -- Umm... what's a good naming convention here?
@@ -258,6 +266,10 @@ getBindingNull_  = liftIO getBindingNull
 
 int32_ :: Integral t => t -> EmitArbb Variable 
 int32_ n = const_ ArbbI32 (fromIntegral n ::Int32)
+
+int64_ :: Integral t => t -> EmitArbb Variable 
+int64_ n = const_ ArbbI64 (fromIntegral n ::Int64)
+
 
 float64_ :: Double -> EmitArbb Variable 
 float64_ = const_ ArbbF64 

@@ -30,22 +30,32 @@ main = arbbSession$ do
      --   Test_Reduce2.exe: ArbbVMException ArbbErrorScoping "Invalid
      --   scope 'inputs' to arbb_op: local created in another
      --   function"
-     ident <- funDef_ "ident" [sty] [sty] $ \ [out] [inp] -> do
-        op_ ArbbOpAdd [out] [inp]
+
+     fresh   <- getScalarType_  ArbbI64
+--     ident <- funDef_ "ident" [sty] [sty] $ \ [foo] [bar] -> do
+     ident <- funDef_ "ident" [fresh] [fresh] $ \ [foo] [bar] -> do
+        copy_ foo bar
 #endif
      
      reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
-
         --sizeT <- getScalarType_  ArbbIsize     
       --  len   <- createLocal_ dty "len"
       --  tmp   <- createLocal_ sty "tmp"
-        one <- const_ ArbbI64 (1 :: Word64)    
+        one <- int64_ 1 
         
       --  op_ ArbbOpLength [len] [inp]
       --  op_ ArbbOpIndex  [tmp] [len,one]
         --op_ ArbbOpCopyLength [tmp] [len]
-       
-        --call_ add [len] [one,one]
+
+        -- Trying the same sort of thing that works in Test_FunctionCalls:
+	ident <- funDef_ "ident" [sty] [sty] $ \ [foo] [bar] -> copy_ foo bar
+        add1 <- funDef_ "add1" [sty] [sty] $ \ [out] [inp] -> do
+           one <- int64_ 1
+	   op_ ArbbOpCopy [out] [inp]
+	   op_ ArbbOpAdd  [out] [out,one]
+
+        --call_ add [out] [one,one]
+        --call_ add1 [out] [one]
         op_ ArbbOpAdd  [out] [one,one]  
       --  op_ ArbbOpCopy [out] [tmp]
         
