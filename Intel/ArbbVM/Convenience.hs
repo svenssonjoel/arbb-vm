@@ -29,7 +29,7 @@ module Intel.ArbbVM.Convenience
 
    createDenseBinding_,  getDenseType_,
 
-   withArray_, 
+   withArray_, print_,
 
    liftIO, liftMs
  )
@@ -203,6 +203,9 @@ withArray_ ls body =
     state2 <- L readIORef ref
     S.put state2
     return res
+
+print_ :: String -> EmitArbb ()
+print_ = S.lift . putStrLn
 
 --------------------------------------------------------------------------------
 
