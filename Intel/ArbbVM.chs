@@ -13,8 +13,9 @@ import Control.Exception
 import Data.Typeable
 import Data.Word
 
-import C2HS 
+import System.Directory
 
+import C2HS 
 
 #include "../cbits/arbb_alt.h"
 -- ----------------------------------------------------------------------
@@ -114,7 +115,32 @@ throwIfErrorIO0 :: (Error,ErrorDetails) -> IO ()
 throwIfErrorIO0 (error_code, error_det) = 
    throwIfErrorIO1 (error_code, (), error_det)  
 
-                     
+
+dbgfile = "debug_HaskellArBB"
+
+dbg :: (Show c) => 
+       String -> 
+       [(String,String)] -> 
+       (String, b -> c) -> 
+       (Error, b, ErrorDetails) -> IO (Error, b, ErrorDetails)
+dbg msg inputs (nom,accf) (ec, rv, ed) = 
+  do 
+   appendFile dbgfile $ msg ++ 
+                        concatMap printInfo inputs ++ 
+                        "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
+                        "\n"   
+   return (ec, rv, ed) 
+
+dbg0 msg inputs (ec,ed) = 
+ do
+  (a,b,c) <- dbg msg inputs ("unit", id) (ec,(),ed) 
+  return (a,c) 
+
+printInfo ::(String, String) -> String
+printInfo (nom,val) = 
+          "{" ++ nom ++ " = " ++ val ++ " }"
+ 
+
 -- ----------------------------------------------------------------------
 -- BINDINGS 
 -- ----------------------------------------------------------------------
@@ -125,7 +151,14 @@ throwIfErrorIO0 (error_code, error_det) =
 -- Outputs: The default context.
 
 getDefaultContext :: IO Context
-getDefaultContext = getDefaultContext' >>= throwIfErrorIO1
+getDefaultContext =
+    getDefaultContext' >>= 
+    (\x -> do 
+       b <- doesFileExist dbgfile 
+       if b then removeFile dbgfile else return ()
+       return x) >>=  
+    dbg "arbb_get_default_context" [] ("ctx",fromContext) >>= 
+    throwIfErrorIO1
 
 {# fun arbb_get_default_context as getDefaultContext' 
    { alloca- `Context' peekContext* , 
@@ -139,7 +172,11 @@ getDefaultContext = getDefaultContext' >>= throwIfErrorIO1
 -- getScalarType. 
 
 getScalarType :: Context -> ScalarType -> IO Type
-getScalarType ctx st = getScalarType' ctx st >>= throwIfErrorIO1
+getScalarType ctx st = 
+    getScalarType' ctx st  >>= 
+    dbg "arbb_get_scalar_type" [("ctx",show $ fromContext ctx),
+                                ("st" ,show st)]  ("type",fromType) >>= 
+    throwIfErrorIO1
    
 {# fun arbb_get_scalar_type as getScalarType' 
    { fromContext `Context' , 
@@ -185,7 +222,12 @@ sizeOf ctx t = sizeOf' ctx t >>= throwIfErrorIO1
 
 -- ----------------------------------------------------------------------
 -- getDenseType
-getDenseType ctx t dim = getDenseType' ctx t dim >>= throwIfErrorIO1
+getDenseType ctx t dim = 
+  getDenseType' ctx t dim >>= 
+   dbg "arbb_get_dense_type" [("ctx",show $ fromContext ctx),
+                              ("dt" ,show $ fromType t),
+                              ("dim",show dim)]  ("type",fromType) >>= 
+  throwIfErrorIO1
             
 {# fun arbb_get_dense_type as getDenseType' 
    { fromContext `Context'   ,
@@ -199,7 +241,12 @@ getDenseType ctx t dim = getDenseType' ctx t dim >>= throwIfErrorIO1
 
 createGlobal :: Context -> Type -> String -> Binding -> IO GlobalVariable
 createGlobal ctx t name b = 
-   createGlobal' ctx t name b nullPtr >>= throwIfErrorIO1 
+   createGlobal' ctx t name b nullPtr >>= 
+   dbg "arbb_create_global" [("ctx",show $ fromContext ctx),
+                             ("t" ,show $ fromType t),
+                             ("name",name),
+                             ("bind",show $ fromBinding b)]  ("GlobalVar",fromGlobalVariable) >>=                               
+   throwIfErrorIO1 
              
 {# fun arbb_create_global as createGlobal'
    { fromContext  `Context'     ,
@@ -228,7 +275,14 @@ createGlobal ctx t name b =
 --createDenseBinding ::  Context -> Ptr () -> Word -> [Integer] -> [Integer] ->  IO Binding
 createDenseBinding ::  Context -> Ptr () -> Word -> [Word64] -> [Word64] ->  IO Binding
 createDenseBinding ctx d dim sizes pitches = 
-  createDenseBinding' ctx d dim sizes pitches >>= throwIfErrorIO1
+  createDenseBinding' ctx d dim sizes pitches >>= 
+   dbg "arbb_create_densebinding" [("ctx",show $ fromContext ctx),
+                                   ("dataPtr" ,show $ d),
+                                   ("dim", show dim),
+                                   ("sizes", show sizes),
+                                   ("pitches",show pitches)]                                 
+                                   ("bind",fromBinding) >>=                               
+  throwIfErrorIO1
            
 {# fun arbb_create_dense_binding as createDenseBinding'  
    { fromContext `Context'  ,
@@ -261,7 +315,12 @@ getFunctionType ctx outp inp =
   do 
     let outlen = length outp
         inlen  = length inp
-    getFunctionType' ctx outlen outp inlen inp >>= throwIfErrorIO1 
+    getFunctionType' ctx outlen outp inlen inp >>=  
+      dbg "arbb_get_function_type" [("ctx",show $ fromContext ctx),
+                                    ("outputs" ,show (map fromType outp)),
+                                    ("inputs", show (map fromType inp))]
+                                    ("type",fromType) >>=                               
+      throwIfErrorIO1 
  
 {# fun arbb_get_function_type as getFunctionType' 
    { fromContext `Context'     ,
@@ -275,7 +334,14 @@ getFunctionType ctx outp inp =
 
 beginFunction :: Context -> Type -> String -> Int -> IO Function
 beginFunction ctx t name remote = 
-  beginFunction' ctx t name remote >>= throwIfErrorIO1 
+  beginFunction' ctx t name remote >>= 
+  dbg "arbb_begin_function" [("ctx",show $ fromContext ctx),
+                             ("fn_t" ,show $ fromType t),
+                             ("name", name),
+                             ("remote", show remote)]
+                             ("fun",fromFunction) >>=                               
+                                    
+  throwIfErrorIO1 
 
 {# fun arbb_begin_function as beginFunction'
    { fromContext `Context'   ,
@@ -288,7 +354,9 @@ beginFunction ctx t name remote =
 
 endFunction :: Function -> IO ()
 endFunction f = 
-   endFunction' f  >>= throwIfErrorIO0
+   endFunction' f  >>= 
+   dbg0 "arbb_end_function" [("fun",show $ fromFunction f)] >>=                               
+   throwIfErrorIO0
  
 {#fun arbb_end_function as endFunction' 
       { fromFunction `Function'    ,
@@ -301,7 +369,12 @@ endFunction f =
 -- Operations on scalaras 
 op :: Function -> Opcode -> [Variable] -> [Variable] -> IO ()
 op f opcode outp inp = 
-    op' f opcode outp inp nullPtr nullPtr >>= throwIfErrorIO0
+    op' f opcode outp inp nullPtr nullPtr >>= 
+    dbg0 "arbb_op" [("fun",show $ fromFunction f),
+                    ("Opcode", show opcode),
+                    ("outputs", show (map fromVariable outp)),
+                    ("inputs" , show (map fromVariable inp))] >>=                               
+    throwIfErrorIO0
   
 {# fun arbb_op as op'
    { fromFunction `Function' ,
@@ -340,7 +413,14 @@ opDynamic fnt opc outp inp =
 
 -- callOp can be used to map a function over an array 
 callOp caller opc callee outp inp = 
-  callOp' caller opc callee outp inp >>= throwIfErrorIO0
+  callOp' caller opc callee outp inp >>= 
+   dbg0 "arbb_call_op" [("caller",show $ fromFunction caller),
+                        ("Opcode", show opc),
+                        ("callee", show $ fromFunction callee), 
+                        ("outputs", show (map fromVariable outp)),
+                        ("inputs" , show (map fromVariable inp))] >>=                               
+   
+  throwIfErrorIO0
 
 {# fun arbb_call_op as callOp'
    { fromFunction `Function' ,
@@ -355,7 +435,12 @@ callOp caller opc callee outp inp =
 
 -- execute f outp inp = execute' f outp inp nullPtr >>= \x -> throwIfErrorIO (x,())
 execute f outp inp = 
-   execute' f outp inp >>= throwIfErrorIO0          
+   execute' f outp inp >>= 
+    dbg0 "arbb_execute" [("fun",show $ fromFunction f),
+                         ("outputs", show (map fromVariable outp)),
+                         ("inputs" , show (map fromVariable inp))] >>=                               
+   
+   throwIfErrorIO0          
  
 {# fun arbb_execute as execute' 
    { fromFunction `Function'   ,        
@@ -364,7 +449,10 @@ execute f outp inp =
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 --     alloca- `ErrorDetails' peekErrorDet*  
 
-compile f = compile' f >>= throwIfErrorIO0
+compile f = 
+   compile' f >>= 
+    dbg0 "arbb_compile" [("fun",show $ fromFunction f)] >>=                               
+    throwIfErrorIO0
 
 {# fun arbb_compile as compile' 
    { fromFunction `Function' ,
@@ -380,7 +468,11 @@ finish = finish' >>= throwIfErrorIO0
 
 -- createConstant
 createConstant ctx t d = 
-   createConstant' ctx t d nullPtr >>= throwIfErrorIO1
+   createConstant' ctx t d nullPtr >>= 
+   dbg  "arbb_create_constant" [("context",show $ fromContext ctx),  
+                                ("type",show $ fromType t),
+                                ("dataPtr", show d)]  ("globalVar", fromGlobalVariable) >>=                               
+   throwIfErrorIO1
   
 {# fun arbb_create_constant as createConstant' 
    { fromContext `Context'  ,
@@ -391,7 +483,11 @@ createConstant ctx t d =
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 createLocal fnt t name = 
-  createLocal' fnt t name >>= throwIfErrorIO1
+  createLocal' fnt t name >>= 
+  dbg  "arbb_create_local" [("fun",show $ fromFunction fnt),  
+                            ("type",show $ fromType t),
+                            ("name", name)]  ("variable", fromVariable) >>=                               
+  throwIfErrorIO1
 {# fun arbb_create_local as createLocal'
     { fromFunction `Function'  ,        
       alloca- `Variable' peekVariable*  ,
@@ -402,7 +498,11 @@ createLocal fnt t name =
 
 -- variableFromGlobal
 variableFromGlobal ctx g =
-   variableFromGlobal' ctx g >>= throwIfErrorIO1
+   variableFromGlobal' ctx g >>= 
+   dbg  "arbb_get_variable_from_global" [("ctx",show $ fromContext ctx),  
+                                         ("globVar",show $ fromGlobalVariable g)]    
+                                         ("variable", fromVariable) >>= 
+   throwIfErrorIO1
 
 {# fun arbb_get_variable_from_global as variableFromGlobal'
    { fromContext `Context'   ,
@@ -413,7 +513,11 @@ variableFromGlobal ctx g =
 
 -- getParameter
 getParameter f n m = 
-  getParameter' f n m >>= throwIfErrorIO1
+  getParameter' f n m >>= 
+  dbg  "arbb_get_parameter" [("fun",show $ fromFunction f),  
+                             ("in/out",show n),   
+                             ("index", show m)] ("variable", fromVariable) >>= 
+  throwIfErrorIO1
  
 {# fun arbb_get_parameter as getParameter' 
    { fromFunction `Function'   ,
@@ -423,7 +527,11 @@ getParameter f n m =
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
 readScalar ctx v ptr = 
-   readScalar' ctx v ptr >>= throwIfErrorIO0
+   readScalar' ctx v ptr >>= 
+   dbg0  "arbb_read_scalar" [("ctx",show $ fromContext ctx),  
+                             ("variable",show $ fromVariable v),   
+                             ("dataOutPtr", show ptr)] >>= 
+   throwIfErrorIO0
 
 {# fun arbb_read_scalar as readScalar' 
    { fromContext `Context'  ,
@@ -433,7 +541,11 @@ readScalar ctx v ptr =
 
 
 writeScalar ctx v ptr = 
-  writeScalar' ctx v ptr >>= throwIfErrorIO0
+  writeScalar' ctx v ptr >>= 
+  dbg0  "arbb_write_scalar" [("ctx",show $ fromContext ctx),  
+                             ("variable",show $ fromVariable v),   
+                             ("dataPtr", show ptr)] >>= 
+  throwIfErrorIO0
 
 {# fun arbb_write_scalar as writeScalar' 
    { fromContext `Context' ,
@@ -470,7 +582,10 @@ serializeFunction fun =
 
 -- LOOPS 
 beginLoop fnt kind = 
-  beginLoop' fnt kind >>= throwIfErrorIO0
+  beginLoop' fnt kind >>= 
+  dbg0  "arbb_begin_loop" [("fun",show $ fromFunction fnt),  
+                           ("kind",show kind) ]  >>= 
+  throwIfErrorIO0
 
 {# fun arbb_begin_loop as beginLoop' 
    { fromFunction `Function' ,
@@ -478,7 +593,10 @@ beginLoop fnt kind =
      alloca- `ErrorDetails' peekErrorDet*  } ->  `Error' cToEnum #}
 
 beginLoopBlock fnt block =           
-  beginLoopBlock' fnt block >>= throwIfErrorIO0 
+  beginLoopBlock' fnt block >>= 
+  dbg0  "arbb_begin_loop" [("fun",show $ fromFunction fnt),  
+                           ("block",show block) ]  >>= 
+  throwIfErrorIO0 
 
 {# fun arbb_begin_loop_block as beginLoopBlock'
    { fromFunction `Function'   ,
@@ -487,7 +605,10 @@ beginLoopBlock fnt block =
 
 
 loopCondition fnt var = 
-  loopCondition' fnt var >>= throwIfErrorIO0
+  loopCondition' fnt var >>= 
+  dbg0  "arbb_loop_condition" [("fun",show $ fromFunction fnt),  
+                               ("condVar",show $ fromVariable var) ]  >>= 
+  throwIfErrorIO0
 
 {#fun arbb_loop_condition as loopCondition'
       { fromFunction `Function'   , 
@@ -497,20 +618,29 @@ loopCondition fnt var =
 
 
 
-endLoop fnt = endLoop' fnt >>= throwIfErrorIO0
+endLoop fnt = 
+    endLoop' fnt >>= 
+    dbg0  "arbb_end_loop" [("fun",show $ fromFunction fnt)]  >>= 
+    throwIfErrorIO0
  
 {#fun arbb_end_loop as endLoop' 
       { fromFunction `Function' ,
         alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 
-break fnt = break' fnt  >>= throwIfErrorIO0
+break fnt = 
+   break' fnt  >>= 
+   dbg0  "arbb_break" [("fun",show $ fromFunction fnt)]  >>= 
+   throwIfErrorIO0
 
 {#fun arbb_break as break' 
       { fromFunction `Function' ,
         alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
-continue fnt = continue' fnt >>= throwIfErrorIO0
+continue fnt = 
+  continue' fnt >>= 
+   dbg0  "arbb_continue" [("fun",show $ fromFunction fnt)]  >>= 
+   throwIfErrorIO0
 
 {#fun arbb_continue as continue' 
       { fromFunction `Function' ,

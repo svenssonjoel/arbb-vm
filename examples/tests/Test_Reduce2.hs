@@ -22,7 +22,7 @@ main = arbbSession$ do
      print_ "Begin emitting function code.."
 
 -- STRANGENESS BEGINS HERE      
-#if 0
+#if 1
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
         op_ ArbbOpAdd [out] [a,b]      
 
@@ -54,7 +54,7 @@ main = arbbSession$ do
 	   op_ ArbbOpCopy [out] [inp]
 	   op_ ArbbOpAdd  [out] [out,one]
 
-        --call_ add [out] [one,one]
+        call_ add [out] [one,one]
         --call_ add1 [out] [one]
         op_ ArbbOpAdd  [out] [one,one]  
       --  op_ ArbbOpCopy [out] [tmp]
