@@ -13,7 +13,8 @@ TESTS= \
    examples/tests/Test_Map1.hs \
    examples/tests/Test_MultipleDefaultContextCalls.hs \
    examples/tests/Test_FunctionCalls.hs \
-   examples/tests/Test_FunctionCalls2.hs
+   examples/tests/Test_FunctionCalls2.hs \
+   examples/tests/Test_FunctionCalls3.hs
 
 SRC = Intel/ArbbVM.hs Intel/ArbbVM/Convenience.hs
 

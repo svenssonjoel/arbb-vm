@@ -1,12 +1,49 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# OPTIONS  -XDeriveDataTypeable #-}
 
-module Intel.ArbbVM where
+module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable, 
+                      GlobalVariable, Binding, Function, VMString, 
+                      AttributeMap, 
+                      
+                      Error(..), ScalarType(..), Opcode(..), 
+                      CallOpcode(..), 
+                      LoopType(..), LoopBlock(..), RangeAccessMode(..), 
+                      AttributeType(..),
+                      
+                      ArbbVMException, 
+                      
+                      getDefaultContext, getScalarType, 
+                      
+                      getErrorMessage, getErrorCode, freeErrorDetails, 
+                      
+                      sizeOf,
+
+                      getDenseType, createGlobal,  
+                      
+                      isBindingNull, getBindingNull, 
+                      
+                      createDenseBinding, freeBinding, getFunctionType,
+                      beginFunction, endFunction, 
+                      op, opDynamic, callOp, execute, compile, 
+                      finish, createConstant, createLocal,
+                      variableFromGlobal, getParameter, readScalar,
+                      writeScalar, serializeFunction, freeVMString,
+                      getCString, 
+                      
+                      beginLoop, beginLoopBlock, loopCondition,
+                      endLoop, break, continue, ifBranch, elseBranch,
+                      endIf,
+                      
+                      mapToHost, 
+-- REMOVE THIS EVENTUALLY
+                      fromContext 
+-------------------------
+                       ) where
 
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
-import Foreign.Storable
+import Foreign.Storable hiding (sizeOf)
 
 import Control.Exception
 
@@ -15,7 +52,9 @@ import Data.Word
 
 import System.Directory
 
-import C2HS 
+import C2HS hiding (sizeOf) 
+
+import Prelude hiding (break)
 
 #include "../cbits/arbb_alt.h"
 -- ----------------------------------------------------------------------
@@ -160,7 +199,7 @@ getDefaultContext =
     dbg "arbb_get_default_context" [] ("ctx",fromContext) >>= 
     throwIfErrorIO1
 
-{# fun arbb_get_default_context as getDefaultContext' 
+{# fun unsafe arbb_get_default_context as getDefaultContext' 
    { alloca- `Context' peekContext* , 
      alloca- `ErrorDetails' peekErrorDet*   } -> `Error' cToEnum #} 
     -- id      `Ptr (Ptr ())'  } -> `Error' cToEnum #} 
@@ -178,7 +217,7 @@ getScalarType ctx st =
                                 ("st" ,show st)]  ("type",fromType) >>= 
     throwIfErrorIO1
    
-{# fun arbb_get_scalar_type as getScalarType' 
+{# fun unsafe arbb_get_scalar_type as getScalarType' 
    { fromContext `Context' , 
      alloca-     `Type' peekType* ,
      cFromEnum   `ScalarType' ,
@@ -191,15 +230,15 @@ getScalarType ctx st =
 -- Error handling 
 
    
-{# fun arbb_get_error_message as getErrorMessage 
+{# fun unsafe arbb_get_error_message as getErrorMessage 
    { fromErrorDetails `ErrorDetails' } -> `String' #} 
 
 
-{# fun arbb_get_error_code as getErrorCode 
+{# fun unsafe arbb_get_error_code as getErrorCode 
    { fromErrorDetails `ErrorDetails' } -> `Error' cToEnum #}
 
 
-{# fun arbb_free_error_details as freeErrorDetails 
+{# fun unsafe arbb_free_error_details as freeErrorDetails 
    { fromErrorDetails `ErrorDetails' } -> `()' #}
 
 
@@ -208,7 +247,7 @@ getScalarType ctx st =
 
 sizeOf ctx t = sizeOf' ctx t >>= throwIfErrorIO1
   
-{# fun arbb_sizeof_type as sizeOf' 
+{# fun unsafe arbb_sizeof_type as sizeOf' 
    { fromContext `Context'    ,
      alloca-     `Word64' peekCULLong*    ,
      fromType    `Type'       , 
@@ -229,7 +268,7 @@ getDenseType ctx t dim =
                               ("dim",show dim)]  ("type",fromType) >>= 
   throwIfErrorIO1
             
-{# fun arbb_get_dense_type as getDenseType' 
+{# fun unsafe arbb_get_dense_type as getDenseType' 
    { fromContext `Context'   ,
      alloca-     `Type'   peekType* ,
      fromType    `Type'      , 
@@ -248,7 +287,7 @@ createGlobal ctx t name b =
                              ("bind",show $ fromBinding b)]  ("GlobalVar",fromGlobalVariable) >>=                               
    throwIfErrorIO1 
              
-{# fun arbb_create_global as createGlobal'
+{# fun unsafe arbb_create_global as createGlobal'
    { fromContext  `Context'     ,
      alloca-      `GlobalVariable' peekGlobalVariable* , 
      fromType     `Type'        ,
@@ -267,7 +306,7 @@ createGlobal ctx t name b =
    { fromBinding `Binding' } -> `Bool'  cToBool #} 
 
 -- TODO: see if this needs to be done differently
-{# fun arbb_set_binding_null as getBindingNull 
+{# fun unsafe arbb_set_binding_null as getBindingNull 
    { alloca- `Binding' peekBinding*  } -> `()'#} 
   
 
@@ -284,7 +323,7 @@ createDenseBinding ctx d dim sizes pitches =
                                    ("bind",fromBinding) >>=                               
   throwIfErrorIO1
            
-{# fun arbb_create_dense_binding as createDenseBinding'  
+{# fun unsafe arbb_create_dense_binding as createDenseBinding'  
    { fromContext `Context'  ,
      alloca- `Binding' peekBinding* ,
      id `Ptr ()' ,
@@ -300,7 +339,7 @@ createDenseBinding ctx d dim sizes pitches =
 freeBinding ctx bind = 
   freeBinding' ctx bind >>= throwIfErrorIO0 
 
-{# fun arbb_free_binding as freeBinding'
+{# fun unsafe arbb_free_binding as freeBinding'
    { fromContext `Context'  ,
      fromBinding `Binding'  ,
      alloca-      `ErrorDetails' peekErrorDet*     } -> `Error' cToEnum #}
@@ -322,7 +361,7 @@ getFunctionType ctx outp inp =
                                     ("type",fromType) >>=                               
       throwIfErrorIO1 
  
-{# fun arbb_get_function_type as getFunctionType' 
+{# fun unsafe arbb_get_function_type as getFunctionType' 
    { fromContext `Context'     ,
      alloca- `Type' peekType*  , 
      cIntConv `Int'            , 
@@ -343,7 +382,7 @@ beginFunction ctx t name remote =
                                     
   throwIfErrorIO1 
 
-{# fun arbb_begin_function as beginFunction'
+{# fun unsafe arbb_begin_function as beginFunction'
    { fromContext `Context'   ,
      alloca- `Function' peekFunction* ,
      fromType `Type'   ,
@@ -358,7 +397,7 @@ endFunction f =
    dbg0 "arbb_end_function" [("fun",show $ fromFunction f)] >>=                               
    throwIfErrorIO0
  
-{#fun arbb_end_function as endFunction' 
+{#fun unsafe arbb_end_function as endFunction' 
       { fromFunction `Function'    ,
         alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #}
   ---id `Ptr (Ptr ())'
@@ -376,7 +415,7 @@ op f opcode outp inp =
                     ("inputs" , show (map fromVariable inp))] >>=                               
     throwIfErrorIO0
   
-{# fun arbb_op as op'
+{# fun unsafe arbb_op as op'
    { fromFunction `Function' ,
      cFromEnum `Opcode'  , 
      withVariableArray* `[Variable]' ,
@@ -400,7 +439,7 @@ opDynamic fnt opc outp inp =
      nin = length inp 
      nout = length outp  
      
-{# fun arbb_op_dynamic as opDynamic' 
+{# fun unsafe arbb_op_dynamic as opDynamic' 
    { fromFunction `Function' ,
      cFromEnum    `Opcode'   ,
      cIntConv     `Int'      , 
@@ -422,7 +461,7 @@ callOp caller opc callee outp inp =
    
   throwIfErrorIO0
 
-{# fun arbb_call_op as callOp'
+{# fun unsafe arbb_call_op as callOp'
    { fromFunction `Function' ,
      cFromEnum    `CallOpcode' ,
      fromFunction `Function' ,
@@ -442,7 +481,7 @@ execute f outp inp =
    
    throwIfErrorIO0          
  
-{# fun arbb_execute as execute' 
+{# fun unsafe arbb_execute as execute' 
    { fromFunction `Function'   ,        
      withVariableArray* `[Variable]' ,
      withVariableArray* `[Variable]' , 
@@ -454,12 +493,12 @@ compile f =
     dbg0 "arbb_compile" [("fun",show $ fromFunction f)] >>=                               
     throwIfErrorIO0
 
-{# fun arbb_compile as compile' 
+{# fun unsafe arbb_compile as compile' 
    { fromFunction `Function' ,
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
 finish = finish' >>= throwIfErrorIO0
-{# fun arbb_finish as finish' 
+{# fun unsafe arbb_finish as finish' 
    {alloca- `ErrorDetails' peekErrorDet*} -> `Error' cToEnum #}
 
 -- ----------------------------------------------------------------------
@@ -474,7 +513,7 @@ createConstant ctx t d =
                                 ("dataPtr", show d)]  ("globalVar", fromGlobalVariable) >>=                               
    throwIfErrorIO1
   
-{# fun arbb_create_constant as createConstant' 
+{# fun unsafe arbb_create_constant as createConstant' 
    { fromContext `Context'  ,
      alloca- `GlobalVariable' peekGlobalVariable*  ,
      fromType `Type'   , 
@@ -489,7 +528,7 @@ createLocal fnt t name =
                             ("type",show $ fromType t),
                             ("name", name)]  ("variable", fromVariable) >>=                               
   throwIfErrorIO1
-{# fun arbb_create_local as createLocal'
+{# fun unsafe arbb_create_local as createLocal'
     { fromFunction `Function'  ,        
       alloca- `Variable' peekVariable*  ,
       fromType `Type' ,
@@ -505,7 +544,7 @@ variableFromGlobal ctx g =
                                          ("variable", fromVariable) >>= 
    throwIfErrorIO1
 
-{# fun arbb_get_variable_from_global as variableFromGlobal'
+{# fun unsafe arbb_get_variable_from_global as variableFromGlobal'
    { fromContext `Context'   ,
      alloca- `Variable' peekVariable* ,
      fromGlobalVariable `GlobalVariable' ,
@@ -520,7 +559,7 @@ getParameter f n m =
                              ("index", show m)] ("variable", fromVariable) >>= 
   throwIfErrorIO1
  
-{# fun arbb_get_parameter as getParameter' 
+{# fun unsafe arbb_get_parameter as getParameter' 
    { fromFunction `Function'   ,
      alloca- `Variable' peekVariable* ,
      cIntConv `Int'  , 
@@ -535,7 +574,7 @@ readScalar ctx v ptr =
                              ("dataOutPtr", show ptr)] >>= 
    throwIfErrorIO0
 
-{# fun arbb_read_scalar as readScalar' 
+{# fun unsafe arbb_read_scalar as readScalar' 
    { fromContext `Context'  ,
      fromVariable `Variable' , 
      id          `Ptr ()'   ,
@@ -549,29 +588,25 @@ writeScalar ctx v ptr =
                              ("dataPtr", show ptr)] >>= 
   throwIfErrorIO0
 
-{# fun arbb_write_scalar as writeScalar' 
+{# fun unsafe arbb_write_scalar as writeScalar' 
    { fromContext `Context' ,
      fromVariable `Variable' , 
      id  `Ptr ()' ,
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}   
 
 
---arbb_error_t arbb_serialize_function(arbb_function_t function,
---                                     arbb_string_t* out_text,
---                                     arbb_error_details_t* details);
-
 serializeFunction :: Function -> IO VMString
 serializeFunction fun = 
    serializeFunction' fun >>= throwIfErrorIO1
 
 -- TODO: use finalizer to remove VMString ? (ForeignPtr)
-{# fun arbb_serialize_function as serializeFunction'
+{# fun unsafe arbb_serialize_function as serializeFunction'
    { fromFunction `Function'  , 
      alloca- `VMString' peekVMString*,
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
   
 --void arbb_free_string(arbb_string_t string);
-{# fun arbb_free_string as freeVMString
+{# fun unsafe arbb_free_string as freeVMString
    { fromVMString `VMString'  } -> `()' #} 
 
 --const char* arbb_get_c_string(arbb_string_t string);
@@ -590,7 +625,7 @@ beginLoop fnt kind =
                            ("kind",show kind) ]  >>= 
   throwIfErrorIO0
 
-{# fun arbb_begin_loop as beginLoop' 
+{# fun unsafe arbb_begin_loop as beginLoop' 
    { fromFunction `Function' ,
      cFromEnum `LoopType'    ,
      alloca- `ErrorDetails' peekErrorDet*  } ->  `Error' cToEnum #}
@@ -601,7 +636,7 @@ beginLoopBlock fnt block =
                                  ("block",show block) ]  >>= 
   throwIfErrorIO0 
 
-{# fun arbb_begin_loop_block as beginLoopBlock'
+{# fun unsafe arbb_begin_loop_block as beginLoopBlock'
    { fromFunction `Function'   ,
      cFromEnum    `LoopBlock'  ,
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
@@ -613,7 +648,7 @@ loopCondition fnt var =
                                ("condVar",show $ fromVariable var) ]  >>= 
   throwIfErrorIO0
 
-{#fun arbb_loop_condition as loopCondition'
+{#fun unsafe arbb_loop_condition as loopCondition'
       { fromFunction `Function'   , 
         fromVariable `Variable'   , 
         alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
@@ -626,7 +661,7 @@ endLoop fnt =
     dbg0  "arbb_end_loop" [("fun",show $ fromFunction fnt)]  >>= 
     throwIfErrorIO0
  
-{#fun arbb_end_loop as endLoop' 
+{#fun unsafe arbb_end_loop as endLoop' 
       { fromFunction `Function' ,
         alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
@@ -636,7 +671,7 @@ break fnt =
    dbg0  "arbb_break" [("fun",show $ fromFunction fnt)]  >>= 
    throwIfErrorIO0
 
-{#fun arbb_break as break' 
+{#fun unsafe arbb_break as break' 
       { fromFunction `Function' ,
         alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
@@ -645,7 +680,7 @@ continue fnt =
    dbg0  "arbb_continue" [("fun",show $ fromFunction fnt)]  >>= 
    throwIfErrorIO0
 
-{#fun arbb_continue as continue' 
+{#fun unsafe arbb_continue as continue' 
       { fromFunction `Function' ,
         alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
@@ -655,7 +690,7 @@ continue fnt =
 
 ifBranch f v = ifBranch' f v >>= throwIfErrorIO0
 
-{# fun arbb_if as ifBranch' 
+{# fun unsafe arbb_if as ifBranch' 
    { fromFunction `Function' ,
      fromVariable `Variable' ,
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
@@ -664,14 +699,14 @@ ifBranch f v = ifBranch' f v >>= throwIfErrorIO0
 
 elseBranch f = elseBranch' f >>= throwIfErrorIO0
  
-{#fun arbb_else as elseBranch' 
+{#fun unsafe arbb_else as elseBranch' 
       { fromFunction `Function' ,
         alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 
 endIf f = endIf' f >>= throwIfErrorIO0
 
-{#fun arbb_end_if as endIf' 
+{#fun unsafe arbb_end_if as endIf' 
       { fromFunction `Function' ,
         alloca- `ErrorDetails' peekErrorDet*} -> `Error' cToEnum #} 
 
@@ -683,7 +718,7 @@ endIf f = endIf' f >>= throwIfErrorIO0
 mapToHost ctx var pitch mode = 
    mapToHost' ctx var pitch mode >>= throwIfErrorIO1
 
-{# fun arbb_map_to_host as mapToHost'
+{# fun unsafe arbb_map_to_host as mapToHost'
    { fromContext  `Context'     ,
      fromVariable `Variable'    , 
      alloca- `Ptr ()' peek*     , 
