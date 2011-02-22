@@ -75,8 +75,8 @@ main = arbbSession$ do
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
-     i_data  <- liftIO$ newArray [0..1023 :: Word32] 
-     i_array <- createDenseBinding_ (castPtr i_data) 1 [1024] [4]
+     i_data  <- liftIO$ newArray (replicate (2^22) 1 :: [Word32]) 
+     i_array <- createDenseBinding_ (castPtr i_data) 1 [2^22] [4]
 
   
     
