@@ -27,7 +27,7 @@ main = arbbSession$ do
 
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
         op_ ArbbOpAdd [out] [a,b]
-{-       
+{-        
      reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
         len <- createLocal_ size_t "length"     
         res <- createLocal_ sty "result"
@@ -54,31 +54,32 @@ main = arbbSession$ do
         
         op_ ArbbOpCopy   [lcntr] [zero]
         op_ ArbbOpCopy   [pr] [zero] 
-        op_ ArbbOpCopy   [max] [ten]   -- change to 40 for error
+        --op_ ArbbOpCopy   [max] [tusentjugofyra]   -- change to 40 for error
          
         while_ 
           ( -- condition
            do 
              cvar <- createLocal_ bt "loopcond"
-             op_ ArbbOpLess [cvar] [lcntr,max] 
+             op_ ArbbOpLess [cvar] [lcntr,in1] 
              return cvar
           ) 
           (-- body 
            do 
             tmp <- createLocal_ sty "ls"
-            --index <- createLocal_ size_t "ix"
-            --op_ ArbbOpCast [index] [lcntr]
-            -- op_ ArbbOpCast [tmp]  [index]
-            --op_ ArbbOpExtract [tmp] [inp,index]  
+            index <- createLocal_ size_t "ix"
+            op_ ArbbOpCast [index] [lcntr]
+           
+            op_ ArbbOpExtract [tmp] [index,in1]  
+            -- op_ ArbbOpCopy [tmp] [ten]
             -- call_ add [tmp] [pr,in1]
-            --op_ ArbbOpAdd [pr] [pr,tmp]
+            op_ ArbbOpAdd [pr] [pr,tmp]
             op_ ArbbOpAdd [lcntr] [lcntr,one]
           )
  
         
-        --op_ ArbbOpCopy [out] [pr] 
+        op_ ArbbOpCopy [out] [pr] 
         --op_ ArbbOpCopy  [out] [max]  
-        op_ ArbbOpCopy  [out] [lcntr]   
+        --op_ ArbbOpCopy  [out] [lcntr]   
 
 
 
