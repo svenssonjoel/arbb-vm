@@ -59,7 +59,7 @@ mandelDef = do
 
      op_ ArbbOpCopy [out] [counter]
      return ()
-  
+
 -----------------------------------------------------------------------------
 
 --_ = withArray + 3
@@ -71,9 +71,25 @@ runMandel (max_row, max_col, max_depth) =
     sty    <- getScalarType_ ArbbI32
     arrty  <- getDenseType_ sty 1 
 
-    global_nobind_ arrty "array"
---    op_ ArbbOpNewVector [] []
+    glob <- global_nobind_ arrty "array"
+-- dense<any,1> = index(any start, $usize length, any stride);
+-- dense<any,2> = index(any start, $usize length, any stride, $usize num_times, $boolean
+-- along_row);
+-- Cannot execute opcode except inside a function:
+--    c64 <- int32_ 64
+--    op_ ArbbOpNewVector [glob] [c64]
     print_ "Made global vector variable"
+
+    testfun <- funDefS_ "testfun" [ArbbI32] [ArbbI32] $ \ [out] [inp] -> do
+      print_ "gen code for simple test"
+      arr <- createLocal_ arrty "tmp"
+--      op_ ArbbOpNewVector [arr] [c64]
+      fn <- getFun ""
+--      c64 <- createLocal_ sty 
+      c64 <- int32_ 64
+      opDynamic_ ArbbOpNewVector [arr] [c64]
+      copy_ out inp
+
 
     str <- serializeFunction_ mandel
     print_ "Generated mandel kernel:"

@@ -31,14 +31,19 @@ module Intel.ArbbVM.Convenience
 
    withArray_, print_,
 
-   doarith_, SimpleArith(..),
+   doarith_, SimpleArith(V),
+--   module Intel.ArbbVM.SimpleArith,
 
-   liftIO, liftMs
+   liftIO, liftMs,
+
+   -- These should probably be internal only:
+   getCtx, getFun
  )
 where
 
 --import qualified Intel.ArbbVM as VM
 import Intel.ArbbVM as VM
+-- import Intel.ArbbVM.SimpleArith 
 
 import Control.Monad
 import Data.IORef
@@ -308,49 +313,6 @@ global_nobind_int32_ name =
 --------------------------------------------------------------------------------
 -- Num instance.
 
--- This is mainly because I want to use Data.Complex.
-
-instance Show Variable where
-  show v = "<ArBB_Var>"
-
-instance Eq Variable where 
-  a == b = True
-
-instance Num SimpleArith where  
-  (+)         = Plus
-  (*)         = Times
-  signum      = Signum
-  abs         = Abs
-  fromInteger = Const 
-
--- I suppose we could tweak the Variable type for the convenience
--- interface so that we wouldn't need to apply the "V" constructor to
--- do arithmetic.
-
-data SimpleArith = Plus   SimpleArith SimpleArith
-		 | Times  SimpleArith SimpleArith
-		 | Signum SimpleArith
-		 | Abs    SimpleArith
-		 | Const  Integer
-		 | V      Variable
-  deriving (Show,Eq)
-
--- | This lets one execute simple arithmetic expressions and store the result.
---   Returns the name of a new local binding that caries the result.
-doarith_ :: Type -> SimpleArith -> EmitArbb Variable
-doarith_ ty exp = 
-  let binop op a b = 
-       do tmp <- createLocal_ ty "tmp"
-	  a'  <- doarith_ ty a
-	  b'  <- doarith_ ty b
-	  op_ op [tmp] [a',b']
-	  return tmp
-  in 
-  case exp of 
-    V     v   -> return v
-    Plus  a b -> binop ArbbOpAdd a b
-    Times a b -> binop ArbbOpMul a b
-
 
 
 
@@ -414,5 +376,155 @@ readScalarOfSize n ctx v =
 -- TODO: readScalar of storable should be able to determine size.
 
 
---------------------------------------------------------------------------------
--- Complex numbers.
+----------------------------------------------------------------------------------------------------
+-- Numeric instances.
+----------------------------------------------------------------------------------------------------
+
+{- 
+  It is not clear that this is worth it, yet.
+  This is mainly here because I want to use Data.Complex.
+ -}
+
+instance Show Variable where
+  show v = "<ArBB_Var>"
+
+instance Eq Variable where 
+  a == b = error "equality on Variables doesn't make sense yet"
+
+-- I suppose we could tweak the Variable type for the convenience
+-- interface so that we wouldn't need to apply the "V" constructor to
+-- do arithmetic.
+
+data SimpleArith = 
+		   V      Variable
+		 | Const  Integer
+		 | ConstD Double
+
+                 | Plus   SimpleArith SimpleArith
+		 | Times  SimpleArith SimpleArith
+		 | Div    SimpleArith SimpleArith
+		 | Signum SimpleArith
+		 | Abs    SimpleArith
+
+		 | Expon SimpleArith
+		 | Sqrt  SimpleArith
+		 | Log   SimpleArith
+		 | Sin   SimpleArith
+		 | Cos   SimpleArith
+		 | ASin  SimpleArith
+		 | ACos  SimpleArith
+		 | ATan  SimpleArith
+		 | SinH  SimpleArith
+		 | CosH  SimpleArith
+		 | ASinH SimpleArith
+		 | ACosH SimpleArith
+		 | ATanH SimpleArith
+
+--		 | ProperFrac SimpleArith
+  -- UNFINISHED
+
+  deriving (Show,Eq)
+
+
+instance Num SimpleArith where  
+  (+)         = Plus
+  (*)         = Times
+  signum      = Signum
+  abs         = Abs
+  fromInteger = Const 
+
+instance Fractional SimpleArith where
+  (/)              = Div
+  fromRational rat = error "fromRational not implemented yet for SimpleArith"
+
+instance Ord SimpleArith where 
+  a < b = error "< not implemented yet for SimpleArith"
+
+instance Real SimpleArith where 
+  toRational v = error "toRational not implemented for SimpleArith"
+
+instance Floating SimpleArith where
+  pi   = ConstD pi
+  exp  = Expon
+  sqrt = Sqrt
+  log  = Log
+  -- (**) :: a -> a -> a
+  -- logBase :: a -> a -> a
+  sin  = Sin
+  -- tan :: a -> a
+  cos  = Cos
+  asin = ASin
+  atan = ATan
+  acos = ACos
+  sinh = SinH
+  cosh = CosH
+  asinh = ASinH
+  acosh = ACosH
+  atanh = ATanH
+
+-- instance Enum SimpleArith where
+-- instance Integral SimpleArith where
+
+--class (Real a, Fractional a) => RealFrac a where
+instance RealFrac SimpleArith where
+--  properFraction :: Integral b => a -> (b, a)
+  properFraction x = error "properFraction not implemented for SimpleArith"
+
+#if 0
+
+class (Real a, Enum a) => Integral a where
+  quot :: a -> a -> a
+  rem :: a -> a -> a
+  div :: a -> a -> a
+  mod :: a -> a -> a
+  quotRem :: a -> a -> (a, a)
+  divMod :: a -> a -> (a, a)
+  toInteger :: a -> Integer
+
+class Enum a where
+  succ :: a -> a
+  pred :: a -> a
+  toEnum :: Int -> a
+  fromEnum :: a -> Int
+  enumFrom :: a -> [a]
+  enumFromThen :: a -> a -> [a]
+  enumFromTo :: a -> a -> [a]
+  enumFromThenTo :: a -> a -> a -> [a]
+
+class (RealFrac a, Floating a) => RealFloat a where
+  floatRadix :: a -> Integer
+  floatDigits :: a -> Int
+  floatRange :: a -> (Int, Int)
+  decodeFloat :: a -> (Integer, Int)
+  encodeFloat :: Integer -> Int -> a
+  exponent :: a -> Int
+  significand :: a -> a
+  scaleFloat :: Int -> a -> a
+  isNaN :: a -> Bool
+  isInfinite :: a -> Bool
+  isDenormalized :: a -> Bool
+  isNegativeZero :: a -> Bool
+  isIEEE :: a -> Bool
+  atan2 :: a -> a -> a
+
+#endif
+
+
+-- | This lets one execute simple arithmetic expressions and store the result.
+--   Returns the name of a new local binding that caries the result.
+doarith_ :: Type -> SimpleArith -> EmitArbb Variable
+doarith_ ty exp = 
+  let binop op a b = 
+       do tmp <- createLocal_ ty "tmp"
+	  a'  <- doarith_ ty a
+	  b'  <- doarith_ ty b
+	  op_ op [tmp] [a',b']
+	  return tmp
+  in 
+  case exp of 
+    V     v   -> return v
+    Plus  a b -> binop ArbbOpAdd a b
+    Times a b -> binop ArbbOpMul a b
+
+
+

@@ -466,7 +466,7 @@ finish = finish' >>= throwIfErrorIO0
 -- Variables, Constants ..
 
 
--- createConstant
+createConstant :: Context -> Type -> Ptr () -> IO GlobalVariable
 createConstant ctx t d = 
    createConstant' ctx t d nullPtr >>= 
    dbg  "arbb_create_constant" [("context",show $ fromContext ctx),  
@@ -482,6 +482,7 @@ createConstant ctx t d =
      id      `Ptr ()' , 
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
+createLocal :: Function -> Type -> String -> IO Variable
 createLocal fnt t name = 
   createLocal' fnt t name >>= 
   dbg  "arbb_create_local" [("fun",show $ fromFunction fnt),  
@@ -496,7 +497,7 @@ createLocal fnt t name =
       alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #} 
 
 
--- variableFromGlobal
+variableFromGlobal :: Context -> GlobalVariable -> IO Variable
 variableFromGlobal ctx g =
    variableFromGlobal' ctx g >>= 
    dbg  "arbb_get_variable_from_global" [("ctx",show $ fromContext ctx),  
@@ -511,7 +512,7 @@ variableFromGlobal ctx g =
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
 
--- getParameter
+getParameter :: Function -> Int -> Int -> IO Variable
 getParameter f n m = 
   getParameter' f n m >>= 
   dbg  "arbb_get_parameter" [("fun",show $ fromFunction f),  
@@ -526,6 +527,7 @@ getParameter f n m =
      cIntConv `Int'  , 
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
+readScalar :: Context -> Variable -> Ptr () -> IO ()
 readScalar ctx v ptr = 
    readScalar' ctx v ptr >>= 
    dbg0  "arbb_read_scalar" [("ctx",show $ fromContext ctx),  
@@ -539,7 +541,7 @@ readScalar ctx v ptr =
      id          `Ptr ()'   ,
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
-
+writeScalar :: Context -> Variable -> Ptr () -> IO ()
 writeScalar ctx v ptr = 
   writeScalar' ctx v ptr >>= 
   dbg0  "arbb_write_scalar" [("ctx",show $ fromContext ctx),  
@@ -558,6 +560,7 @@ writeScalar ctx v ptr =
 --                                     arbb_string_t* out_text,
 --                                     arbb_error_details_t* details);
 
+serializeFunction :: Function -> IO VMString
 serializeFunction fun = 
    serializeFunction' fun >>= throwIfErrorIO1
 

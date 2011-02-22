@@ -16,9 +16,7 @@ main = arbbSession$ do
      fun1 <- funDef_ "fun1" [sty] [sty] $ \ [out] [inp] -> do
 
         fun2 <- funDef_ "fun2" [sty] [sty] $ \ [out] [inp] -> do
-           one <- const_ ArbbI32 (1 ::Int32)
-	   op_ ArbbOpCopy [out] [inp]
-	   tmp <- doarith_ sty (V out + V one)
+	   tmp <- doarith_ sty (V inp + 1)
 	   copy_ out tmp
 
         ten <- const_ ArbbI32 (10::Int32)
