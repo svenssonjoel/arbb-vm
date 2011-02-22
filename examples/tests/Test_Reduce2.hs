@@ -17,21 +17,12 @@ main = arbbSession$ do
      size_t <- getScalarType_  ArbbUsize       
      dty    <- getDenseType_ sty 1 
 
-     ten <- const_ ArbbI32 (10::Int32)
-     
-     --reduce <- funDef_ "reduceAdd" [dty] [dty] $ \ [out] [inp] -> do
-     --   opDynamic_ ArbbOpAddReduce  [out] [inp]
-
+    
      print_ "Begin emitting function code.."
 
--- Not so strange anymore --- 
-#if 1
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
         op_ ArbbOpAdd [out] [a,b]
        
-
-#endif
-     
      reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
         len <- createLocal_ size_t "length"     
         res <- createLocal_ sty "result"
@@ -43,9 +34,6 @@ main = arbbSession$ do
         call_ add [res] [in1,in1]
         --op_ ArbbOpAdd   [res] [in1,in1]      
         op_ ArbbOpCopy  [out] [res]  
-      
-        
--- ERROR DOESN'T SHOW UNTIL EXECUTE                 
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
