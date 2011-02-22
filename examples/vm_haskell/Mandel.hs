@@ -86,15 +86,14 @@ runMandel (max_row, max_col, max_depth) =
 --     print_ "Made global vector variable"
 
     testfun <- funDefS_ "testfun" [ArbbI32] [ArbbI32] $ \ [out] [inp] -> do
-#if 0
-      arr <- createLocal_ arrty "tmp"
---      op_ ArbbOpNewVector [arr] [c64]
-      fn <- getFun ""
---      c64 <- createLocal_ sty 
-      c64 <- int32_ 64
-      opDynamic_ ArbbOpNewVector [arr] [c64]
-      copy_ out inp
-#endif
+#ifdef BROKENVER
+--       arr <- createLocal_ arrty "tmp"
+-- --      op_ ArbbOpNewVector [arr] [c64]
+--       fn <- getFun ""
+-- --      c64 <- createLocal_ sty 
+--       c64 <- int32_ 64
+--       opDynamic_ ArbbOpNewVector [arr] [c64]
+--       copy_ out inp
 
       withArray_ [0 .. fromIntegral (size-1) :: Float] $ \ i1 ->        
 	withArray_ [0 .. fromIntegral (size-1) :: Float] $ \ o  -> do
@@ -125,12 +124,46 @@ runMandel (max_row, max_col, max_depth) =
 --	  op_ ArbbOpIndex [v1] [c0, csz, c1]
 
 	  return ()
-          
-     --      execute caller [v2] [v1]
-     --      putStrLn (getCString str)
      --      result <- peekArray 1024 (castPtr o :: Ptr Float) 
-     --      putStrLn $ show $ result
+#else
+          
+      zer <- int32_ 0
+      one <- int32_ 1
+      max <- int32_ 128
+      tmp <- local_int32_ ""
+      copy_ tmp zer
+      while_
+      	( -- condition 
+      	 do
+          -- Trying to use bool_ here causes a failure:
+	  -- "Internal error: CTE_OPERATOR_NOT_SUPPORTED OP_NOT_SUPPORT: The concrete operator is not supported yet not reach"
+--	  lc <- bool_ False
+	  lc <- local_bool_ ""
+      	  op_ ArbbOpLess [lc] [tmp,max]      -- Loop on False
+      	  return lc
+      	)
+      	-- body 
+      	(
+	 do op_ ArbbOpAdd [tmp] [tmp,one]
 
+	    print_ "About to emit mandel call:\n"	    
+	    res <- local_int32_ "res"
+	    liftMs (call_ mandel [res]) [int32_ 100, float64_ 0.33]
+	    print_ "Emitted mandel call inside loop.\n"
+	) 
+
+      -- A simple infinite loop does throw an error... (but a non-descript one):
+      -- while_ (do lc <- local_bool_ ""
+      -- 	         false <- bool_ False
+      -- 	         copy_ lc false
+      -- 	         return lc)
+      --  (do 
+      -- 	   copy_ tmp tmp
+      --  )
+
+#endif
+      copy_ out inp
+    -- END testfun
 
     res    <- global_nobind_int32_ "res"
     liftMs (execute_ mandel [res]) [int32_ 100, float64_ 0.33]

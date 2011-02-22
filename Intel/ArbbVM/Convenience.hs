@@ -16,7 +16,7 @@ module Intel.ArbbVM.Convenience
    funDef_, funDefS_, call_, op_, 
    opDynamic_,
 
-   const_, int32_, int64_, float64_,
+   const_, int32_, int64_, float64_, bool_,
    incr_int32_, copy_,
 
    local_bool_, local_int32_, local_float64_, 
@@ -308,6 +308,11 @@ int64_   = const_ ArbbI64
 float32_ = const_storable_ ArbbF32 
 float64_ = const_storable_ ArbbF64 
 
+
+bool_ :: Bool -> EmitArbb Variable
+bool_ True  = const_storable_ ArbbBoolean (1::Int32)
+bool_ False = const_storable_ ArbbBoolean (0::Int32)
+
 -- TODO... Keep going...
 
 incr_int32_ :: Variable -> EmitArbb ()
@@ -315,6 +320,7 @@ incr_int32_ var = do one <- int32_ 1
 		     op_ ArbbOpAdd [var] [var,one] 
 
 copy_ v1 v2 = op_ ArbbOpCopy [v1] [v2]
+
 
 ------------------------------------------------------------
 
@@ -411,15 +417,19 @@ readScalarOfSize n ctx v =
   This is mainly here because I want to use Data.Complex.
  -}
 
+
+-- We could use a richer type for Variable in the convenience interface.
+-- data VarPlus = VarPlus Variable Type 
+-- 
+-- The trick would be to have functions like op_ take [SimpleArith] rather than [Variable]
+-- But to dealwith anything other than the "V" variant, the desired type would need to be known.
+-- 
+
 instance Show Variable where
   show v = "<ArBB_Var>"
 
 instance Eq Variable where 
   a == b = error "equality on Variables doesn't make sense yet"
-
--- I suppose we could tweak the Variable type for the convenience
--- interface so that we wouldn't need to apply the "V" constructor to
--- do arithmetic.
 
 data SimpleArith = 
 		   V      Variable
