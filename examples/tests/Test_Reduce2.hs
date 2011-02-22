@@ -13,58 +13,44 @@ import C2HS
 
 
 main = arbbSession$ do 
-     sty   <- getScalarType_  ArbbI64
-     dty   <- getDenseType_ sty 1 
+     sty    <- getScalarType_  ArbbI32
+     size_t <- getScalarType_  ArbbUsize       
+     dty    <- getDenseType_ sty 1 
 
+     ten <- const_ ArbbI32 (10::Int32)
+     
      --reduce <- funDef_ "reduceAdd" [dty] [dty] $ \ [out] [inp] -> do
      --   opDynamic_ ArbbOpAddReduce  [out] [inp]
 
      print_ "Begin emitting function code.."
 
--- STRANGENESS BEGINS HERE      
+-- Not so strange anymore --- 
 #if 1
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
-        op_ ArbbOpAdd [out] [a,b]      
+        op_ ArbbOpAdd [out] [a,b]
+       
 
-     -- This function seemed t ostart my troubles with the following error:
-     --   Test_Reduce2.exe: ArbbVMException ArbbErrorScoping "Invalid
-     --   scope 'inputs' to arbb_op: local created in another
-     --   function"
-
-     fresh   <- getScalarType_  ArbbI64
---     ident <- funDef_ "ident" [sty] [sty] $ \ [foo] [bar] -> do
-     ident <- funDef_ "ident" [fresh] [fresh] $ \ [foo] [bar] -> do
-        copy_ foo bar
 #endif
      
      reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
-        --sizeT <- getScalarType_  ArbbIsize     
-      --  len   <- createLocal_ dty "len"
-      --  tmp   <- createLocal_ sty "tmp"
-        one <- int64_ 1 
-        
-      --  op_ ArbbOpLength [len] [inp]
-      --  op_ ArbbOpIndex  [tmp] [len,one]
-        --op_ ArbbOpCopyLength [tmp] [len]
-
-        -- Trying the same sort of thing that works in Test_FunctionCalls:
-	ident <- funDef_ "ident" [sty] [sty] $ \ [foo] [bar] -> copy_ foo bar
-        add1 <- funDef_ "add1" [sty] [sty] $ \ [out] [inp] -> do
-           one <- int64_ 1
-	   op_ ArbbOpCopy [out] [inp]
-	   op_ ArbbOpAdd  [out] [out,one]
-
-        call_ add [out] [one,one]
-        --call_ add1 [out] [one]
-        op_ ArbbOpAdd  [out] [one,one]  
-      --  op_ ArbbOpCopy [out] [tmp]
+        len <- createLocal_ size_t "length"     
+        res <- createLocal_ sty "result"
+        in1 <- createLocal_ sty "inputToCall"  
+            
+        op_ ArbbOpLength [len] [inp]
+        op_ ArbbOpCast   [in1] [len] 
+   
+        call_ add [res] [in1,in1]
+        --op_ ArbbOpAdd   [res] [in1,in1]      
+        op_ ArbbOpCopy  [out] [res]  
+      
         
 -- ERROR DOESN'T SHOW UNTIL EXECUTE                 
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
-     i_data  <- liftIO$ newArray (replicate 1024 1 :: [Word64])
-     o_data  <- liftIO$ newArray [0 :: Word64]
+     i_data  <- liftIO$ newArray (replicate 1024 1 :: [Word32])
+     o_data  <- liftIO$ newArray [0 :: Word32]
      i_array <- createDenseBinding_ (castPtr i_data) 1 [1024] [8]
      o_array <- createDenseBinding_ (castPtr o_data) 1 [1] [8] 
      liftIO$ putStrLn "a"  
@@ -90,7 +76,7 @@ main = arbbSession$ do
      liftIO$ putStrLn "f" 
      
 
-     result2 :: Word64 <- readScalar_ y 
+     result2 :: Word32 <- readScalar_ y 
 
      
   --   liftIO$ putStrLn$ "Result: "++ show result
