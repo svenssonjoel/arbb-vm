@@ -17,12 +17,14 @@ main = arbbSession$ do
      size_t <- getScalarType_  ArbbUsize       
      dty    <- getDenseType_ sty 1 
 
+     one    <- int32_ 1 
+     zero   <- int32_ 0 
     
      print_ "Begin emitting function code.."
 
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
         op_ ArbbOpAdd [out] [a,b]
-       
+{-       
      reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
         len <- createLocal_ size_t "length"     
         res <- createLocal_ sty "result"
@@ -34,6 +36,32 @@ main = arbbSession$ do
         call_ add [res] [in1,in1]
         --op_ ArbbOpAdd   [res] [in1,in1]      
         op_ ArbbOpCopy  [out] [res]  
+-}
+              
+     reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
+        len <- createLocal_ size_t "length"     
+        res <- createLocal_ sty "result"
+        in1 <- createLocal_ sty "inputToCall" 
+        pr  <- createLocal_ sty "partialRes"  
+        lcntr <- createLocal_ sty "loopcounter"    
+            
+        op_ ArbbOpLength [len] [inp]
+        op_ ArbbOpCast   [in1] [len] 
+        
+        op_ ArbbOpCopy   [lcntr] [zero]
+        while_ 
+          ( do 
+            cvar <- createLocal_ sty "loopcond"
+            op_ ArbbOpLess [cvar] [lcntr,in1] 
+            return cvar
+          ) 
+          (op_ ArbbOpAdd [lcntr] [lcntr,one])
+ 
+        call_ add [res] [in1,in1]
+        --op_ ArbbOpAdd   [res] [in1,in1]      
+        op_ ArbbOpCopy  [out] [res]  
+
+
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
