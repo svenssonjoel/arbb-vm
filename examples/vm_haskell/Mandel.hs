@@ -67,21 +67,26 @@ mandelDef = do
 runMandel :: (Int, Int, Int) -> EmitArbb ()
 runMandel (max_row, max_col, max_depth) = 
  do 
+    let size = 1024
     mandel <- mandelDef
+    str <- serializeFunction_ mandel
+    print_ "Generated mandel kernel:"
+    print_ (getCString str)
+
     sty    <- getScalarType_ ArbbI32
     arrty  <- getDenseType_ sty 1 
 
-    glob <- global_nobind_ arrty "array"
--- dense<any,1> = index(any start, $usize length, any stride);
--- dense<any,2> = index(any start, $usize length, any stride, $usize num_times, $boolean
--- along_row);
--- Cannot execute opcode except inside a function:
---    c64 <- int32_ 64
---    op_ ArbbOpNewVector [glob] [c64]
-    print_ "Made global vector variable"
+--     glob <- global_nobind_ arrty "array"
+-- -- dense<any,1> = index(any start, $usize length, any stride);
+-- -- dense<any,2> = index(any start, $usize length, any stride, $usize num_times, $boolean
+-- -- along_row);
+-- -- Cannot execute opcode except inside a function:
+-- --    c64 <- int32_ 64
+-- --    op_ ArbbOpNewVector [glob] [c64]
+--     print_ "Made global vector variable"
 
     testfun <- funDefS_ "testfun" [ArbbI32] [ArbbI32] $ \ [out] [inp] -> do
-      print_ "gen code for simple test"
+#if 0
       arr <- createLocal_ arrty "tmp"
 --      op_ ArbbOpNewVector [arr] [c64]
       fn <- getFun ""
@@ -89,27 +94,37 @@ runMandel (max_row, max_col, max_depth) =
       c64 <- int32_ 64
       opDynamic_ ArbbOpNewVector [arr] [c64]
       copy_ out inp
-
-
-    str <- serializeFunction_ mandel
-    print_ "Generated mandel kernel:"
-    print_ (getCString str)
-
-#if 0
-    withArray_ [0..1023 :: Float] $ \ i1 ->        
-      withArray_ [0..1023 :: Float] $ \ o  -> do
-        print_$ "With array1 " ++ show (ptrToIntPtr i1) 
-        print_$ "With array2 " ++ show (ptrToIntPtr o) 
-         
-        b1  <- createDenseBinding_ (castPtr i1) 1 [1024] [4] 
-        b2  <- createDenseBinding_ (castPtr o)  1 [1024] [4]
-
-        return ()
 #endif
-     --      g1 <- createGlobal ctx t "in1" b1
-     --      g2 <- createGlobal ctx t "out" b2
-     --      v1 <- variableFromGlobal ctx g1
-     --      v2 <- variableFromGlobal ctx g2
+
+      withArray_ [0 .. fromIntegral (size-1) :: Float] $ \ i1 ->        
+	withArray_ [0 .. fromIntegral (size-1) :: Float] $ \ o  -> do
+	  print_$ "With array1 " ++ show (ptrToIntPtr i1) 
+	  print_$ "With array2 " ++ show (ptrToIntPtr o) 
+
+	  b1  <- createDenseBinding_ (castPtr i1) 1 [size] [4] 
+	  b2  <- createDenseBinding_ (castPtr o)  1 [size] [4]
+
+	  g1 <- createGlobal_ arrty "in1" b1
+	  g2 <- createGlobal_ arrty "out" b2        
+	  v1 <- variableFromGlobal_ g1
+	  v2 <- variableFromGlobal_ g2	  
+
+--	  c0  <- const_ ArbbUsize 0
+--	  c1  <- const_ ArbbUsize 1
+	  c0  <- const_ ArbbI32 0
+	  c1  <- const_ ArbbI32 1
+	  csz <- const_ ArbbUsize 1024
+
+          print_ "Got bindings/constants... now do Index:"
+	  -- first "Type checking failed." ... so much for "any"
+	  --    Then I got this:
+	  -- Mandel.exe: ArbbVMException ArbbErrorInternal "Internal
+	  -- error: CTE_COMPILER_ERROR COMP_ERROR: Dynamic Compiler
+	  -- Internal Error "
+	  opDynamic_ ArbbOpIndex [v1] [c0, csz, c1]
+--	  op_ ArbbOpIndex [v1] [c0, csz, c1]
+
+	  return ()
           
      --      execute caller [v2] [v1]
      --      putStrLn (getCString str)

@@ -154,9 +154,8 @@ const_ sty i =
      ArbbF32 -> const_storable_ sty (fromIntegral i :: Float)
      ArbbF64 -> const_storable_ sty (fromIntegral i :: Double)
 
---                 | ArbbBoolean
---                 | ArbbUsize
---                 | ArbbIsize
+     ArbbUsize -> const_storable_ sty (fromIntegral i :: Word)
+     ArbbIsize -> const_storable_ sty (fromIntegral i :: Int)
 
  
 
