@@ -47,6 +47,8 @@ import Intel.ArbbVM as VM
 
 import Control.Monad
 import Data.IORef
+import Data.Word
+import Data.Int
 import Data.Serialize
 import Data.ByteString.Internal
 import Foreign.Marshal.Array
@@ -129,10 +131,34 @@ while_ cond body =
       return result
 
 
-const_ :: Storable a => ScalarType -> a -> EmitArbb Variable 
-const_ st n = 
+const_storable_ :: Storable a => ScalarType -> a -> EmitArbb Variable 
+const_storable_ st n = 
   do ctx <- getCtx
      L newConstantAlt ctx st n
+
+-- This version picks the right in-memory representation.
+const_ :: Integral a => ScalarType -> a -> EmitArbb Variable 
+const_ sty i =
+   case sty of 
+     ArbbI8  -> const_storable_ sty (fromIntegral i :: Int8)
+     ArbbI16 -> const_storable_ sty (fromIntegral i :: Int16)
+     ArbbI32 -> const_storable_ sty (fromIntegral i :: Int32)
+     ArbbI64 -> const_storable_ sty (fromIntegral i :: Int64)
+
+     ArbbU8  -> const_storable_ sty (fromIntegral i :: Word8)
+     ArbbU16 -> const_storable_ sty (fromIntegral i :: Word16)
+     ArbbU32 -> const_storable_ sty (fromIntegral i :: Word32)
+     ArbbU64 -> const_storable_ sty (fromIntegral i :: Word64)
+
+     -- This only lets you get at the integral floating point numbers:
+     ArbbF32 -> const_storable_ sty (fromIntegral i :: Float)
+     ArbbF64 -> const_storable_ sty (fromIntegral i :: Double)
+
+--                 | ArbbBoolean
+--                 | ArbbUsize
+--                 | ArbbIsize
+
+ 
 
 readScalar_ :: (Num a, Storable a) =>  Variable -> EmitArbb a
 readScalar_ v = 
@@ -273,15 +299,16 @@ getBindingNull_  = liftIO getBindingNull
 
 -- Lazy, lazy, lazy: here are even more shorthands.
 
-int32_ :: Integral t => t -> EmitArbb Variable 
-int32_ n = const_ ArbbI32 (fromIntegral n ::Int32)
+int32_   :: Integral t => t -> EmitArbb Variable 
+int64_   :: Integral t => t -> EmitArbb Variable 
+float32_ :: Float           -> EmitArbb Variable 
+float64_ :: Double          -> EmitArbb Variable 
 
-int64_ :: Integral t => t -> EmitArbb Variable 
-int64_ n = const_ ArbbI64 (fromIntegral n ::Int64)
+int32_   = const_ ArbbI32 
+int64_   = const_ ArbbI64 
+float32_ = const_storable_ ArbbF32 
+float64_ = const_storable_ ArbbF64 
 
-
-float64_ :: Double -> EmitArbb Variable 
-float64_ = const_ ArbbF64 
 -- TODO... Keep going...
 
 incr_int32_ :: Variable -> EmitArbb ()
@@ -422,7 +449,6 @@ data SimpleArith =
 
 --		 | ProperFrac SimpleArith
   -- UNFINISHED
-
   deriving (Show,Eq)
 
 
@@ -512,19 +538,34 @@ class (RealFrac a, Floating a) => RealFloat a where
 
 -- | This lets one execute simple arithmetic expressions and store the result.
 --   Returns the name of a new local binding that caries the result.
-doarith_ :: Type -> SimpleArith -> EmitArbb Variable
-doarith_ ty exp = 
-  let binop op a b = 
-       do tmp <- createLocal_ ty "tmp"
-	  a'  <- doarith_ ty a
-	  b'  <- doarith_ ty b
-	  op_ op [tmp] [a',b']
-	  return tmp
-  in 
-  case exp of 
-    V     v   -> return v
-    Plus  a b -> binop ArbbOpAdd a b
-    Times a b -> binop ArbbOpMul a b
+doarith_ :: ScalarType -> SimpleArith -> EmitArbb Variable
+doarith_ ty_ exp = 
+   do ty <- getScalarType_ ty_
+      let binop op a b = 
+	      do tmp <- createLocal_ ty "tmp"
+		 a'  <- loop a
+		 b'  <- loop b
+		 op_ op [tmp] [a',b']
+		 return tmp
+	  loop exp = 
+	     case exp of 
+	       V     v   -> return v
+	       Const i   -> const_ ty_ i
+
+	       Plus  a b -> binop ArbbOpAdd a b
+	       Times a b -> binop ArbbOpMul a b
+	       _ -> error$ "doarith_: not handled yet: "++ show exp
+      loop exp
 
 
+-- data ScalarType = ArbbI8
+--                 | ArbbI16
+--                 | ArbbI32
+--                 | ArbbI64
 
+--                 | ArbbU8
+--                 | ArbbU16
+--                 | ArbbU32
+--                 | ArbbU64
+
+--                 deriving (Enum,Show,Eq)
