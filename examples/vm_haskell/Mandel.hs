@@ -62,15 +62,24 @@ mandelDef = do
   
 -----------------------------------------------------------------------------
 
-print_ = liftIO . putStrLn
-
 --_ = withArray + 3
 
 runMandel :: (Int, Int, Int) -> EmitArbb ()
 runMandel (max_row, max_col, max_depth) = 
  do 
     mandel <- mandelDef
+    sty    <- getScalarType_ ArbbI32
+    arrty  <- getDenseType_ sty 1 
 
+    global_nobind_ arrty "array"
+--    op_ ArbbOpNewVector [] []
+    print_ "Made global vector variable"
+
+    str <- serializeFunction_ mandel
+    print_ "Generated mandel kernel:"
+    print_ (getCString str)
+
+#if 0
     withArray_ [0..1023 :: Float] $ \ i1 ->        
       withArray_ [0..1023 :: Float] $ \ o  -> do
         print_$ "With array1 " ++ show (ptrToIntPtr i1) 
@@ -79,11 +88,8 @@ runMandel (max_row, max_col, max_depth) =
         b1  <- createDenseBinding_ (castPtr i1) 1 [1024] [4] 
         b2  <- createDenseBinding_ (castPtr o)  1 [1024] [4]
 
-        str <- serializeFunction_ mandel
-	print_ "Generated mandel kernel:"
-	print_ (getCString str)
-
         return ()
+#endif
      --      g1 <- createGlobal ctx t "in1" b1
      --      g2 <- createGlobal ctx t "out" b2
      --      v1 <- variableFromGlobal ctx g1

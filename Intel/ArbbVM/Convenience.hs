@@ -31,6 +31,8 @@ module Intel.ArbbVM.Convenience
 
    withArray_, print_,
 
+   doarith_, SimpleArith(..),
+
    liftIO, liftMs
  )
 where
@@ -302,6 +304,55 @@ global_nobind_ ty name =
 global_nobind_int32_ name = 
   do sty <- getScalarType_ ArbbI32
      global_nobind_ sty name
+
+--------------------------------------------------------------------------------
+-- Num instance.
+
+-- This is mainly because I want to use Data.Complex.
+
+instance Show Variable where
+  show v = "<ArBB_Var>"
+
+instance Eq Variable where 
+  a == b = True
+
+instance Num SimpleArith where  
+  (+)         = Plus
+  (*)         = Times
+  signum      = Signum
+  abs         = Abs
+  fromInteger = Const 
+
+-- I suppose we could tweak the Variable type for the convenience
+-- interface so that we wouldn't need to apply the "V" constructor to
+-- do arithmetic.
+
+data SimpleArith = Plus   SimpleArith SimpleArith
+		 | Times  SimpleArith SimpleArith
+		 | Signum SimpleArith
+		 | Abs    SimpleArith
+		 | Const  Integer
+		 | V      Variable
+  deriving (Show,Eq)
+
+-- | This lets one execute simple arithmetic expressions and store the result.
+--   Returns the name of a new local binding that caries the result.
+doarith_ :: Type -> SimpleArith -> EmitArbb Variable
+doarith_ ty exp = 
+  let binop op a b = 
+       do tmp <- createLocal_ ty "tmp"
+	  a'  <- doarith_ ty a
+	  b'  <- doarith_ ty b
+	  op_ op [tmp] [a',b']
+	  return tmp
+  in 
+  case exp of 
+    V     v   -> return v
+    Plus  a b -> binop ArbbOpAdd a b
+    Times a b -> binop ArbbOpMul a b
+
+
+
 
 --------------------------------------------------------------------------------
 -- OBSOLETE: These were some helpers that didn't use the EmitArbb monad.
