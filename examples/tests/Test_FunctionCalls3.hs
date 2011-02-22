@@ -58,11 +58,7 @@ main = arbbSession$ do
      v1 <- variableFromGlobal_ g_in;
    
      liftIO$ putStrLn "c"              
-        
-  --   execute_ reduce [v2] [v1]
-  --   result <- liftIO$ peekArray 1 (castPtr o_data :: Ptr Word32)    
-  --   liftIO$ putStrLn "d"      
-
+ 
      binding <- getBindingNull_
      g       <- createGlobal_ sty "res" binding   
      y       <- variableFromGlobal_ g

@@ -128,18 +128,6 @@ data ArbbVMException = ArbbVMException Error String
 
 instance Exception ArbbVMException 
 
-
---throwIfError :: Error -> a -> a 
---throwIfError error_code a = 
---     if fromEnum error_code > 0 then throw (ArbbVMException error_code) 
---                                else a 
-
--- TODO: Phase out 
---throwIfErrorIO  :: (Error,a) -> IO a 
---throwIfErrorIO (error_code,a) = 
---     if fromEnum error_code > 0 then throwIO (ArbbVMException error_code "") 
---                                else return a 
-
 -- TODO: phase in
 throwIfErrorIO1 :: (Error,a,ErrorDetails) -> IO a 
 throwIfErrorIO1 (error_code,a,error_det) = 
@@ -162,6 +150,7 @@ dbg :: (Show c) =>
        [(String,String)] -> 
        (String, b -> c) -> 
        (Error, b, ErrorDetails) -> IO (Error, b, ErrorDetails)
+-- {- 
 dbg msg inputs (nom,accf) (ec, rv, ed) = 
   do 
    appendFile dbgfile $ msg ++ 
@@ -169,11 +158,20 @@ dbg msg inputs (nom,accf) (ec, rv, ed) =
                         "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
                         "\n"   
    return (ec, rv, ed) 
+-- -}
+-- dbg s ss sf x = return x --use this if not interested in dbg info
 
 dbg0 msg inputs (ec,ed) = 
  do
   (a,b,c) <- dbg msg inputs ("unit", id) (ec,(),ed) 
-  return (a,c) 
+  return (a,c)
+ 
+--newDBGFile x = return x 
+newDBGFile x =
+  do 
+   b <- doesFileExist dbgfile 
+   if b then removeFile dbgfile else return ()
+   return x  
 
 printInfo ::(String, String) -> String
 printInfo (nom,val) = 
@@ -192,10 +190,7 @@ printInfo (nom,val) =
 getDefaultContext :: IO Context
 getDefaultContext =
     getDefaultContext' >>= 
-    (\x -> do 
-       b <- doesFileExist dbgfile 
-       if b then removeFile dbgfile else return ()
-       return x) >>=  
+    newDBGFile >>=  
     dbg "arbb_get_default_context" [] ("ctx",fromContext) >>= 
     throwIfErrorIO1
 
