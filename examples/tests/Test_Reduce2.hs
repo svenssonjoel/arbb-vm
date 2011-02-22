@@ -16,9 +16,12 @@ main = arbbSession$ do
      sty    <- getScalarType_  ArbbI32
      size_t <- getScalarType_  ArbbUsize       
      dty    <- getDenseType_ sty 1 
-
+     bt     <- getScalarType_ ArbbBoolean
+     
      one    <- int32_ 1 
      zero   <- int32_ 0 
+     ten    <- int32_ 10 
+     tusentjugofyra <- int32_ 1024
     
      print_ "Begin emitting function code.."
 
@@ -43,23 +46,39 @@ main = arbbSession$ do
         res <- createLocal_ sty "result"
         in1 <- createLocal_ sty "inputToCall" 
         pr  <- createLocal_ sty "partialRes"  
-        lcntr <- createLocal_ sty "loopcounter"    
+        lcntr <- createLocal_ sty "loopcounter"  
+        max <- createLocal_ sty "max"   
             
         op_ ArbbOpLength [len] [inp]
         op_ ArbbOpCast   [in1] [len] 
         
         op_ ArbbOpCopy   [lcntr] [zero]
+        op_ ArbbOpCopy   [pr] [zero] 
+        op_ ArbbOpCopy   [max] [ten]   -- change to 40 for error
+         
         while_ 
-          ( do 
-            cvar <- createLocal_ sty "loopcond"
-            op_ ArbbOpLess [cvar] [lcntr,in1] 
-            return cvar
+          ( -- condition
+           do 
+             cvar <- createLocal_ bt "loopcond"
+             op_ ArbbOpLess [cvar] [lcntr,max] 
+             return cvar
           ) 
-          (op_ ArbbOpAdd [lcntr] [lcntr,one])
+          (-- body 
+           do 
+            tmp <- createLocal_ sty "ls"
+            --index <- createLocal_ size_t "ix"
+            --op_ ArbbOpCast [index] [lcntr]
+            -- op_ ArbbOpCast [tmp]  [index]
+            --op_ ArbbOpExtract [tmp] [inp,index]  
+            -- call_ add [tmp] [pr,in1]
+            --op_ ArbbOpAdd [pr] [pr,tmp]
+            op_ ArbbOpAdd [lcntr] [lcntr,one]
+          )
  
-        call_ add [res] [in1,in1]
-        --op_ ArbbOpAdd   [res] [in1,in1]      
-        op_ ArbbOpCopy  [out] [res]  
+        
+        --op_ ArbbOpCopy [out] [pr] 
+        --op_ ArbbOpCopy  [out] [max]  
+        op_ ArbbOpCopy  [out] [lcntr]   
 
 
 

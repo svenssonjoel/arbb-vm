@@ -594,8 +594,8 @@ beginLoop fnt kind =
 
 beginLoopBlock fnt block =           
   beginLoopBlock' fnt block >>= 
-  dbg0  "arbb_begin_loop" [("fun",show $ fromFunction fnt),  
-                           ("block",show block) ]  >>= 
+  dbg0  "arbb_begin_loop_block" [("fun",show $ fromFunction fnt),  
+                                 ("block",show block) ]  >>= 
   throwIfErrorIO0 
 
 {# fun arbb_begin_loop_block as beginLoopBlock'
