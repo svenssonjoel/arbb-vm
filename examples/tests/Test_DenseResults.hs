@@ -11,6 +11,7 @@ import Foreign.ForeignPtr
 import Data.Word
 --import C2HS
 
+{- see ArBB function arrayIx2 for using Index -}
 
 main = arbbSession$ do 
      sty <- getScalarType_ ArbbI32
@@ -41,6 +42,22 @@ main = arbbSession$ do
         -- op_ ArbbOpCopy [out] [indices] -- Fails TYPE MISMATCH
         op_ ArbbOpCast [out] [indices] -- Works (Cast the whole thing!) 
 
+     -- Takes an array as input for no reason       
+     arrayIX2 <- funDef_ "id" [dty] [dty] $ \ [out] [inp] -> do 
+        
+        indices <- createLocal_ dty "indices"
+        res     <- createLocal_ dty "result" 
+        
+        one <- int32_ 1
+        ten <- usize_ 10 
+                              
+        opDynamic_ ArbbOpIndex [indices] [one,ten,one]      
+    
+        op_ ArbbOpCopy [out] [indices] -- Works!
+        --op_ ArbbOpCast [out] [indices] -- Works (but not needed) 
+
+
+        
      liftIO$ putStrLn "Done compiling function, now executing..."
  
         
@@ -68,7 +85,8 @@ main = arbbSession$ do
         vout <- variableFromGlobal_ gout
        
         --execute_ arrayID [vout] [vin]
-        execute_ arrayIX [vout] [vin] 
+        --execute_ arrayIX [vout] [vin] 
+        execute_ arrayIX2 [vout] [vin]     
          
          
         result <- liftIO $ peekArray 10 (castPtr out :: Ptr Word32) 
