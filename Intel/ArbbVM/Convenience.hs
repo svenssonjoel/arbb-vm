@@ -14,7 +14,7 @@ module Intel.ArbbVM.Convenience
    arbbSession, EmitArbb,  
    if_, while_, readScalar_,
    funDef_, funDefS_, call_, op_, 
-   opDynamic_,
+   opDynamic_, map_,
 
    const_, int32_, int64_, float64_, bool_,
    incr_int32_, copy_,
@@ -28,6 +28,7 @@ module Intel.ArbbVM.Convenience
    getFunctionType_, createGlobal_, createLocal_,
 
    createDenseBinding_,  getDenseType_,
+   getNestedType_, 
 
    withArray_, print_,
 
@@ -217,6 +218,14 @@ call_ fun out inp =
      L callOp caller ArbbOpCall fun out inp
      when debug_fundef$ print_ "Call_: Done emitting call opcode."
 
+map_ :: Function -> [Variable] -> [Variable] -> EmitArbb ()
+map_ fun out inp = 
+  do -- At the point of the call the *caller* is on the top of the stack:
+     caller <- getFun "Convenience.map_ cannot call function"
+     when debug_fundef$ print_ "Map_: got caller function, emitting map opcode..."
+     L callOp caller ArbbOpMap fun out inp
+     when debug_fundef$ print_ "Map_: Done emitting map opcode."
+
 --------------------------------------------------------------------------------
 -- Iteration Patterns.
 
@@ -272,6 +281,7 @@ lift4 fn a b c d = do ctx <- getCtx; L fn ctx a b c d
 
 getScalarType_      = lift1 getScalarType
 getDenseType_       = lift2 getDenseType  
+getNestedType_      = lift1 getNestedType
 variableFromGlobal_ = lift1 variableFromGlobal
 getFunctionType_    = lift2 getFunctionType
 createGlobal_       = lift3 createGlobal

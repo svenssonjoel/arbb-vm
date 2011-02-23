@@ -19,7 +19,8 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       sizeOf,
 
                       getDenseType, createGlobal,  
-                      
+                      getNestedType, 
+		      
                       isBindingNull, getBindingNull, 
                       
                       createDenseBinding, freeBinding, getFunctionType,
@@ -270,6 +271,22 @@ getDenseType ctx t dim =
      cIntConv    `Int'       ,
      alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}  
 --  id `Ptr (Ptr ())'
+
+getNestedType ctx t = 
+    getNestedType' ctx t >>= 
+    dbg "arbb_get_nested_type" [("ctx", show $ fromContext ctx),
+                               ("itype", show $ fromType t)]
+                               ("otype", fromType) 
+                               >>=
+    throwIfErrorIO1
+
+{#fun unsafe arbb_get_nested_type as getNestedType'
+   { fromContext `Context'  , 
+     alloca-  `Type' peekType*, 
+     fromType `Type'    , 
+     alloca-  `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
+
+
 -- ----------------------------------------------------------------------
 -- createGlobal 
 

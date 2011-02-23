@@ -79,7 +79,7 @@ main = arbbSession$ do
      i_array <- createDenseBinding_ (castPtr i_data) 1 [2^22] [4]
 
   
-    
+   
      g_in  <- createGlobal_  dty "in" i_array;       
    
      v1 <- variableFromGlobal_ g_in; 
