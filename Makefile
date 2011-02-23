@@ -13,6 +13,7 @@ TESTS= \
    examples/tests/Test_Constants.hs \
    examples/tests/Test_Map1.hs \
    examples/tests/Test_MultipleDefaultContextCalls.hs \
+   examples/tests/Test_DenseResults.hs \
    examples/tests/Test_FunctionCalls.hs \
    examples/tests/Test_FunctionCalls2.hs \
    examples/tests/Test_FunctionCalls3.hs
@@ -30,7 +31,7 @@ all: lib tests
 lib: Intel/ArbbVM.o
 
 Intel/ArbbVM.o: Intel/ArbbVM.hs
-	ghc --make $<
+	ghc --make $< 
 
 # Preprocessing step:
 Intel/ArbbVM.hs: Intel/ArbbVM.chs 

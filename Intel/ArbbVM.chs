@@ -58,6 +58,7 @@ import C2HS hiding (sizeOf)
 import Prelude hiding (break)
 
 #include "../cbits/arbb_alt.h"
+
 -- ----------------------------------------------------------------------
 
 newtype Context = Context {fromContext :: Ptr ()} 
