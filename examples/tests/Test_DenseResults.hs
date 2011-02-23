@@ -27,6 +27,7 @@ main = arbbSession$ do
         op_ ArbbOpCopy [out] [inp]      
     
 
+     -- Takes an array as input for no reason 
      arrayIX <- funDef_ "id" [dty] [dty] $ \ [out] [inp] -> do 
         
         indices <- createLocal_ dsize_t "indices"
@@ -34,8 +35,7 @@ main = arbbSession$ do
         
         one <- usize_ 1
         ten <- usize_ 10 
-              
-                
+                              
         opDynamic_ ArbbOpIndex [indices] [one,ten,one]      
     
         -- op_ ArbbOpCopy [out] [indices] -- Fails TYPE MISMATCH
