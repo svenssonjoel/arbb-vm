@@ -46,7 +46,6 @@ main = arbbSession$ do
      arrayIX2 <- funDef_ "id" [dty] [dty] $ \ [out] [inp] -> do 
         
         indices <- createLocal_ dty "indices"
-        res     <- createLocal_ dty "result" 
         
         one <- int32_ 1
         ten <- usize_ 10 
