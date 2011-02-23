@@ -32,7 +32,7 @@ main = arbbSession$ do
         newArr  <- createLocal_ dty "new!"           
         
         one <- int32_ 1
-        ten <- usize_ 10 
+        ten <- usize_ 10
                    
         opDynamic_ ArbbOpNewVector [newArr] [ten] 
           
@@ -44,6 +44,7 @@ main = arbbSession$ do
         op_ ArbbOpCopy [out] [newArr] 
         
      -- Or skip creating new array using newVector (BOTH WORKS) 
+     -- But does this one work FOR REAL or just by chance ?
      arrayUPD2 <- funDef_ "id" [dty] [dty] $ \ [out] [inp] -> do 
         
         indices <- createLocal_ dty "indices"
