@@ -44,8 +44,9 @@ main = arbbSession$ do
         opDynamic_ ArbbOpSetRegularNesting [parts] [inp,two, midpoint]
         op_ ArbbOpExtractRow [h1] [parts,zero] 
         op_ ArbbOpExtractRow [h2] [parts,one]
-        map_ add [newArr] [h1,h2]    -- Both these calls 
-        --op_ ArbbOpAdd [newArr] [indices,inp] -- give SAME result  
+        
+        -- elementwise application of fun (zipWith) 
+        map_ add [newArr] [h1,h2]   
 
         op_ ArbbOpCopy [out] [newArr] 
              
