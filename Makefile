@@ -7,6 +7,7 @@ TESTS= \
    examples/tests/Test_Reduce1.hs \
    examples/tests/Test_Reduce2.hs \
    examples/tests/Test_Reduce3.hs \
+   examples/tests/Test_Scan1.hs \
    examples/tests/Test_DotProd.hs \
    examples/tests/Test_Conditional1.hs \
    examples/tests/Test_Loop1.hs \
@@ -15,6 +16,7 @@ TESTS= \
    examples/tests/Test_MultipleDefaultContextCalls.hs \
    examples/tests/Test_DenseResults.hs \
    examples/tests/Test_DenseResults2.hs \
+   examples/tests/Test_DenseResults3.hs \
    examples/tests/Test_FunctionCalls.hs \
    examples/tests/Test_FunctionCalls2.hs \
    examples/tests/Test_FunctionCalls3.hs
