@@ -27,7 +27,7 @@ TESTEXES = $(TESTS:.hs=.exe)
 
 # Set this to arbb_dev (instead of 'arbb') to respect ARBB_OPT_LEVEL
 # ARBB_LIB= arbb_dev
-ARBB_LIB= arbb
+ARBB_LIB= arbb_dev
 
 all: lib tests
 

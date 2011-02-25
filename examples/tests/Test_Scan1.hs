@@ -33,39 +33,44 @@ main = arbbSession$ do
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
         op_ ArbbOpAdd [out] [i1,i2] 
              
+             
+     {- Scanstep performs one of the (log n) steps this algorithm takes -}         
      scanStep <- funDef_ "st" [dty] [dty,sty] $ \ [out] [inp,n] -> do 
-        
+
+        -- Some required constants        
         minusone <- int32_ (-1)
         one <- int32_ 1
         two <- int32_ 2
         step <- int32_ 1
         idval <- int32_ 0
         onesize <- usize_ 1
-        -- tmp <- createLocal_ sty "castn"
-        
+
+        -- local intermediates 
         indices <- createLocal_ dsize_t "ixs"
         indices' <- createLocal_ dty "ixs_"
         start <- createLocal_ sty "step"
         length <- createLocal_ size_t "arrlen"
         tmpArr <- createLocal_ dty "tmparr"
            
+        -- The length of the array could be passed in as an argument   
         op_ ArbbOpLength [length] [inp]         
-        --op_ ArbbOpSub [length] [length,onesize]
+      
+        -- Which step is this ? (each step requires a "shift distance")
         op_ ArbbOpMul [start] [one,n] 
        
+        -- vector of zeroes to be filled in with values using Scatter
         opDynamic_ ArbbOpNewVector [tmpArr] [length]
        
-        --op_ ArbbOpCast [start'] [start] 
-        --op_ ArbbOpCast [step'] [step]
         opDynamic_ ArbbOpIndex [indices'] [start, length, step]
         op_ ArbbOpCast [indices] [indices']
         opDynamic_ ArbbOpScatter [tmpArr] [inp,indices,tmpArr] 
           
+        -- The meaty part this function         
+        -- is this map. it adds up the input array elementwise 
+        -- with itself shifted x steps..
         map_ add [out] [inp,tmpArr]         
-       
-        --op_ ArbbOpCast [out] [indices] 
-        -- op_ ArbbOpCopy [out] [tmpArr]           
-             
+     
+     -- Clean up the code below (its copy-paste programming from Test_Reduce        
      scan <- funDef_ "scan" [dty] [dty,size_t] $ \ [out] [inp,n] -> do
        c   <- createLocal_ bt "cond" 
        one <- usize_ 1
