@@ -17,7 +17,7 @@ module Intel.ArbbVM.Convenience
    opDynamic_, map_,
 
    const_, int32_, int64_, float64_, bool_,
-   usize_, 
+   usize_, isize_, 
    incr_int32_, copy_,
 
    local_bool_, local_int32_, local_float64_, 
@@ -312,12 +312,14 @@ getBindingNull_  = liftIO getBindingNull
 int32_   :: Integral t => t -> EmitArbb Variable 
 int64_   :: Integral t => t -> EmitArbb Variable 
 usize_   :: Integral t => t -> EmitArbb Variable
+isize_   :: Integral t => t -> EmitArbb Variable
 float32_ :: Float           -> EmitArbb Variable 
 float64_ :: Double          -> EmitArbb Variable 
 
 int32_   = const_ ArbbI32 
 int64_   = const_ ArbbI64 
 usize_   = const_ ArbbUsize
+isize_   = const_ ArbbIsize 
 float32_ = const_storable_ ArbbF32 
 float64_ = const_storable_ ArbbF64 
 

@@ -9,9 +9,13 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 
 import Data.Word
+import Data.Int
 
 
 {- 
+   Attempting Kogge-Stone Parallel prefix 
+    (This awkward implementation requires a identity element 
+     for the operation used) 
  
 -}
 
@@ -22,35 +26,48 @@ main = arbbSession$ do
      bt <- getScalarType_ ArbbBoolean
 
      size_t <- getScalarType_ ArbbUsize
+     isize_t <- getScalarType_ ArbbIsize
      dsize_t <- getDenseType_ size_t 1
+     disize_t <- getDenseType_ isize_t 1
 
      add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
         op_ ArbbOpAdd [out] [i1,i2] 
              
-     reduceStep <- funDef_ "rS" [dty] [dty,size_t] $ \ [out] [inp,n] -> do 
+     scanStep <- funDef_ "st" [dty] [dty,sty] $ \ [out] [inp,n] -> do 
         
-        parts    <- createLocal_ dty2 "halves"
-        h1       <- createLocal_ dty "h1"
-        h2       <- createLocal_ dty "h2" 
-        newArr   <- createLocal_ dty "new!"           
-        midpoint <- createLocal_ size_t "middle"         
-
-        zero <- usize_ 0 
-        one  <- usize_ 1
-        two  <- usize_ 2
-                      
-        op_ ArbbOpDiv [midpoint] [n,two]
+        minusone <- int32_ (-1)
+        one <- int32_ 1
+        two <- int32_ 2
+        step <- int32_ 1
+        idval <- int32_ 0
+        -- tmp <- createLocal_ sty "castn"
         
-        opDynamic_ ArbbOpSetRegularNesting [parts] [inp,two, midpoint]
-        op_ ArbbOpExtractRow [h1] [parts,zero] 
-        op_ ArbbOpExtractRow [h2] [parts,one]
+        indices <- createLocal_ dsize_t "ixs"
+        indices' <- createLocal_ dty "ixs_"
+        start <- createLocal_ sty "step"
+        length <- createLocal_ size_t "arrlen"
+        tmpArr <- createLocal_ dty "tmparr"
         
-        -- elementwise application of fun (zipWith) 
-        map_ add [newArr] [h1,h2]   
-
-        op_ ArbbOpCopy [out] [newArr] 
-             
-     reduce <- funDef_ "red" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
+        --start' <- createLocal_ isize_t "st_"
+        -- step'  <- createLocal_ isize_t "s_"
+           
+        op_ ArbbOpLength [length] [inp]         
+        op_ ArbbOpMul [start] [minusone,n] 
+       
+       
+       
+        --op_ ArbbOpCast [start'] [start] 
+        --op_ ArbbOpCast [step'] [step]
+        opDynamic_ ArbbOpIndex [indices'] [start, length, step]
+        op_ ArbbOpBitwiseCast [indices] [indices']
+        opDynamic_ ArbbOpGather [tmpArr] [inp,indices,idval] 
+          
+       
+       
+        --op_ ArbbOpCast [out] [indices] 
+        op_ ArbbOpCopy [out] [tmpArr]           
+  {-           
+     scan <- funDef_ "scan" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
        c   <- createLocal_ bt "cond" 
        one <- usize_ 1
        zero <- usize_ 0 
@@ -58,6 +75,9 @@ main = arbbSession$ do
       
        currs <- createLocal_ size_t "currs"
        arr   <- createLocal_ dty "data"
+      
+       stage <- createLocal_ size_t "stage"
+       op_ ArbbOpCopy [stage] [one]
       
        op_ ArbbOpCopy [currs] [n]     
        op_ ArbbOpCopy [arr] [inp]    
@@ -67,19 +87,20 @@ main = arbbSession$ do
            return c
          ) 
          (do 
-            call_ reduceStep [arr] [arr,currs] 
+            call_ scanStep [arr] [arr,stage]
+            op_ ArbbOpMul [stage] [stage,two] 
             op_ ArbbOpDiv [currs] [currs,two] 
          ) 
-       opDynamic_ ArbbOpExtract [out] [arr,zero] 
-        
+       op_ ArbbOpCopy [out] [arr] 
+    -}    
      liftIO$ putStrLn "Done compiling function, now executing..."
  
    
-     withArray_  (replicate (2^24) 1 ::[ Word32]) $ \ inp -> 
-      withArray_ (replicate 8 0 :: [Word32]) $ \ out -> 
+     withArray_  ([1,2,3,4,5,6,7,8 :: Int32]) $ \ inp -> 
+      withArray_ (replicate 8 0 :: [Int32]) $ \ out -> 
        do
        
-        inb <- createDenseBinding_ (castPtr inp) 1 [2^24] [4]
+        inb <- createDenseBinding_ (castPtr inp) 1 [8] [4]
         outb <- createDenseBinding_ (castPtr out) 1 [8] [4]
        
         gin <- createGlobal_ dty "input" inb
@@ -88,17 +109,17 @@ main = arbbSession$ do
         vin <- variableFromGlobal_ gin
         vout <- variableFromGlobal_ gout
        
-        n <- usize_ (2^24)
-        binding <- getBindingNull_
-        g       <- createGlobal_ sty "res" binding
-        y       <- variableFromGlobal_ g
+        n <- int32_ 2
+        --binding <- getBindingNull_
+        --g       <- createGlobal_ sty "res" binding
+        --y       <- variableFromGlobal_ g
         --execute_ reduceStep [vout] [vin,n]     
-        execute_ reduce [y] [vin,n] 
+        execute_ scanStep [vout] [vin,n] 
         
         
-        result :: Word32 <- readScalar_ y      
+        --result :: Int32 <- readScalar_ y      
          
-        --result <- liftIO $ peekArray 8 (castPtr out :: Ptr Word32) 
+        result <- liftIO $ peekArray 8 (castPtr out :: Ptr Int32) 
         liftIO$ putStrLn $ show result
          
         
