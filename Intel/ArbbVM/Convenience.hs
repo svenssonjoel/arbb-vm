@@ -23,7 +23,7 @@ module Intel.ArbbVM.Convenience
    local_bool_, local_int32_, local_float64_, 
    global_nobind_, global_nobind_int32_,
 
-   compile_, execute_, serializeFunction_, 
+   compile_, execute_, serializeFunction_, finish_, 
 
    getBindingNull_, getScalarType_, variableFromGlobal_,
    getFunctionType_, createGlobal_, createLocal_,
@@ -298,6 +298,7 @@ createDenseBinding_ = lift4 createDenseBinding
 
 compile_ fn      = liftIO$ compile fn
 execute_ a b c   = liftIO$ execute a b c
+finish_          = liftIO finish
 serializeFunction_ = liftIO . serializeFunction
 getBindingNull_  = liftIO getBindingNull
 

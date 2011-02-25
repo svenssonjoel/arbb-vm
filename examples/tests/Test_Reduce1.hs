@@ -1,57 +1,61 @@
-
--- -----------------------------------------------------------------------------
--- Test_Reduce1 
+{-# LANGUAGE CPP, ScopedTypeVariables, CPP #-}
 
 import Intel.ArbbVM 
+import Intel.ArbbVM.Convenience
 
+import Control.Monad
 import Foreign.Marshal.Array
 import Foreign.Ptr 
+import Foreign.ForeignPtr
 
-import C2HS
-readScalarOfSize n ctx v = 
-    allocaBytes n $ \ptr -> 
-       do       
-        readScalar ctx v ptr 
-        peek (castPtr ptr)
+import Data.Word
 
-main = do 
-     ctx <- getDefaultContext 
-     st   <- getScalarType ctx ArbbF32
-     t    <- getDenseType ctx st 1 
-     fnt <- getFunctionType ctx [t] [t] 
-     myfun <- beginFunction ctx fnt "sum" 0
-     a     <- getParameter myfun 0 0 
-     b     <- getParameter myfun 1 0
-   
-     opDynamic myfun ArbbOpAddReduce [b] [a]
-     endFunction myfun
-     compile myfun
-     binding <- getBindingNull 
-     -- This part gets messy! 
-     -- TODO: Clean up! 
-     withArray [0..1023 :: Float] $ \ i1 -> 
-      withArray [0 :: Float] $ \ o -> 
-        do
-         
-          b1 <- createDenseBinding ctx (castPtr i1) 1 [1024] [4] 
-          b2 <- createDenseBinding ctx (castPtr o) 1 [1] [4]
-         
-         
-          g1 <- createGlobal ctx t "in1" b1;
-          g2 <- createGlobal ctx t "out" b2;  
-         
-          v1 <- variableFromGlobal ctx g1;
-          v2 <- variableFromGlobal ctx g2;       
-          
-          --r  <- createGlobal ctx t "result" binding
-          --v2 <- variableFromGlobal ctx r 
-          
-          execute myfun [v2] [v1]
-          str <- serializeFunction myfun 
-          putStrLn (getCString str)
+import Data.Time
+--import C2HS
+
+{- 
+   Update.. 
+-}
+
+main = arbbSession$ do 
+     sty <- getScalarType_ ArbbI32
+     dty <- getDenseType_ sty 1
+                     
+     reduce <- funDef_ "red" [sty] [dty] $ \ [out] [inp] -> do       
+       opDynamic_ ArbbOpAddReduce [out] [inp] 
         
-          -- access result
-          result <- peekArray 1 (castPtr o :: Ptr Float) 
-          putStrLn $ show $ result
-          
+     liftIO$ putStrLn "Done compiling function, now executing..."
+ 
+   
+     withArray_  (replicate (2^24) 1 ::[ Word32]) $ \ inp -> 
+      withArray_ (replicate 8 0 :: [Word32]) $ \ out -> 
+       do
+
+        inb <- createDenseBinding_ (castPtr inp) 1 [2^24] [4]
+        outb <- createDenseBinding_ (castPtr out) 1 [8] [4]
+       
+        gin <- createGlobal_ dty "input" inb
+        gout <- createGlobal_ dty "output" outb
+       
+        vin <- variableFromGlobal_ gin
+        vout <- variableFromGlobal_ gout
+       
+        n <- usize_ (2^24)
+        binding <- getBindingNull_
+        g       <- createGlobal_ sty "res" binding
+        y       <- variableFromGlobal_ g
+        --execute_ reduceStep [vout] [vin,n]     
+    
+        t1 <- liftIO getCurrentTime                          
+        execute_ reduce [y] [vin,n]
+        finish_
+        t2 <- liftIO getCurrentTime 
+
+        result :: Word32 <- readScalar_ y      
+
+        liftIO$ putStrLn $ "time: " ++ ( show (diffUTCTime t2 t1) )  
+        --result <- liftIO $ peekArray 8 (castPtr out :: Ptr Word32) 
+        liftIO$ putStrLn $ show result
          
+        
+     

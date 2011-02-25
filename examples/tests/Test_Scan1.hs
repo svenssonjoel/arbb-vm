@@ -16,6 +16,10 @@ import Data.Int
    Attempting Kogge-Stone Parallel prefix 
     (This awkward implementation requires a identity element 
      for the operation used) 
+   
+   This algorithm computes the Prefix sums of an array of length n
+   using log base 2 of n steps. Each step performs n operations. 
+   giving a total work complexity of nlogn  
  
 -}
 

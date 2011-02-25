@@ -9,6 +9,8 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 
 import Data.Word
+
+import Data.Time
 --import C2HS
 
 {- 
@@ -78,7 +80,7 @@ main = arbbSession$ do
      withArray_  (replicate (2^24) 1 ::[ Word32]) $ \ inp -> 
       withArray_ (replicate 8 0 :: [Word32]) $ \ out -> 
        do
-       
+
         inb <- createDenseBinding_ (castPtr inp) 1 [2^24] [4]
         outb <- createDenseBinding_ (castPtr out) 1 [8] [4]
        
@@ -93,11 +95,15 @@ main = arbbSession$ do
         g       <- createGlobal_ sty "res" binding
         y       <- variableFromGlobal_ g
         --execute_ reduceStep [vout] [vin,n]     
-        execute_ reduce [y] [vin,n] 
-        
-        
+    
+        t1 <- liftIO getCurrentTime                          
+        execute_ reduce [y] [vin,n]
+        finish_
+        t2 <- liftIO getCurrentTime 
+
         result :: Word32 <- readScalar_ y      
-         
+
+        liftIO$ putStrLn $ "time: " ++ ( show (diffUTCTime t2 t1) )  
         --result <- liftIO $ peekArray 8 (castPtr out :: Ptr Word32) 
         liftIO$ putStrLn $ show result
          
