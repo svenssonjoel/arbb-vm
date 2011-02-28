@@ -56,18 +56,18 @@ main = do
   ----------------------------------------
 
   mprint ""
-  mprint "Done with all regression testing.  Next publishing results."
-
   p <- readIORef passed
   let victory = if p then "PASSED" else "FAILED"
+  mprint$ "Done with all regression testing ("++ victory ++").  Next publishing results."
 
   utc      <- getCurrentTime
   timezone <- getCurrentTimeZone
   let local = utcToLocalTime timezone utc
       tstr = formatTime defaultTimeLocale "%Y_%m_%d_%H:%M" local
+      finaldest = publishdir </> tstr ++"_"++ victory ++ ".log"
 
-  putStrLn$ tag++" Copying "++ logfile ++"  "++ (publishdir </> tstr ++"_"++ victory ++ ".log")
-  copyFile logfile (publishdir </> "nightly_test_" ++ tstr ++ ".log")
+  putStrLn$ tag++" Copying "++ logfile ++"  "++ finaldest
+  copyFile logfile finaldest
   runCommand ("chmod ugo+rX -R "++publishdir) >>= waitForProcess
   putStrLn$ tag++"Done copying.  Next sending emails."
   
