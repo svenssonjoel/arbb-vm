@@ -37,6 +37,8 @@ main = arbbSession$ do
         op_ ArbbOpLength [len] [inp]
         op_ ArbbOpCast   [in1] [len] 
    
+        -- NOTE! Here we use fresh locals as inputs and outputs rather
+        -- than reusing this function's parameters:
         call_ add [res] [in1,in1]
         --op_ ArbbOpAdd   [res] [in1,in1]      
         op_ ArbbOpCopy  [out] [res]  

@@ -86,6 +86,7 @@ runMandel (max_row, max_col, max_depth) =
 --     print_ "Made global vector variable"
 
     testfun <- funDefS_ "testfun" [ArbbI32] [ArbbI32] $ \ [out] [inp] -> do
+#define BROKENVER
 #ifdef BROKENVER
 --       arr <- createLocal_ arrty "tmp"
 -- --      op_ ArbbOpNewVector [arr] [c64]
@@ -116,11 +117,15 @@ runMandel (max_row, max_col, max_depth) =
 
           print_ "Got bindings/constants... now do Index:"
 	  -- first "Type checking failed." ... so much for "any"
-	  --    Then I got this:
+	  --    Then I found the right types but subsequently got this:
 	  -- Mandel.exe: ArbbVMException ArbbErrorInternal "Internal
 	  -- error: CTE_COMPILER_ERROR COMP_ERROR: Dynamic Compiler
 	  -- Internal Error "
 	  opDynamic_ ArbbOpIndex [v1] [c0, csz, c1]
+          print_ "Emitted index opcode!"
+
+	  opDynamic_ ArbbOpExtract [v1] [c0, csz, c1]
+
 --	  op_ ArbbOpIndex [v1] [c0, csz, c1]
 
 	  return ()
