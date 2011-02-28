@@ -59,7 +59,7 @@ temp:
 # ============================================================
 
 test: runtests
-runtests: 
+runtests: $(TESTEXES)
 	./run_tests.sh $(TESTEXES)
 #	echo $(TESTEXES) | xargs -n1 ./run_one_test.sh
 #	echo $(TESTEXES) | xargs -n1 bash -c 
