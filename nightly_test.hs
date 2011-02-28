@@ -58,18 +58,21 @@ main = do
   mprint ""
   mprint "Done with all regression testing.  Next publishing results."
 
+  p <- readIORef passed
+  let victory = if p then "PASSED" else "FAILED"
+
   utc      <- getCurrentTime
   timezone <- getCurrentTimeZone
   let local = utcToLocalTime timezone utc
       tstr = formatTime defaultTimeLocale "%Y_%m_%d_%H:%M" local
 
-  putStrLn$ tag++" Copying "++ logfile ++"  "++ (publishdir </> "nightly_test_" ++ tstr ++ ".log")
+  putStrLn$ tag++" Copying "++ logfile ++"  "++ (publishdir </> tstr ++"_"++ victory ++ ".log")
   copyFile logfile (publishdir </> "nightly_test_" ++ tstr ++ ".log")
   runCommand ("chmod ugo+rX -R "++publishdir) >>= waitForProcess
   putStrLn$ tag++"Done copying.  Next sending emails."
   
   forM_ emails $ \ email -> do
-     let mailcmd = "mail "++email++" -s '[ArBB-VM] Nightly Test' < " ++ logfile
+     let mailcmd = "mail "++email++" -s '[ArBB-VM] Nightly Test "++victory++ "' < " ++ logfile
      putStrLn$ tag++"Running: "++mailcmd
      proc <- runCommand mailcmd
      waitForProcess proc
@@ -83,6 +86,8 @@ main = do
 -- Helper definitions
 
 -- loghand = unsafePerformIO$ newIORef (error "loghand uninitialized")
+
+passed = unsafePerformIO$ newIORef True
 
 ifM p t f  = p >>= (\p' -> if p' then t else f)
 
@@ -133,7 +138,8 @@ mrun cmd =
        Just code <- getProcessExitCode phand
        case code of 
          ExitSuccess   -> return ()
-	 ExitFailure n -> do hClose logh
+	 ExitFailure n -> do writeIORef passed False
+			     hClose logh
 			     mprint$ "ERROR: subprocess exited with code: "++show n
 			     exitWith (ExitFailure n)
 
