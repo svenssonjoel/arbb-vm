@@ -51,6 +51,7 @@ main = do
   ----------------------------------------
   mrun "cabal configure"
   mrun "cabal build"
+  mrun "make"
   mrun "make test"
   ----------------------------------------
 
