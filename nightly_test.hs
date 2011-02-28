@@ -1,5 +1,5 @@
 #!/usr/bin/env runhaskell
-
+{-# LANGUAGE ScopedTypeVariables #-}
 -- MUST be run from the directory containing this script.
 
 import System.Directory
@@ -17,7 +17,7 @@ import Control.Concurrent
 import Data.IORef
 import System.IO.Unsafe(unsafePerformIO)
 import GHC.IO.Handle
--- import HSH
+import HSH
 
 ----------------------------------------------------------------------------------------------------
 -- Global settings 
@@ -42,13 +42,31 @@ main = do
 
 --  h <- openFile logfile WriteMode 
 --  writeIORef loghand h
-  mprint$ "Opened log file: "++logfile
+--  mprint$ "Opened log file: "++logfile
 
   mprint "Running full nightly regression tests in the current directory."
   emails <- getArgs 
   mprint$ "Reporting results to email addresses: "++ show emails
 
+  -- Grab the commit hash:
+--  (_,hout,_,proc) <- runInteractiveCommand "git log"
+--  [line] :: [String] <- run$ "git log" -|- take 1
+  line :: String <- runSL "git log" 
+  let [_,hash] = words line
+      shorthash = take 10 hash
+  mprint$ "Git reports HEAD commit hash: "++ hash
+  mprint "============================================================"
+  mprint "  Machine information:"
+  mprint "============================================================"
+  mrun "hostname"
+  mrun "cat /etc/issue"
+  mrun "cat /proc/cpuinfo | head -n 50"
+  mrun "top | head -n 50"
+
   ----------------------------------------
+  mprint "============================================================"
+  mprint "  Beginning main tests"
+  mprint "============================================================"
   mrun "cabal configure"
   mrun "cabal build"
   mrun "make"
@@ -64,7 +82,7 @@ main = do
   timezone <- getCurrentTimeZone
   let local = utcToLocalTime timezone utc
       tstr = formatTime defaultTimeLocale "%Y_%m_%d_%H:%M" local
-      finaldest = publishdir </> tstr ++"_"++ victory ++ ".log"
+      finaldest = publishdir </> tstr ++"_"++shorthash++"_"++ victory ++ ".log"
 
   putStrLn$ tag++" Copying "++ logfile ++"  "++ finaldest
   copyFile logfile finaldest
@@ -119,6 +137,9 @@ forkJoin ls =
   
 mrun cmd = 
   do 
+     putStrLn ""
+     withFile logfile AppendMode $ \h -> hPutStrLn h ""
+
      mprint$ "Running command: "++ show cmd
      withFile logfile AppendMode $ \ logh -> do 
 --       (hin,Just hout,herr, phand) <- createProcess (shell cmd)
