@@ -86,7 +86,7 @@ main = do
 
   putStrLn$ tag++" Copying "++ logfile ++"  "++ finaldest
   copyFile logfile finaldest
-  runCommand ("chmod ugo+rX -R "++publishdir) >>= waitForProcess
+  runCommand ("chmod ugo+rX -R "++publishdir++"/*") >>= waitForProcess
   putStrLn$ tag++"Done copying.  Next sending emails."
   
   forM_ emails $ \ email -> do
