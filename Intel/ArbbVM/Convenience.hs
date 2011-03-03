@@ -16,7 +16,8 @@ module Intel.ArbbVM.Convenience
    funDef_, funDefS_, call_, op_, 
    opDynamic_, map_,
 
-   const_, int32_, int64_, float64_, bool_,
+   const_, int32_, int64_,float32_, float64_, bool_,
+   const_storable_,
    usize_, isize_, 
    incr_int32_, copy_,
 
