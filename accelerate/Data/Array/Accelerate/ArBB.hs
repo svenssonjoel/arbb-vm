@@ -171,7 +171,7 @@ genConst (Type.PairTuple ty1 ty0) (cs,c) = do
   s2 <- genConst ty0 c 
   return (s1 ++ s2)  
 
-
+--             Function          inputs          type of out      ENV
 genPrimApp :: PrimFun c -> OpenExp env aenv t -> ScalarType -> ArBBEnv -> EmitArbb [Variable]
 genPrimApp op args st env = do 
    inputs <- genExp args env
@@ -180,12 +180,22 @@ genPrimApp op args st env = do
    genPrim op res inputs
    return [res]    
 
+------------------------------------------------------------------------------
+-- Primitive operations (ADD, SUB, MUL etc) 
 genPrim :: PrimFun c -> Variable -> [Variable] -> EmitArbb Variable
-genPrim (PrimAdd _) out inputs  = do 
+genPrim (PrimAdd _) out inputs = do 
    op_ ArbbOpAdd [out] inputs
    return out 
+genPrim (PrimSub _) out inputs = do 
+   op_ ArbbOpSub [out] inputs
+   return out 
+genPrim (PrimMul _) out inputs = do 
+   op_ ArbbOpMul [out] inputs 
+   return out
 
 
+------------------------------------------------------------------------------
+-- Tuple Expression! 
 genTuple :: Tuple (OpenExp env aenv) t -> ArBBEnv -> EmitArbb [Variable] 
 genTuple NilTup _ = return [] 
 genTuple (SnocTup tup e) env = do 
@@ -206,7 +216,7 @@ genTuple (SnocTup tup e) env = do
 {- I DONT GET THIS AT ALL!!!! HELP!!!! -}
 arbbConst :: Type.ScalarType a -> a -> EmitArbb Variable
 arbbConst t@(Type.NumScalarType (Type.IntegralNumType ty)) val
-  | Type.IntegralDict <- Type.integralDict ty  -- What is this syntax ??  
+ | Type.IntegralDict <- Type.integralDict ty  -- What is this syntax ??  
   = int32_ val
 arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeFloat _))) val
   = float32_ val

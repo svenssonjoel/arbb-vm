@@ -19,7 +19,7 @@ import Prelude hiding (map)
 
 incr xs = 
      let xs' = use xs
-     in map (+1) xs'
+     in map (\x -> x*2) xs'
 
 
 sumUp xs = 
