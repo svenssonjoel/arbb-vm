@@ -2,18 +2,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-{- 
-   -- What is this --
-   PatternGuards ? 
-   ScopedTypeVariables ? 
--}
-
 module Data.Array.Accelerate.ArBB where 
 
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
--- import Data.Array.Accelerate hiding (Tuple)
+
 import Data.Array.Accelerate 
 import Data.Array.Accelerate.AST
 import Data.Array.Accelerate.Tuple
@@ -26,91 +20,16 @@ import Data.Array.Accelerate.Analysis.Type
 
 import Foreign.Storable as F
 
---------------------------------------------------------------------------------
--- INITIAL TESTS (HALFWAY DOWN THE FILE FOR MORE SERIOUS ATTEMPT) 
-{- 
-testa = compMapFunction . Sugar.convertAcc
-compMapFunction :: OpenAcc aenv a -> EmitArbb Function
-compMapFunction (Map f xs) = compile1to1 f ArbbI32 ArbbI32
-
--- Compile one input - one output function 
-compile1to1 :: OpenFun env aenv t -> ScalarType -> ScalarType -> EmitArbb Function
-compile1to1 (Lam (Body body)) otype itype = 
-   do 
-     sty1 <- getScalarType_ otype
-     sty2 <- getScalarType_ itype
-     fun <- funDef_ "f" [sty1] [sty2] $ \ [out] [inp] -> do 
-       res <- compileBody body [inp]  
-       op_ ArbbOpCopy [out] [res]
-     return fun
-       
-compileBody :: OpenExp env aenv t -> [Variable] -> EmitArbb Variable
-compileBody (PrimApp f e) inputs = do 
-     liftIO$ putStrLn "Apply operation" 
-     liftIO$ putStrLn (show e)
-     compilePrimApp f e inputs
-
-
-compilePrimApp ::  PrimFun c -> OpenExp env aenv t -> [Variable] ->  EmitArbb Variable
-compilePrimApp (PrimAdd t) (Tuple (SnocTup (SnocTup t1 (Var ix)) c@(Const _))) inputs = do 
-     liftIO$ putStrLn "Addition" 
-     liftIO$ putStrLn (show t)
-     liftIO$ putStrLn (show (idxToInt ix))
-     -- liftIO$ putStrLn (show (Sugar.toElem c))
-     let index = idxToInt ix
-     sty <- getScalarType_ ArbbI32 
-     v1 <- compileExp c 
-     res <- createLocal_ sty "res"
-     --l1  <- int32_ 
-     op_ ArbbOpAdd [res] [inputs !! index,v1]
-     return res
-
-compileInputs :: Tuple (OpenExp env aenv) t -> [Variable] -> EmitArbb ()
-compileInputs NilTup _ = return ()
-compileInputs (SnocTup tup e) vars = do 
-     compileExp e
-     compileInputs tup vars
-
--- HACK HACK 
---compileExp :: forall t env aenv. OpenExp env aenv t -> EmitArbb  Variable
---compileExp (Const repr) = do 
-     --liftIO$ putStrLn $ "YAY!" ++ show (Sugar.toElem repr :: t)
---     int32_ $ read (show (Sugar.toElem repr :: t))
-     --return ()
-
-compileConstant :: Elem t => OpenExp env aenv t -> EmitArbb () -- Variable
-compileConstant (Const repr) = do
-     --liftIO$ putStrLn (show (Sugar.toElem repr :: t)) 
-     return ()
--}
-
---------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- idxToInt -- This is defined in one of the CUDA backend files 
 idxToInt :: Idx env t -> Int
 idxToInt ZeroIdx       = 0
 idxToInt (SuccIdx idx) = 1 + idxToInt idx
 
--- TESTING TESTING 
---csTest' = csTest . Sugar.convertAcc
---csTest :: OpenAcc aenv a -> String
---csTest op@(Map f xs)    = "array elems: " ++ show arrayElems ++ "\n" ++ 
---                          "return type: " ++ show returnType
--- where 
---    arrayElems  = getAccType xs
---    returnType  = getAccType op
-   
---csTest op@(Fold f i xs) = "id elem: " ++ show itype ++ "\n" ++  
---                          "array elems: "  ++ show arrayElems ++ "\n" ++ 
---                          "return type: " ++ show returnType
--- where 
---    arrayElems  = getAccType xs
---    itype       = getExpType i 
---    returnType  = getAccType op
- 
-
---------------------------------------------------------------------------------
--- More serious attempt 
---------------------------------------------------------------------------------                                                       
+------------------------------------------------------------------------------
+------------------------------------------------------------------------------
+-- Compile into ArBB calls !
+------------------------------------------------------------------------------
 -- Attempt at running + compiling into ArBB 
 type ArBBEnv = [Variable]
 
@@ -120,6 +39,7 @@ runArBB op@(Map f a1) = do
              (getAccType a1) -- input type (of elemets)  
              f 
 
+------------------------------------------------------------------------------
 -- What to do in case of Map ? 
 compileMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb () 
 compileMap out inp fun = do
@@ -133,11 +53,16 @@ compileMap out inp fun = do
   liftIO$ putStrLn (getCString str)
   return ()
 
+------------------------------------------------------------------------------
+-- Assign outputs of something to a list of variables 
 assignToOuts [] [] = return () 
 assignToOuts (x:xs) (y:ys) = do 
    op_ ArbbOpCopy [x] [y] 
 assignToOuts _ _ = error "Mismatch!"
 
+------------------------------------------------------------------------------
+-- define ArBB VM types for a list of type "names" 
+defineTypes :: [ScalarType] -> EmitArbb [Type]
 defineTypes [] = return []
 defineTypes (x:xs) = do 
    t <- getScalarType_ x 
@@ -146,6 +71,8 @@ defineTypes (x:xs) = do
 
 ------------------------------------------------------------------------------
 -- generate code for function 
+-- Bunch of Lambdas followed by a Body 
+-- The body uses "De Bruijn" indices (so no variable name binding in lam)  
 genFun :: OpenFun env aenv t -> ArBBEnv -> EmitArbb [Variable] 
 genFun (Lam lam)   = genFun lam 
 genFun (Body body) = genExp body 
@@ -154,9 +81,12 @@ genFun (Body body) = genExp body
 -- genExp 
 -- input expression.
 -- output Arbb variables holding valuation of expression
-genExp :: forall env aenv t. OpenExp env aenv t -> ArBBEnv -> EmitArbb [Variable]
+genExp :: forall env aenv t. 
+          OpenExp env aenv t -> ArBBEnv -> EmitArbb [Variable]
 genExp (Const c) _ = genConst (Sugar.eltType (undefined::t)) c 
-genExp app@(PrimApp f arg) env = genPrimApp f arg (head (getExpType app)) env
+genExp app@(PrimApp f arg) env = do 
+   res <- genPrimApp f arg (head (getExpType app)) env
+   return [res] 
 genExp (Tuple t) env = genTuple t env
 genExp (Var idx) env = return [env !! idxToInt idx] 
 genExp s env = do liftIO$ putStrLn (show s); return [] 
@@ -171,14 +101,28 @@ genConst (Type.PairTuple ty1 ty0) (cs,c) = do
   s2 <- genConst ty0 c 
   return (s1 ++ s2)  
 
---             Function          inputs          type of out      ENV
-genPrimApp :: PrimFun c -> OpenExp env aenv t -> ScalarType -> ArBBEnv -> EmitArbb [Variable]
+------------------------------------------------------------------------------
+-- genPrimApp
+-- Is it possible to have a "multi-scalar" result from a primApp? 
+--   (Complex number?) 
+--   I'm going with that the answer is no. 
+-- 
+-- Inputs: 
+--  Function
+--  Inputs
+--  Type of output 
+--  Environment       
+genPrimApp :: PrimFun c -> 
+              OpenExp env aenv t -> 
+              ScalarType -> 
+              ArBBEnv -> 
+              EmitArbb Variable
 genPrimApp op args st env = do 
    inputs <- genExp args env
    sty <- getScalarType_ st -- ArbbI32  -- What type is result here ??? (How do I get that type?)
    res <- createLocal_ sty "res" -- needs a unique name? 
    genPrim op res inputs
-   return [res]    
+   return res    
 
 ------------------------------------------------------------------------------
 -- Primitive operations (ADD, SUB, MUL etc) 
@@ -202,14 +146,6 @@ genTuple (SnocTup tup e) env = do
    vars <- genExp e env 
    rest <- genTuple tup env 
    return (rest ++ vars)
-    
-
---compileInputs :: Tuple (OpenExp env aenv) t -> [Variable] -> EmitArbb ()
---compileInputs NilTup _ = return ()
---compileInputs (SnocTup tup e) vars = do 
---     compileExp e
---     compileInputs tup vars
-
 
 ------------------------------------------------------------------------------
 -- More type machinery ! 
@@ -292,64 +228,3 @@ nonNumType (Type.TypeCUChar _) = ArbbU8
 
 
 
-
---------------------------------------------------------------------------------
--- Old stuff 
-{-
-compileScalarFun :: OpenFun env aenv t -> Int
-compileScalarFun fun = inputs fun
-   where
-     inputs :: OpenFun env aenv t -> Int
-     inputs (Body _) = 0
-     inputs (Lam f)  = 1 + inputs f
-
--}
-
-
-{- 
-test' = test . Sugar.convertAcc
-test :: OpenAcc aenv a -> IO ()
-test (Map f xs) = putStrLn $ show xs ++ " " ++ show f
---test (AST.Map f aenv)  = putStrLn "Map Case"
-
-eOpenFun :: OpenFun env aenv t -> IO ()
-eOpenFun (Body e@(PrimApp f (Tuple (SnocTup (SnocTup t1 e2) e1))))  = 
-  do
-   putStrLn $ "BODY" ++ show e
-   putStrLn $ show  e1
-   putStrLn $ show  e2
-eOpenFun (Lam f)   = 
-  do   
-   putStrLn $ "LAM" 
-   eOpenFun f 
-
-eFun :: Fun aenv t -> IO ()
-eFun f = eOpenFun f 
-
-eTest' = eTest . Sugar.convertAcc
-eTest :: OpenAcc aenv a -> IO ()
-eTest (Map f xs) = eFun f  
-
-csfTest' = csfTest . Sugar.convertAcc
-csfTest :: OpenAcc aenv a -> Int
-csfTest (Map f xs) = compileScalarFun f  
-csfTest (Fold f i xs) = compileScalarFun f 
- where 
-    types :: [ScalarType]
-    types  = codeGenExpType i
-
-csTest' = csTest . Sugar.convertAcc
-csTest :: OpenAcc aenv a -> String
-csTest (Map f xs)    = "hej"   
-csTest (Fold f i xs) = show types 
- where 
-    types :: [ScalarType]
-    types  = codeGenExpType i
-
---tTest' = tTest . Sugar.convertAcc
---tTest :: OpenAcc aenv a -> IO ()
---tTest c@(Map f xs) = putStrLn $  show $ accType c
-
-
-
--} 
