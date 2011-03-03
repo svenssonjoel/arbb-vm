@@ -28,6 +28,7 @@ import Foreign.Storable as F
 
 --------------------------------------------------------------------------------
 -- INITIAL TESTS (HALFWAY DOWN THE FILE FOR MORE SERIOUS ATTEMPT) 
+{- 
 testa = compMapFunction . Sugar.convertAcc
 compMapFunction :: OpenAcc aenv a -> EmitArbb Function
 compMapFunction (Map f xs) = compile1to1 f ArbbI32 ArbbI32
@@ -71,17 +72,17 @@ compileInputs (SnocTup tup e) vars = do
      compileInputs tup vars
 
 -- HACK HACK 
-compileExp :: forall t env aenv. OpenExp env aenv t -> EmitArbb  Variable
-compileExp (Const repr) = do 
+--compileExp :: forall t env aenv. OpenExp env aenv t -> EmitArbb  Variable
+--compileExp (Const repr) = do 
      --liftIO$ putStrLn $ "YAY!" ++ show (Sugar.toElem repr :: t)
-     int32_ $ read (show (Sugar.toElem repr :: t))
+--     int32_ $ read (show (Sugar.toElem repr :: t))
      --return ()
 
 compileConstant :: Elem t => OpenExp env aenv t -> EmitArbb () -- Variable
 compileConstant (Const repr) = do
      --liftIO$ putStrLn (show (Sugar.toElem repr :: t)) 
      return ()
-
+-}
 
 --------------------------------------------------------------------------------
 -- idxToInt -- This is defined in one of the CUDA backend files 
@@ -154,7 +155,7 @@ genFun (Body body) = genExp body
 -- input expression.
 -- output Arbb variables holding valuation of expression
 genExp :: forall env aenv t. OpenExp env aenv t -> ArBBEnv -> EmitArbb [Variable]
-genExp (Const c) _ = genConst (Sugar.elemType (undefined::t)) c 
+genExp (Const c) _ = genConst (Sugar.eltType (undefined::t)) c 
 genExp app@(PrimApp f arg) env = genPrimApp f arg (head (getExpType app)) env
 genExp (Tuple t) env = genTuple t env
 genExp (Var idx) env = return [env !! idxToInt idx] 

@@ -1,4 +1,6 @@
 
+-- ghci -i.. -Iinclude tests/ArBB/Test1.hs -ltbb -larbb
+
 
 import Data.Array.Unboxed
 import Data.Array.Accelerate
@@ -28,15 +30,15 @@ sumUp xs =
 
 
 
-input = ((fromList 10 [1..10 :: Int]) :: Data.Array.Accelerate.Array Int Int) 
+input = ((fromList  (Sugar.listToShape [10]) [1..10 :: Int]) :: Data.Array.Accelerate.Array Sugar.DIM1  Int) 
 
-input2 = ((fromList 10 [1..10 :: Float]) :: Data.Array.Accelerate.Array Int Float) 
+--input2 = ((fromList [1..10 :: Float]) :: Data.Array.Accelerate.Array Int Float) 
 
 
-apa = arbbSession $ do 
-    f <- testa (incr input)
-    str <- serializeFunction_ f
-    liftIO$ putStrLn (getCString str)
+--apa = arbbSession $ do 
+--    f <- testa (incr input)
+--    str <- serializeFunction_ f
+--    liftIO$ putStrLn (getCString str)
 
 bepa = arbbSession$ do           
    let f = (incr input) 
