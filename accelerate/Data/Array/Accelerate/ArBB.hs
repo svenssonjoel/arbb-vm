@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, FlexibleInstances, PatternGuards, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies #-} 
 
 module Data.Array.Accelerate.ArBB where 
 
@@ -15,11 +16,14 @@ import qualified Data.Array.Accelerate.Type as Type
 
 import qualified Data.Array.Accelerate.Smart as Sugar
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
+import Data.Array.Accelerate.Array.Data
 
 import Data.Array.Accelerate.Analysis.Type
 
 import Foreign.Storable as F
+import Foreign.Ptr 
 
+import Data.Int
 ------------------------------------------------------------------------------
 -- idxToInt -- This is defined in one of the CUDA backend files 
 idxToInt :: Idx env t -> Int
@@ -33,15 +37,43 @@ idxToInt (SuccIdx idx) = 1 + idxToInt idx
 -- Attempt at running + compiling into ArBB 
 type ArBBEnv = [Variable]
 
-runArBB :: OpenAcc aenv t -> EmitArbb ()   
+runArBB :: OpenAcc aenv t -> EmitArbb () 
 runArBB op@(Map f a1) = do 
-  compileMap (getAccType op) -- output type (of elements) ?
-             (getAccType a1) -- input type (of elemets)  
-             f 
+  input <- getAcc a1
+  fun <- compileMap (getAccType op) -- output type (of elements) ?
+                    (getAccType a1) -- input type (of elemets)  
+                    f 
+  return ()
+  
+-- TODO: Understand and make work. 
+getAcc :: OpenAcc aenv t -> EmitArbb () -- [Variable]
+getAcc (Use arr@(Sugar.Array i ad))  = do 
+  liftIO$ putStrLn (show arr) 
+  --let ptr :: WordPtr  = getArray ad 
+  --liftIO$ test ad
+  
+  return ()
+  --return undefined
+------------------------------------------------------------------------------
+-- Test Test Test Test Test 
+-- needs some kind of type class based wrapping ... investigate!
+test :: (ArrayPtrs e ~ Ptr a, ArrayElt e) =>  ArrayData e -> IO ()
+test ad = do 
+   let ptr =  getArray ad
+   putStrLn (show ptr)
 
+------------------------------------------------------------------------------  
+-- getArray 
+-- 
+--  Again much Type machinery needed in order to make function work
+getArray :: (ArrayPtrs e ~ Ptr a, ArrayElt e) => ArrayData e -> WordPtr
+getArray = ptrToWordPtr . ptrsOfArrayData 
+
+--arrayToKey :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
+--arrayToKey = ptrToWordPtr . AD.ptrsOfArrayData
 ------------------------------------------------------------------------------
 -- What to do in case of Map ? 
-compileMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb () 
+compileMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
 compileMap out inp fun = do
   out' <- defineTypes out
   inp' <- defineTypes inp
@@ -51,7 +83,7 @@ compileMap out inp fun = do
     assignToOuts outs vars
   str <- serializeFunction_ fun 
   liftIO$ putStrLn (getCString str)
-  return ()
+  return fun
 
 ------------------------------------------------------------------------------
 -- Assign outputs of something to a list of variables 
