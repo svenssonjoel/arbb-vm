@@ -42,4 +42,4 @@ input = ((fromList  (Sugar.listToShape [10]) [1..10 :: Int]) :: Data.Array.Accel
 
 bepa = arbbSession$ do           
    let f = (incr input) 
-   runArBB (Sugar.convertAcc f)
+   genArBB (Sugar.convertAcc f)

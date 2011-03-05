@@ -2,6 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-} 
+{-# LANGUAGE TypeSynonymInstances #-} 
+{-# LANGUAGE CPP #-}
 
 module Data.Array.Accelerate.ArBB where 
 
@@ -37,52 +39,78 @@ idxToInt (SuccIdx idx) = 1 + idxToInt idx
 -- Attempt at running + compiling into ArBB 
 type ArBBEnv = [Variable]
 
-runArBB :: OpenAcc aenv t -> EmitArbb () 
-runArBB op@(Map f a1) = do 
-  input <- getAcc a1
-  fun <- compileMap (getAccType op) -- output type (of elements) ?
-                    (getAccType a1) -- input type (of elemets)  
-                    f 
-  return ()
+
+-- new approach. generate functions. then figure out how to get the 
+-- correct data to them . 
+
+genArBB :: OpenAcc aenv t -> EmitArbb Function 
+genArBB op@(Map f a1) = do  -- Emit a function that takes an array 
+  fun <- genMap (getAccType op) -- output type (of elements) ?
+                (getAccType a1) -- input type (of elemets)  
+                f 
+  return fun
   
 -- TODO: Understand and make work. 
-getAcc :: OpenAcc aenv t -> EmitArbb () -- [Variable]
-getAcc (Use arr@(Sugar.Array i ad))  = do 
-  liftIO$ putStrLn (show arr) 
+--getAcc ::  OpenAcc aenv t -> EmitArbb () -- [Variable]
+--getAcc (Use arr@(Sugar.Array i ad))  = do 
+--  liftIO$ putStrLn (show arr) 
   --let ptr :: WordPtr  = getArray ad 
-  --liftIO$ test ad
-  
-  return ()
-  --return undefined
-------------------------------------------------------------------------------
--- Test Test Test Test Test 
--- needs some kind of type class based wrapping ... investigate!
-test :: (ArrayPtrs e ~ Ptr a, ArrayElt e) =>  ArrayData e -> IO ()
-test ad = do 
-   let ptr =  getArray ad
-   putStrLn (show ptr)
+  -- liftIO$ apa ad
+  -- let ptr = toWordPtr $ ptrsOfArrayData ad  
 
+--  return ()
+  --return undefined
+
+--getArrayAcc :: OpenAcc aenv (Array dim e) -> EmitArbb (ArrayPtrs e)
+--getArrayAcc (Use arr@(Sugar.Array i ad))  = do  
+--    liftIO$ putStrLn (show arr)
+--    let ptr = ptrsOfArrayData ad  
+    --liftIO$ putStrLn (show ptr)
+--    return ptr
+
+--getPtr :: (ArrayPtrs e ~ Ptr a, ArrayElt e) => ArrayPtrs e -> Ptr Word 
+--getPtr inp = castPtr inp
+
+
+------------------------------------------------------------------------------
+--
 ------------------------------------------------------------------------------  
 -- getArray 
 -- 
 --  Again much Type machinery needed in order to make function work
-getArray :: (ArrayPtrs e ~ Ptr a, ArrayElt e) => ArrayData e -> WordPtr
-getArray = ptrToWordPtr . ptrsOfArrayData 
+--getArray :: (ArrayPtrs e ~ Ptr a, ArrayElt e) => ArrayData e -> WordPtr
+--getArray = ptrToWordPtr . ptrsOfArrayData 
 
 --arrayToKey :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
 --arrayToKey = ptrToWordPtr . AD.ptrsOfArrayData
 ------------------------------------------------------------------------------
 -- What to do in case of Map ? 
-compileMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
-compileMap out inp fun = do
+genMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
+genMap out inp fun = do
   out' <- defineTypes out
   inp' <- defineTypes inp
   -- Start by generating the function to be mapped!
   fun <- funDef_ "f" out' inp' $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
     assignToOuts outs vars
+----------
   str <- serializeFunction_ fun 
+  liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
+---------  
+  -- densetypes 
+  out_dense <- defineDenseTypes out
+  inp_dense <- defineDenseTypes inp
+
+  maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
+    map_ fun outs inps 
+
+----------
+  str <- serializeFunction_ maper 
+  liftIO$ putStrLn "mapper function" 
+  liftIO$ putStrLn (getCString str)
+---------  
+    
   return fun
 
 ------------------------------------------------------------------------------
@@ -100,6 +128,16 @@ defineTypes (x:xs) = do
    t <- getScalarType_ x 
    ts <- defineTypes xs 
    return (t:ts)
+
+defineDenseTypes :: [ScalarType] -> EmitArbb [Type] 
+defineDenseTypes [] = return []
+defineDenseTypes (x:xs) = do 
+   t <- getScalarType_ x
+   d <- getDenseType_ t 1 
+   ds <- defineDenseTypes xs 
+   return (d:ds)
+ 
+
 
 ------------------------------------------------------------------------------
 -- generate code for function 
