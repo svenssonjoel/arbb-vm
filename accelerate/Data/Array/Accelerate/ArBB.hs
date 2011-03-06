@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, Rank2Types #-} 
+{-# LANGUAGE GADTs, RankNTypes #-} 
 {-# LANGUAGE FlexibleInstances, PatternGuards, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -17,7 +17,6 @@ import Data.Array.Accelerate.Tuple
 import qualified Data.Array.Accelerate.Type as Type
 import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
 
-import qualified Data.Array.Accelerate.Array.Data as AD
 import Data.Array.Accelerate.Array.Representation
 
 import Data.Array.Accelerate.Analysis.Type
@@ -26,61 +25,14 @@ import Foreign.Storable as F
 import Foreign.Ptr 
 
 import Data.Int
+
+import Data.Array.Accelerate.ArBB.Data
+
 ------------------------------------------------------------------------------
 -- idxToInt -- This is defined in one of the CUDA backend files 
 idxToInt :: Idx env t -> Int
 idxToInt ZeroIdx       = 0
 idxToInt (SuccIdx idx) = 1 + idxToInt idx
-
-------------------------------------------------------------------------------
--- Towards Binding Accelerator Arrays to ArBB Variables
-class AD.ArrayElt e => ArrayElt e where 
-   type APtr e
-   bindArray :: AD.ArrayData e -> Int -> EmitArbb [Variable]
-
-instance ArrayElt () where 
-   type APtr () = Ptr ()      
-   bindArray _ _ = return []  
-
-#define primArrayElt(ty,con)                                            \
-instance ArrayElt ty where {                                        \
-   type APtr ty = Ptr con                                                \
-;  bindArray = bindArray' } 
-
-primArrayElt(Int,Int)
-
-instance (ArrayElt a, ArrayElt b) => ArrayElt (a,b) where 
-   type APtr (a,b) = (APtr a,APtr b)
-   bindArray ad n = do 
-                     let a = fst' ad
-                         b = snd' ad
-                     a' <- bindArray a n
-                     b' <- bindArray b n
-                     return (concat [a',b'])
-
-
-
-fst' :: AD.ArrayData (a,b) -> AD.ArrayData a
-fst' = AD.fstArrayData
-
-snd' :: AD.ArrayData (a,b) -> AD.ArrayData b
-snd' = AD.sndArrayData
-
-
-
------------------------------------------------------------------------------- 
--- Print a message and then return a dummy (for now) 
-bindArray' :: forall a e. (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e)
-           => AD.ArrayData e -> Int -> EmitArbb [Variable]
-bindArray' ad i = do
-   liftIO$ putStrLn ("hej"{- show    (getArray ad)-})
-   res <- int32_ 42 -- Create a dummy variable 
-   return [res]
- 
-------------------------------------------------------------------------------  
--- getArray turn a (Ptr a) to a wordPtr
-getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
-getArray = ptrToWordPtr . AD.ptrsOfArrayData 
 
 
 ------------------------------------------------------------------------------
@@ -258,7 +210,7 @@ arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeFloat _))) val
   = float32_ val
 arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeDouble _))) val
   = float64_ val
--- TODO: Keep going for all Accelerator Types
+-- TODO: Keep going for all Accelerate Types
 
 --------------------------------------------------------------------------------
 -- Type Machinery!!!! 
