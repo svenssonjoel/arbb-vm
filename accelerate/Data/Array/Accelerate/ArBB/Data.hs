@@ -98,9 +98,15 @@ snd' = AD.sndArrayData
 -- Print a message and then return a dummy (for now) 
 bindArray' :: forall e a. (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> Int -> EmitArbb [Variable]
 bindArray' ad i = do
-   liftIO$ putStrLn "hej" -- (show (getArray ad))
-   res <- int32_ 42 -- Create a dummy variable 
-   return [res]
+   liftIO$ putStrLn (show (getArray ad))        
+   let wptr = getArray ad
+   bin <- createDenseBinding_ (wordPtrToPtr wptr) 1 [fromIntegral i] [4 {- sizeof element -}]
+   sty <- getScalarType_ ArbbI32   -- Cheat
+   dty <- getDenseType_ sty 1      -- Cheat
+   gin <- createGlobal_ dty "input" bin -- Cheat
+   v <- variableFromGlobal_ gin
+   -- res <- int32_ 42 -- Create a dummy variable 
+   return [v]
  
 ------------------------------------------------------------------------------  
 -- getArray turn a (Ptr a) to a wordPtr

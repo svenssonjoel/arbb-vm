@@ -19,7 +19,7 @@ import Prelude hiding (map)
 
 incr xs = 
      let xs' = use xs
-     in map (\x -> x*2) xs'
+     in map (\x -> x+1) xs'
 
 
 sumUp xs = 
@@ -41,5 +41,12 @@ input = ((fromList  (Sugar.listToShape [10]) [1..10 :: Int]) :: Data.Array.Accel
 --    liftIO$ putStrLn (getCString str)
 
 bepa = arbbSession$ do           
-   let f = (incr input) 
+   let f = incr input
+   compileArBB (Sugar.convertAcc f)
    genArBB (Sugar.convertAcc f)
+
+
+cepa = arbbSession$ do 
+  let f = incr input
+  dummies <- executeArBB (Sugar.convertAcc f)
+  return ()

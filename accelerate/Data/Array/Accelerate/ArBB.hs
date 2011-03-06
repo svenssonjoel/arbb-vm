@@ -6,6 +6,25 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE CPP #-}
 
+
+------------------------------------------------------------------------------
+{- Thougths on Accelerate -> ArBB Bindings
+ 
+   CUDA Bindings generates the program in "stages" that
+   correspond to the "kernel"-Skeletons. 
+   It may be the case that the ArBB backend can adopt a more 
+   unstaged approach. The entire Accelerate program could 
+   perhaps be compiled into a single ArBB function. 
+   
+    + Intermediate arrays managed entirely by ArBB. 
+    
+    - Only possible if all the Accelerate concepts are 
+      implementable entirely within ArBB (That we wont
+      to emulate any accelerate functionality) 
+-}
+
+
+
 module Data.Array.Accelerate.ArBB where 
 
 import Intel.ArbbVM
@@ -23,6 +42,7 @@ import Data.Array.Accelerate.Analysis.Type
 
 import Foreign.Storable as F
 import Foreign.Ptr 
+import Foreign.Marshal.Array
 
 import Data.Int
 
@@ -42,8 +62,8 @@ type ArBBEnv = [Variable]
 
 ------------------------------------------------------------------------------ 
 -- Compile:  Stolen from Compile.hs  
-compileArbb :: OpenAcc aenv a -> EmitArbb ()
-compileArbb = travA k
+compileArBB :: OpenAcc aenv a -> EmitArbb ()
+compileArBB = travA k
  where 
    k :: OpenAcc aenv a -> EmitArbb () 
    k (Use (Array sh ad)) 
@@ -55,10 +75,42 @@ compileArbb = travA k
 -- Needs to grow. 
 travA :: (forall aenv' a'. OpenAcc aenv' a' -> EmitArbb ()) -> OpenAcc aenv a -> EmitArbb ()
 travA f acc@(Use _) = f acc
+travA f (Map _ ac) = travA f ac
+
+------------------------------------------------------------------------------ 
+-- Experiment: Execute OpenAcc
+
+executeArBB :: OpenAcc aenv a -> EmitArbb [Variable] 
+executeArBB (Use (Array sh ad)) = let n = size sh 
+                                  in  bindArray ad n
+executeArBB m@(Map f ac) = do 
+  mapfun <- genArBB m -- This one cheats a bit at the moment 
+  a <- executeArBB ac -- get the inputs to map 
+  let inpT = getAccType ac -- Gives an ArBB Type
+      outT = getAccType m 
+  out_dense <- defineDenseTypes outT
+  inp_dense <- defineDenseTypes inpT
+
+  maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
+    map_ mapfun outs inps 
+   
+  
+  -- BIG CHEATY PART STARTS HERE 
+  withArray_ (replicate 10 0 :: [Int32]) $ \ out -> do 
+    outb <- createDenseBinding_ (castPtr out) 1 [10] [4]
+    gout <- createGlobal_ (out_dense !! 0) "output" outb -- Cheat! 
+    vout <- variableFromGlobal_ gout 
+    execute_ maper [vout] a
+    
+    result <- liftIO$ peekArray 10 out
+    liftIO$ putStrLn (show result)
+
+  return [undefined] 
 
 
 ------------------------------------------------------------------------------
 -- generate ArBB functions from AST Nodes
+-- TODO: Fix map case... 
 genArBB :: OpenAcc aenv t -> EmitArbb Function 
 genArBB op@(Map f a1) = do  -- Emit a function that takes an array 
   fun <- genMap (getAccType op) -- output type (of elements)
@@ -82,16 +134,16 @@ genMap out inp fun = do
   liftIO$ putStrLn (getCString str)
 ---------  
   -- densetypes 
-  out_dense <- defineDenseTypes out
-  inp_dense <- defineDenseTypes inp
+  --out_dense <- defineDenseTypes out
+  --inp_dense <- defineDenseTypes inp
 
-  maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
-    map_ fun outs inps 
+  --maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
+  --  map_ fun outs inps 
 
 ----------
-  str <- serializeFunction_ maper 
-  liftIO$ putStrLn "mapper function" 
-  liftIO$ putStrLn (getCString str)
+  --str <- serializeFunction_ maper 
+  --liftIO$ putStrLn "mapper function" 
+  --liftIO$ putStrLn (getCString str)
 ---------  
     
   return fun
@@ -134,6 +186,11 @@ genFun (Body body) = genExp body
 -- genExp 
 -- input expression.
 -- output Arbb variables holding valuation of expression
+
+-- TODO: Some Expressions contain arrays (IndexScalar) 
+--       The Accelerate guys uses the "liftAcc" machinery
+--       in the Execute module to address this issue. 
+
 genExp :: forall env aenv t. 
           OpenExp env aenv t -> ArBBEnv -> EmitArbb [Variable]
 genExp (Const c) _ = genConst (eltType (undefined::t)) c 
