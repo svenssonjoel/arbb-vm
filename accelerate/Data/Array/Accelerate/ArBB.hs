@@ -1,8 +1,9 @@
-{-# LANGUAGE GADTs, FlexibleInstances, PatternGuards, TypeOperators #-}
+{-# LANGUAGE GADTs, Rank2Types #-} 
+{-# LANGUAGE FlexibleInstances, PatternGuards, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-} 
-{-# LANGUAGE TypeSynonymInstances #-} 
+{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE CPP #-}
 
 module Data.Array.Accelerate.ArBB where 
@@ -11,14 +12,13 @@ import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
 
-import Data.Array.Accelerate 
 import Data.Array.Accelerate.AST
 import Data.Array.Accelerate.Tuple
 import qualified Data.Array.Accelerate.Type as Type
+import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
 
-import qualified Data.Array.Accelerate.Smart as Sugar
-import qualified Data.Array.Accelerate.Array.Sugar as Sugar
-import Data.Array.Accelerate.Array.Data
+import qualified Data.Array.Accelerate.Array.Data as AD
+import Data.Array.Accelerate.Array.Representation
 
 import Data.Array.Accelerate.Analysis.Type
 
@@ -33,56 +33,87 @@ idxToInt ZeroIdx       = 0
 idxToInt (SuccIdx idx) = 1 + idxToInt idx
 
 ------------------------------------------------------------------------------
+-- Towards Binding Accelerator Arrays to ArBB Variables
+class AD.ArrayElt e => ArrayElt e where 
+   type APtr e
+   bindArray :: AD.ArrayData e -> Int -> EmitArbb [Variable]
+
+instance ArrayElt () where 
+   type APtr () = Ptr ()      
+   bindArray _ _ = return []  
+
+#define primArrayElt(ty,con)                                            \
+instance ArrayElt ty where {                                        \
+   type APtr ty = Ptr con                                                \
+;  bindArray = bindArray' } 
+
+primArrayElt(Int,Int)
+
+instance (ArrayElt a, ArrayElt b) => ArrayElt (a,b) where 
+   type APtr (a,b) = (APtr a,APtr b)
+   bindArray ad n = do 
+                     let a = fst' ad
+                         b = snd' ad
+                     a' <- bindArray a n
+                     b' <- bindArray b n
+                     return (concat [a',b'])
+
+
+
+fst' :: AD.ArrayData (a,b) -> AD.ArrayData a
+fst' = AD.fstArrayData
+
+snd' :: AD.ArrayData (a,b) -> AD.ArrayData b
+snd' = AD.sndArrayData
+
+
+
+------------------------------------------------------------------------------ 
+-- Print a message and then return a dummy (for now) 
+bindArray' :: forall a e. (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e)
+           => AD.ArrayData e -> Int -> EmitArbb [Variable]
+bindArray' ad i = do
+   liftIO$ putStrLn ("hej"{- show    (getArray ad)-})
+   res <- int32_ 42 -- Create a dummy variable 
+   return [res]
+ 
+------------------------------------------------------------------------------  
+-- getArray turn a (Ptr a) to a wordPtr
+getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
+getArray = ptrToWordPtr . AD.ptrsOfArrayData 
+
+
 ------------------------------------------------------------------------------
 -- Compile into ArBB calls !
 ------------------------------------------------------------------------------
--- Attempt at running + compiling into ArBB 
 type ArBBEnv = [Variable]
 
+------------------------------------------------------------------------------ 
+-- Compile:  Stolen from Compile.hs  
+compileArbb :: OpenAcc aenv a -> EmitArbb ()
+compileArbb = travA k
+ where 
+   k :: OpenAcc aenv a -> EmitArbb () 
+   k (Use (Array sh ad)) 
+     = let n = size sh 
+       in do 
+          a <- bindArray ad n
+          return ()
 
--- new approach. generate functions. then figure out how to get the 
--- correct data to them . 
+-- Needs to grow. 
+travA :: (forall aenv' a'. OpenAcc aenv' a' -> EmitArbb ()) -> OpenAcc aenv a -> EmitArbb ()
+travA f acc@(Use _) = f acc
 
+
+------------------------------------------------------------------------------
+-- generate ArBB functions from AST Nodes
 genArBB :: OpenAcc aenv t -> EmitArbb Function 
 genArBB op@(Map f a1) = do  -- Emit a function that takes an array 
-  fun <- genMap (getAccType op) -- output type (of elements) ?
+  fun <- genMap (getAccType op) -- output type (of elements)
                 (getAccType a1) -- input type (of elemets)  
                 f 
   return fun
   
--- TODO: Understand and make work. 
---getAcc ::  OpenAcc aenv t -> EmitArbb () -- [Variable]
---getAcc (Use arr@(Sugar.Array i ad))  = do 
---  liftIO$ putStrLn (show arr) 
-  --let ptr :: WordPtr  = getArray ad 
-  -- liftIO$ apa ad
-  -- let ptr = toWordPtr $ ptrsOfArrayData ad  
-
---  return ()
-  --return undefined
-
---getArrayAcc :: OpenAcc aenv (Array dim e) -> EmitArbb (ArrayPtrs e)
---getArrayAcc (Use arr@(Sugar.Array i ad))  = do  
---    liftIO$ putStrLn (show arr)
---    let ptr = ptrsOfArrayData ad  
-    --liftIO$ putStrLn (show ptr)
---    return ptr
-
---getPtr :: (ArrayPtrs e ~ Ptr a, ArrayElt e) => ArrayPtrs e -> Ptr Word 
---getPtr inp = castPtr inp
-
-
-------------------------------------------------------------------------------
---
-------------------------------------------------------------------------------  
--- getArray 
--- 
---  Again much Type machinery needed in order to make function work
---getArray :: (ArrayPtrs e ~ Ptr a, ArrayElt e) => ArrayData e -> WordPtr
---getArray = ptrToWordPtr . ptrsOfArrayData 
-
---arrayToKey :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
---arrayToKey = ptrToWordPtr . AD.ptrsOfArrayData
 ------------------------------------------------------------------------------
 -- What to do in case of Map ? 
 genMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
@@ -153,13 +184,13 @@ genFun (Body body) = genExp body
 -- output Arbb variables holding valuation of expression
 genExp :: forall env aenv t. 
           OpenExp env aenv t -> ArBBEnv -> EmitArbb [Variable]
-genExp (Const c) _ = genConst (Sugar.eltType (undefined::t)) c 
+genExp (Const c) _ = genConst (eltType (undefined::t)) c 
 genExp app@(PrimApp f arg) env = do 
    res <- genPrimApp f arg (head (getExpType app)) env
    return [res] 
 genExp (Tuple t) env = genTuple t env
 genExp (Var idx) env = return [env !! idxToInt idx] 
-genExp s env = do liftIO$ putStrLn (show s); return [] 
+--genExp s env = do liftIO$ putStrLn (show s); return [] 
 
 genConst :: Type.TupleType a -> a -> EmitArbb [Variable]
 genConst Type.UnitTuple  _       = return [] 
@@ -189,7 +220,7 @@ genPrimApp :: PrimFun c ->
               EmitArbb Variable
 genPrimApp op args st env = do 
    inputs <- genExp args env
-   sty <- getScalarType_ st -- ArbbI32  -- What type is result here ??? (How do I get that type?)
+   sty <- getScalarType_ st  -- What type is result here ??? (How do I get that type?)
    res <- createLocal_ sty "res" -- needs a unique name? 
    genPrim op res inputs
    return res    
@@ -219,7 +250,6 @@ genTuple (SnocTup tup e) env = do
 
 ------------------------------------------------------------------------------
 -- More type machinery ! 
-{- I DONT GET THIS AT ALL!!!! HELP!!!! -}
 arbbConst :: Type.ScalarType a -> a -> EmitArbb Variable
 arbbConst t@(Type.NumScalarType (Type.IntegralNumType ty)) val
  | Type.IntegralDict <- Type.integralDict ty  -- What is this syntax ??  
@@ -228,12 +258,12 @@ arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeFloat _))) val
   = float32_ val
 arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeDouble _))) val
   = float64_ val
--- TODO: Keep going for all Accelerate Types
+-- TODO: Keep going for all Accelerator Types
 
 --------------------------------------------------------------------------------
 -- Type Machinery!!!! 
  
-getAccType :: OpenAcc aenv (Sugar.Array dim e) -> [Intel.ArbbVM.ScalarType]
+getAccType :: OpenAcc aenv (Array dim e) -> [Intel.ArbbVM.ScalarType]
 getAccType =  tupleType . accType
 
 getExpType :: OpenExp aenv env t -> [Intel.ArbbVM.ScalarType]
