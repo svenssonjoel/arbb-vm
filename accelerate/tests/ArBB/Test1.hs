@@ -40,13 +40,21 @@ input = ((fromList  (Sugar.listToShape [10]) [1..10 :: Int]) :: Data.Array.Accel
 --    str <- serializeFunction_ f
 --    liftIO$ putStrLn (getCString str)
 
+{-
 bepa = arbbSession$ do           
    let f = incr input
    compileArBB (Sugar.convertAcc f)
    genArBB (Sugar.convertAcc f)
+-}
 
-
+{-
 cepa = arbbSession$ do 
+  let f = incr input
+  dummies <- executeArBB (Sugar.convertAcc f)
+  return ()
+-}
+
+depa = arbbSession$ do 
   let f = incr input
   dummies <- executeArBB (Sugar.convertAcc f)
   return ()

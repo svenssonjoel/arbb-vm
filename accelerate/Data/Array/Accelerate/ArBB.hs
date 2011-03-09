@@ -21,6 +21,15 @@
     - Only possible if all the Accelerate concepts are 
       implementable entirely within ArBB (That we wont
       to emulate any accelerate functionality) 
+
+-- About Accelerate
+
+   
+   CUDA.hs contains a function called run :: Arrays a => Acc a -> a 
+      ArBB backend needs to export the same. 
+   AST.hs contains the typeclass Arrays.      
+
+
 -}
 
 
@@ -30,23 +39,28 @@ module Data.Array.Accelerate.ArBB where
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
-
 import Data.Array.Accelerate.AST
 import Data.Array.Accelerate.Tuple
 import qualified Data.Array.Accelerate.Type as Type
 import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
+import qualified Data.Array.Accelerate.Array.Sugar as Sugar
 
 import Data.Array.Accelerate.Array.Representation
 
 import Data.Array.Accelerate.Analysis.Type
 
-import Foreign.Storable as F
+
+--import Foreign.Storable as F
 import Foreign.Ptr 
 import Foreign.Marshal.Array
 
-import Data.Int
+
 
 import Data.Array.Accelerate.ArBB.Data
+import Data.Array.Accelerate.ArBB.Type
+
+import Data.Typeable
+import Data.Int
 
 ------------------------------------------------------------------------------
 -- idxToInt -- This is defined in one of the CUDA backend files 
@@ -56,16 +70,26 @@ idxToInt (SuccIdx idx) = 1 + idxToInt idx
 
 
 ------------------------------------------------------------------------------
+-- run (The entry point)
+run :: Arrays a => Acc a -> a 
+run acc = undefined 
+
+
+------------------------------------------------------------------------------
 -- Compile into ArBB calls !
 ------------------------------------------------------------------------------
 type ArBBEnv = [Variable]
 
 ------------------------------------------------------------------------------ 
--- Compile:  Stolen from Compile.hs  
-compileArBB :: OpenAcc aenv a -> EmitArbb ()
-compileArBB = travA k
+-- Compile:  Stolen from Compile.hs 
+{- 
+compileArBB :: OpenAcc eanv a -> EmitArbb ()
+compileArBB (OpenAcc pre) = compileArBB' pre
+
+compileArBB' :: PreOpenAcc acc aenv a -> EmitArbb ()
+compileArBB' = travA k
  where 
-   k :: OpenAcc aenv a -> EmitArbb () 
+   k :: PreOpenAcc acc aenv a -> EmitArbb () 
    k (Use (Array sh ad)) 
      = let n = size sh 
        in do 
@@ -73,13 +97,60 @@ compileArBB = travA k
           return ()
 
 -- Needs to grow. 
-travA :: (forall aenv' a'. OpenAcc aenv' a' -> EmitArbb ()) -> OpenAcc aenv a -> EmitArbb ()
+travA :: (forall acc aenv' a'. PreOpenAcc acc aenv' a' -> EmitArbb ()) -> PreOpenAcc acc aenv a -> EmitArbb ()
 travA f acc@(Use _) = f acc
 travA f (Map _ ac) = travA f ac
+-}
 
+executeArBB ::(Typeable aenv, Typeable a) => OpenAcc aenv a -> EmitArbb [Variable] 
+executeArBB acc@(OpenAcc pacc) = 
+  case pacc of 
+     (Use (Array sh ad)) -> bindArray ad (size sh) -- how do we free bindings later ? (keep track of bindings and references to them)
+     m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
+                              (getAccType  acc) -- input type (of elemets)  
+                              f =<< executeArBB acc 
+
+         
+
+     --do liftIO$ putStrLn "MAP SOMETHING"
+     --                  compileArBB acc
+     --                  return [] 
+
+execMap ot it f input_vars= do 
+  fun <- genMap ot -- output type (of elements)
+                it -- input type (of elemets)  
+                f 
+  out_dense <- defineDenseTypes ot
+  inp_dense <- defineDenseTypes it
+
+  maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
+    map_ fun outs inps
+  
+  -- BIG CHEATY PART STARTS HERE 
+  withArray_ (replicate 10 0 :: [Int32]) $ \ out -> do 
+    outb <- createDenseBinding_ (castPtr out) 1 [10] [4]
+    gout <- createGlobal_ (out_dense !! 0) "output" outb -- Cheat! 
+    vout <- variableFromGlobal_ gout 
+    execute_ maper [vout] input_vars
+    
+    result <- liftIO$ peekArray 10 out
+    liftIO$ putStrLn (show result)
+
+  
+  return [] 
+   
+
+
+{-
+bArray :: (Array sh e) 
+         -> EmitArbb [Variable]
+bArray (Array sh ad) = do
+   let n = size sh
+   bindArray ad n
+  -}
 ------------------------------------------------------------------------------ 
 -- Experiment: Execute OpenAcc
-
+{- 
 executeArBB :: OpenAcc aenv a -> EmitArbb [Variable] 
 executeArBB (Use (Array sh ad)) = let n = size sh 
                                   in  bindArray ad n
@@ -106,20 +177,22 @@ executeArBB m@(Map f ac) = do
     liftIO$ putStrLn (show result)
 
   return [undefined] 
-
+-} 
 
 ------------------------------------------------------------------------------
 -- generate ArBB functions from AST Nodes
 -- TODO: Fix map case... 
+{-
 genArBB :: OpenAcc aenv t -> EmitArbb Function 
 genArBB op@(Map f a1) = do  -- Emit a function that takes an array 
   fun <- genMap (getAccType op) -- output type (of elements)
                 (getAccType a1) -- input type (of elemets)  
                 f 
   return fun
-  
+-}  
 ------------------------------------------------------------------------------
 -- What to do in case of Map ? 
+ 
 genMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
 genMap out inp fun = do
   out' <- defineTypes out
@@ -147,7 +220,7 @@ genMap out inp fun = do
 ---------  
     
   return fun
-
+ 
 ------------------------------------------------------------------------------
 -- Assign outputs of something to a list of variables 
 assignToOuts [] [] = return () 
@@ -271,7 +344,7 @@ arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeDouble _))) val
 
 --------------------------------------------------------------------------------
 -- Type Machinery!!!! 
- 
+{- 
 getAccType :: OpenAcc aenv (Array dim e) -> [Intel.ArbbVM.ScalarType]
 getAccType =  tupleType . accType
 
@@ -337,3 +410,4 @@ nonNumType (Type.TypeCUChar _) = ArbbU8
 
 
 
+-}
