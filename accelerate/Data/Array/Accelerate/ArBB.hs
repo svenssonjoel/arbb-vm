@@ -145,6 +145,10 @@ execMap ot it f inputs = do
   assignTo inp_vars inputs
   -- maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
   
+  --liftIO$ putStrLn "map"
+  --liftIO$ putStrLn ("N out: " ++ show (length out_vars))
+  --liftIO$ putStrLn ("N inp: " ++ show (length inp_vars))
+  
   map_ fun out_vars inp_vars
      
      
