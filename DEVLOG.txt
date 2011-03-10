@@ -21,3 +21,38 @@ calls available in the arbb vm.
 If the original arbb-vmapi.h header specifies a struct containing 
 a pointer to void, the alternative says just pointer to void. 
 
+
+[2011:03:10]
+Running time measurements
+our own reduction by repeated halving
+number of elements are 2^24 ( The body of the reduction kernel spins 1024 times)
+
+#CORES     DECOMP_DEGREE    TIME 
+1                1           2.749683s
+2                2           1.485693s
+3                3           1.063253s
+4                4           0.648853s
+5                5           0.621373s
+6                6           0.519923s
+7                7           0.507538s
+8                8           0.446125s
+
+different decomp 
+#CORES     DECOMP_DEGREE    TIME 
+1                2           1.961878s
+2                4           1.473037s 
+3                6           0.978863s
+4                8           0.649631s
+5                10          0.654983s
+6                12          0.531122s
+7                14          0.525185s
+8                16          0.440863s 
+
+(These values are not averages over thousands of executions. 
+ Just the value I pulled from "one" execution) 
+
+With the simple add function in comparison to arbb_add_reduce
+
+OUR OWN:    0.263479s
+BUILT IN:   0.015299s
+(2^24 elements summed up)
