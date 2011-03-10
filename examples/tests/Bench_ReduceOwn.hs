@@ -31,20 +31,24 @@ main = arbbSession$ do
        c   <- createLocal_ bt "cond" 
        one <- usize_ 1 
        zero <- usize_ 0 
-
+       apa  <- int32_ 0
+       tenTwentyFour <- usize_ 1024
+       
+       tmp   <- createLocal_  sty "tmp" 
        currs <- createLocal_ size_t "currs"
        op_ ArbbOpCopy [currs] [zero]
+       op_ ArbbOpCopy [tmp] [apa]
        
        while_ 
          (do
-           op_ ArbbOpGreater [c] [currs,one]   
+           op_ ArbbOpLess [c] [currs,tenTwentyFour]   
            return c
          ) 
          (do 
-          
+            op_ ArbbOpAdd [tmp] [tmp,i1] 
             op_ ArbbOpAdd [currs] [currs,one] 
          )
-       op_ ArbbOpAdd [out] [i1,i2] 
+       op_ ArbbOpAdd [out] [tmp,i2]           
              
      reduceStep <- funDef_ "rS" [dty] [dty,size_t] $ \ [out] [inp,n] -> do 
         
