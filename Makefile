@@ -23,6 +23,7 @@ TESTS= \
    examples/tests/Bench_ReduceOwn.hs \
    examples/tests/Bench_ReduceArBB.hs \
 
+
 # This is not passing for me right now [2011.02.27]:
 #   examples/tests/Test_DenseResults3.hs
 
