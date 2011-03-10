@@ -83,9 +83,6 @@ executeArBB acc = do
     dummy <- getScalarType_ ArbbI32
     dt    <- getDenseType_ dummy 1 
     -- An ArBB function with no inputs. (Ok ? ) 
-    -- Todo: no input functions seems to be ok. 
-    --       "binding" within a function does not seems to be ok 
-    --       but small tests does not produce same error as this! 
     fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
        o1 <- executeArBB' acc glob_vars
        assignTo o o1 
@@ -105,7 +102,7 @@ executeArBB acc = do
       vout <- variableFromGlobal_ gout 
       
       execute_ fun [vout] []
-    
+  -- Error accessing non-mapped memory !!?!?!!  
   
       result <- liftIO$ peekArray 1 out
       liftIO$ putStrLn (show result)
