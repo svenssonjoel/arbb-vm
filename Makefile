@@ -17,6 +17,7 @@ TESTS= \
    examples/tests/Test_FunctionCalls.hs \
    examples/tests/Test_FunctionCalls2.hs \
    examples/tests/Test_FunctionCalls3.hs \
+   examples/tests/Test_FunctionCalls4.hs \
    examples/tests/Test_DenseResults.hs \
    examples/tests/Test_DenseResults2.hs \
 

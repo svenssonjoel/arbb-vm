@@ -30,6 +30,7 @@
    AST.hs contains the typeclass Arrays.      
 
 
+
 -}
 
 
@@ -44,6 +45,7 @@ import Data.Array.Accelerate.Tuple
 import qualified Data.Array.Accelerate.Type as Type
 import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
+import qualified Data.Array.Accelerate.Array.Data as AD 
 
 import Data.Array.Accelerate.Array.Representation
 
@@ -62,70 +64,88 @@ import Data.Array.Accelerate.ArBB.Type
 import Data.Typeable
 import Data.Int
 
-------------------------------------------------------------------------------
--- idxToInt -- This is defined in one of the CUDA backend files 
-idxToInt :: Idx env t -> Int
-idxToInt ZeroIdx       = 0
-idxToInt (SuccIdx idx) = 1 + idxToInt idx
+import qualified Data.Map as M
 
 
+type ArBBEnv = [Variable]
+       
 ------------------------------------------------------------------------------
 -- run (The entry point)
 run :: Arrays a => Acc a -> a 
 run acc = undefined 
 
 
-------------------------------------------------------------------------------
--- Compile into ArBB calls !
-------------------------------------------------------------------------------
-type ArBBEnv = [Variable]
+executeArBB :: (Typeable aenv, Typeable a) => OpenAcc aenv a -> EmitArbb ()
+executeArBB acc = do
+    let gb = collectGlobals acc (M.empty)
+    glob_vars <- bindGlobals gb
+  
+    dummy <- getScalarType_ ArbbI32
+    dt    <- getDenseType_ dummy 1 
+    -- An ArBB function with no inputs. (Ok ? ) 
+    -- Todo: no input functions seems to be ok. 
+    --       "binding" within a function does not seems to be ok 
+    --       but small tests does not produce same error as this! 
+    fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
+       o1 <- executeArBB' acc glob_vars
+       assignTo o o1 
+       return () 
 
------------------------------------------------------------------------------- 
--- Compile:  Stolen from Compile.hs 
-{- 
-compileArBB :: OpenAcc eanv a -> EmitArbb ()
-compileArBB (OpenAcc pre) = compileArBB' pre
 
-compileArBB' :: PreOpenAcc acc aenv a -> EmitArbb ()
-compileArBB' = travA k
- where 
-   k :: PreOpenAcc acc aenv a -> EmitArbb () 
-   k (Use (Array sh ad)) 
-     = let n = size sh 
-       in do 
-          a <- bindArray ad n
-          return ()
+----------
+    str <- serializeFunction_ fun 
+    liftIO$ putStrLn (getCString str)
+---------  
 
--- Needs to grow. 
-travA :: (forall acc aenv' a'. PreOpenAcc acc aenv' a' -> EmitArbb ()) -> PreOpenAcc acc aenv a -> EmitArbb ()
-travA f acc@(Use _) = f acc
-travA f (Map _ ac) = travA f ac
--}
+      
+    
+    withArray_ (replicate 200 0 :: [Int32]) $ \ out -> do 
+      outb <- createDenseBinding_ (castPtr out) 1 [200] [4]
+      gout <- createGlobal_ dt "output" outb  
+      vout <- variableFromGlobal_ gout 
+      
+      execute_ fun [vout] []
+    
+  
+      result <- liftIO$ peekArray 1 out
+      liftIO$ putStrLn (show result)
+      return ()
+    
+    return ()
+    
 
-executeArBB ::(Typeable aenv, Typeable a) => OpenAcc aenv a -> EmitArbb [Variable] 
-executeArBB acc@(OpenAcc pacc) = 
-  case pacc of 
-     (Use (Array sh ad)) -> bindArray ad (size sh) -- how do we free bindings later ? (keep track of bindings and references to them)
+
+executeArBB' :: (Typeable aenv, Typeable a) => 
+                OpenAcc aenv a -> 
+                GlobalBindings Variable -> 
+                EmitArbb [Variable] 
+executeArBB' acc@(OpenAcc pacc) gv = 
+  case pacc of
+     (Use (Array sh ad)) -> return (lookupArray ad gv) 
      m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
                               (getAccType  acc) -- input type (of elemets)  
-                              f =<< executeArBB acc 
+                              f =<< executeArBB' acc gv 
 
-         
-
-     --do liftIO$ putStrLn "MAP SOMETHING"
-     --                  compileArBB acc
-     --                  return [] 
-
-execMap ot it f input_vars= do 
+        
+execMap ot it f inputs = do 
   fun <- genMap ot -- output type (of elements)
                 it -- input type (of elemets)  
                 f 
+  
   out_dense <- defineDenseTypes ot
   inp_dense <- defineDenseTypes it
+  out_vars  <- defineLocalVars out_dense
+  inp_vars  <- defineLocalVars inp_dense
 
-  maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
-    map_ fun outs inps
+  assignTo inp_vars inputs
+  -- maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
   
+  map_ fun out_vars inp_vars
+     
+     
+  return out_vars
+
+{-
   -- BIG CHEATY PART STARTS HERE 
   withArray_ (replicate 10 0 :: [Int32]) $ \ out -> do 
     outb <- createDenseBinding_ (castPtr out) 1 [10] [4]
@@ -138,7 +158,7 @@ execMap ot it f input_vars= do
 
   
   return [] 
-   
+  -}
 
 
 {-
@@ -200,33 +220,21 @@ genMap out inp fun = do
   -- Start by generating the function to be mapped!
   fun <- funDef_ "f" out' inp' $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
-    assignToOuts outs vars
+    assignTo outs vars
 ----------
   str <- serializeFunction_ fun 
   liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
----------  
-  -- densetypes 
-  --out_dense <- defineDenseTypes out
-  --inp_dense <- defineDenseTypes inp
-
-  --maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
-  --  map_ fun outs inps 
-
-----------
-  --str <- serializeFunction_ maper 
-  --liftIO$ putStrLn "mapper function" 
-  --liftIO$ putStrLn (getCString str)
 ---------  
     
   return fun
  
 ------------------------------------------------------------------------------
 -- Assign outputs of something to a list of variables 
-assignToOuts [] [] = return () 
-assignToOuts (x:xs) (y:ys) = do 
+assignTo [] [] = return () 
+assignTo (x:xs) (y:ys) = do 
    op_ ArbbOpCopy [x] [y] 
-assignToOuts _ _ = error "Mismatch!"
+assignTo _ _ = error "AssignTo: Mismatch!"
 
 ------------------------------------------------------------------------------
 -- define ArBB VM types for a list of type "names" 
@@ -246,6 +254,12 @@ defineDenseTypes (x:xs) = do
    return (d:ds)
  
 
+defineLocalVars :: [Type] -> EmitArbb [Variable]
+defineLocalVars [] = return [] 
+defineLocalVars (t:ts) = do 
+  v <- createLocal_ t "name" -- name needs to be unique ? 
+  vs <- defineLocalVars ts
+  return (v:vs) 
 
 ------------------------------------------------------------------------------
 -- generate code for function 
@@ -342,72 +356,12 @@ arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeDouble _))) val
   = float64_ val
 -- TODO: Keep going for all Accelerate Types
 
---------------------------------------------------------------------------------
--- Type Machinery!!!! 
-{- 
-getAccType :: OpenAcc aenv (Array dim e) -> [Intel.ArbbVM.ScalarType]
-getAccType =  tupleType . accType
-
-getExpType :: OpenExp aenv env t -> [Intel.ArbbVM.ScalarType]
-getExpType =  tupleType . expType
-
-tupleType :: Type.TupleType a -> [Intel.ArbbVM.ScalarType]
-tupleType Type.UnitTuple         = []
-tupleType (Type.SingleTuple  ty) = [scalarType ty]
-tupleType (Type.PairTuple t1 t0) = tupleType t1 ++ tupleType t0
-
-scalarType :: Type.ScalarType a -> Intel.ArbbVM.ScalarType
-scalarType (Type.NumScalarType    ty) = numType ty
-scalarType (Type.NonNumScalarType ty) = nonNumType ty
-
-numType :: Type.NumType a -> Intel.ArbbVM.ScalarType
-numType (Type.IntegralNumType ty) = integralType ty
-numType (Type.FloatingNumType ty) = floatingType ty
-
-integralType :: Type.IntegralType a -> Intel.ArbbVM.ScalarType
-integralType (Type.TypeInt8    _) = ArbbI8
-integralType (Type.TypeInt16   _) = ArbbI16
-integralType (Type.TypeInt32   _) = ArbbI32
-integralType (Type.TypeInt64   _) = ArbbI64
-integralType (Type.TypeWord8   _) = ArbbU8
-integralType (Type.TypeWord16  _) = ArbbU16
-integralType (Type.TypeWord32  _) = ArbbU32
-integralType (Type.TypeWord64  _) = ArbbU64
-integralType (Type.TypeCShort  _) = ArbbI16  -- correct ?
-integralType (Type.TypeCUShort _) = ArbbU16  -- correct ? 
-integralType (Type.TypeCInt    _) = ArbbI32  -- Fix these
-integralType (Type.TypeCUInt   _) = ArbbU32  
-integralType (Type.TypeCLong   _) = ArbbI32 
-integralType (Type.TypeCULong  _) = ArbbU32
-integralType (Type.TypeCLLong  _) = ArbbI64
-integralType (Type.TypeCULLong _) = ArbbU64
-
-integralType (Type.TypeInt     _) =
-  case F.sizeOf (undefined::Int) of
-       4 -> ArbbI32
-       8 -> ArbbI64
-       _ -> error "we can never  here"
-
-integralType (Type.TypeWord    _) =
-  case F.sizeOf (undefined::Int) of
-       4 -> ArbbU32
-       8 -> ArbbU64
-       _ -> error "we can never  here"
-
-floatingType :: Type.FloatingType a -> Intel.ArbbVM.ScalarType
-floatingType (Type.TypeFloat   _) = ArbbF32
-floatingType (Type.TypeDouble  _) = ArbbF64
-floatingType (Type.TypeCFloat  _) = ArbbF32
-floatingType (Type.TypeCDouble _) = ArbbF64
-
-nonNumType :: Type.NonNumType a -> Intel.ArbbVM.ScalarType
-nonNumType (Type.TypeBool   _) = ArbbBoolean
-nonNumType (Type.TypeChar   _) = ArbbI8
-nonNumType (Type.TypeCChar  _) = ArbbI8
-nonNumType (Type.TypeCSChar _) = ArbbI8 -- huh ? (Signed char)  
-nonNumType (Type.TypeCUChar _) = ArbbU8
+------------------------------------------------------------------------------
+-- idxToInt -- This is defined in one of the CUDA backend files 
+idxToInt :: Idx env t -> Int
+idxToInt ZeroIdx       = 0
+idxToInt (SuccIdx idx) = 1 + idxToInt idx
 
 
 
 
--}

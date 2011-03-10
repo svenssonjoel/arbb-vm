@@ -58,3 +58,5 @@ depa = arbbSession$ do
   let f = incr input
   dummies <- executeArBB (Sugar.convertAcc f)
   return ()
+
+main =  depa

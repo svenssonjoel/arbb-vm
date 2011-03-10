@@ -116,9 +116,13 @@ peekContext  ptr = do { res <- peek ptr; return $ Context res}
 peekBinding  ptr = do { res <- peek ptr; return $ Binding res}         
 peekVMString ptr = do { res <- peek ptr; return $ VMString res} 
 
-withTypeArray = withArray . (fmap fromType) 
+withTypeArray inp = if (length inp) == 0 then withNullPtr 
+	             else withArray (fmap fromType inp) 
 withVariableArray = withArray . (fmap fromVariable) 
 withIntArray xs = withArray (fmap fromIntegral xs)
+
+withNullPtr :: (Ptr b -> IO a) -> IO a 
+withNullPtr f = f nullPtr
 
 -- ----------------------------------------------------------------------
 -- Exception

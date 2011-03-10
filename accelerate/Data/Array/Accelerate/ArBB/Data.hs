@@ -7,19 +7,40 @@ module Data.Array.Accelerate.ArBB.Data where
 import Foreign.Ptr
 import Data.Int
 import Data.Word
+import Data.Typeable
 --import Data.Maybe
 --import Data.Word
 
 import qualified Data.Array.Accelerate.Array.Data as AD
 import           Data.Array.Accelerate.Array.Data (ArrayEltR(..)) 
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
+import           Data.Array.Accelerate.Array.Sugar (Array(..))
+import           Data.Array.Accelerate.AST
+import Data.Array.Accelerate.ArBB.Type
+import Data.Array.Accelerate.Array.Representation
 
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
-import Data.Array.Accelerate.ArBB.Type
 
 
+-- Use to carry along a Map of bindings
+import qualified Control.Monad.State as ST
+
+import qualified Data.Map as M 
+------------------------------------------------------------------------------
+-- 
+
+-- Array to name bindigs
+type GlobalBindings a = M.Map (Ptr ()) a 
+
+data ArrayDesc = ArrayDesc { arrayDescLength :: Int, 
+                             arrayDescType   :: ScalarType } 
+
+ 
+
+------------------------------------------------------------------------------
+-- The accelerate guys seem to love these CPP hacks (im trying to keep up)
 #define mkPrimDispatch(dispatcher,worker)                                   \
 ; dispatcher ArrayEltRint    = worker ArbbI32                                      \
 ; dispatcher ArrayEltRint8   = worker ArbbI8                                      \
@@ -37,6 +58,9 @@ import Data.Array.Accelerate.ArBB.Type
 ; dispatcher ArrayEltRchar   = error "mkPrimDispatcher: ArrayEltRchar"      \
 ; dispatcher _               = error "mkPrimDispatcher: not primitive"
 
+ 
+------------------------------------------------------------------------------
+-- bindArray 
 bindArray :: AD.ArrayElt e => AD.ArrayData e -> Int -> EmitArbb [Variable]
 bindArray ad n = doBind AD.arrayElt ad
   where 
@@ -79,118 +103,117 @@ getArray = ptrToWordPtr . AD.ptrsOfArrayData
 
 
  
+------------------------------------------------------------------------------
+-- Collect global bindings
+
+collectGlobals :: (Typeable aenv, Typeable a) =>        
+                  OpenAcc aenv a -> 
+                  GlobalBindings ArrayDesc ->  
+                  GlobalBindings ArrayDesc
+collectGlobals acc@(OpenAcc pacc) gb =
+     case pacc of 
+       (Use (Array sh ad)) -> 
+         let n = size sh 
+         in insertArray ad n gb  
+       (Map f acc) -> collectGlobals acc gb 
 
 ------------------------------------------------------------------------------
--- Towards Binding Accelerate Arrays to ArBB Variables
+-- insertArray
 
+insertArray :: AD.ArrayElt e => 
+               AD.ArrayData e -> Int -> 
+               GlobalBindings ArrayDesc -> 
+               GlobalBindings ArrayDesc 
+insertArray ad n gb = doInsert AD.arrayElt ad gb
+  where 
+    doInsert :: ArrayEltR e -> 
+                AD.ArrayData e ->      
+                GlobalBindings ArrayDesc -> 
+                GlobalBindings ArrayDesc 
+    doInsert ArrayEltRunit             _  gb = gb
+    doInsert (ArrayEltRpair aeR1 aeR2) ad gb =  
+       let gb'  = doInsert aeR1 (fst' ad) gb
+           gb'' = doInsert aeR2 (snd' ad) gb'
+       in gb''
+    doInsert aer                       ad gb = doInsertPrim aer ad n gb
+     where 
+      { doInsertPrim :: ArrayEltR e -> AD.ArrayData e -> Int -> GlobalBindings ArrayDesc -> GlobalBindings ArrayDesc
+      mkPrimDispatch(doInsertPrim,insertArrayPrim)
+      }
 
-{-
-class AD.ArrayElt e => ArrayElt e where 
-   type APtr e
-   bindArray :: AD.ArrayData e -> Int -> EmitArbb [Variable]
-
-instance ArrayElt () where 
-   type APtr () = Ptr ()      
-   bindArray _ _ = return []  
-
--- #define primArrayElt_(ty,con)                                            \
-instance ArrayElt ty where {                                        \
-   type APtr ty = Ptr con                                                \
-;  bindArray = bindArray' } 
-
--- #define primArrayElt(ty) primArrayElt_(ty,ty)
-primArrayElt(Int)
-primArrayElt(Int8)
-primArrayElt(Int16)
-primArrayElt(Int32)
-primArrayElt(Int64)
-
-primArrayElt(Word)
-primArrayElt(Word8)
-primArrayElt(Word16)
-primArrayElt(Word32)
-primArrayElt(Word64)
-
--- FIXME:
--- CShort
--- CUShort
--- CInt
--- CUInt
--- CLong
--- CULong
--- CLLong
--- CULLong
-
-primArrayElt(Float)
-primArrayElt(Double)
-
--- FIXME:
--- CFloat
--- CDouble
-
--- FIXME:
--- No concrete implementation in Data.Array.Accelerate.Array.Data
---
-instance ArrayElt Bool where
-  type APtr   Bool = ()
-  bindArray        = error "TODO: ArrayElt Bool"
+insertArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+                 ScalarType -> 
+                 AD.ArrayData e -> 
+                 Int -> GlobalBindings ArrayDesc ->
+                 GlobalBindings ArrayDesc 
+insertArrayPrim st ad n gb = 
+   let ptr = wordPtrToPtr (getArray ad)
+   in case M.lookup  ptr gb  of 
+        (Just _) -> gb
+        Nothing ->  
+          let arrd = ArrayDesc n st 
+          in M.insert ptr arrd gb
  
-instance ArrayElt Char where
-  type APtr   Char = ()
-  bindArray        = error "TODO: ArrayElt Char"
- 
--- FIXME:
--- CChar
--- CSChar
--- CUChar
+------------------------------------------------------------------------------
+-- lookupArray
+lookupArray :: AD.ArrayElt e => 
+               AD.ArrayData e ->  
+               GlobalBindings Variable -> 
+               [Variable] 
+lookupArray ad gv = doLookup AD.arrayElt ad gv
+  where 
+    doLookup :: ArrayEltR e -> 
+                AD.ArrayData e ->      
+                GlobalBindings Variable -> 
+                [Variable] 
+    doLookup ArrayEltRunit             _  gv = []
+    doLookup (ArrayEltRpair aeR1 aeR2) ad gv =  
+       let v1 = doLookup aeR1 (fst' ad) gv
+           v2 = doLookup aeR2 (snd' ad) gv
+       in v1 ++ v2
+    doLookup aer                       ad gv = doLookupPrim aer ad gv
+     where 
+      { doLookupPrim :: ArrayEltR e -> AD.ArrayData e -> GlobalBindings Variable -> [Variable]
+      mkPrimDispatch(doLookupPrim,lookupArrayPrim)
+      }
 
+lookupArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+                 ScalarType -> 
+                 AD.ArrayData e -> 
+                 GlobalBindings Variable ->
+                 [Variable] 
+lookupArrayPrim st ad  gv = 
+   let ptr = wordPtrToPtr (getArray ad)
+   in case M.lookup  ptr gv  of 
+        (Just v) -> [v]
+        Nothing -> error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 
+          
 
-instance (ArrayElt a, ArrayElt b) => ArrayElt (a,b) where 
-   type APtr (a,b) = (APtr a,APtr b)
-   bindArray ad n = do 
-                     let a = fst' ad
-                         b = snd' ad
-                     a' <- bindArray a n
-                     b' <- bindArray b n
-                     return (concat [a',b'])
+------------------------------------------------------------------------------
+-- bindGlobals
 
-
-
-
-
-
------------------------------------------------------------------------------- 
--- Print a message and then return a dummy (for now) 
-bindArray' :: forall e a. (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> Int -> EmitArbb [Variable]
-bindArray' ad i = do
-   liftIO$ putStrLn (show (getArray ad))        
-   let wptr = getArray ad
-   bin <- createDenseBinding_ (wordPtrToPtr wptr) 1 [fromIntegral i] [4 {- sizeof element -}]
-   sty <- getScalarType_ ArbbI32   -- Cheat
-   dty <- getDenseType_ sty 1      -- Cheat
-   gin <- createGlobal_ dty "input" bin -- Cheat
-   v <- variableFromGlobal_ gin
-   -- res <- int32_ 42 -- Create a dummy variable 
-   return [v]
- 
-------------------------------------------------------------------------------  
--- getArray turn a (Ptr a) to a wordPtr
-
--}
-
-
-
-
-{-
-bindArray' :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> Int -> EmitArbb [Variable]
-bindArray' ad i = do
-   liftIO$ putStrLn (show (getArray ad))        
-   let wptr = getArray ad
-   bin <- createDenseBinding_ (wordPtrToPtr wptr) 1 [fromIntegral i] [4 {- sizeof element -}]
-   sty <- getScalarType_ ArbbI32   -- Cheat
-   dty <- getDenseType_ sty 1      -- Cheat
-   gin <- createGlobal_ dty "input" bin -- Cheat
-   v <- variableFromGlobal_ gin
-   -- res <- int32_ 42 -- Create a dummy variable 
-   return [v]
- -}
+bindGlobals :: GlobalBindings ArrayDesc -> EmitArbb (GlobalBindings Variable)
+bindGlobals gb = doBindGlobals (M.toList gb) M.empty 
+  where 
+    doBindGlobals [] gv = return gv
+    doBindGlobals ((ptr,arrd):xs) gv = do 
+       let n = arrayDescLength arrd
+           st = arrayDescType arrd  
+       liftIO$ putStrLn (show n)
+       liftIO$ putStrLn (show st)     
+       
+-- ArBB CALLS           
+       bin <- createDenseBinding_ ptr 1 [fromIntegral n] [4 {- sizeof element -}]
+       liftIO$ putStrLn ("Binding: " ++ show ptr)
+       liftIO$ putStrLn ("   To variable: input" ++ show ptr)
+       sty <- getScalarType_ st   
+       dty <- getDenseType_ sty 1  
+       gin <- createGlobal_ dty ("input") bin 
+       v <- variableFromGlobal_ gin
+-------------
+       
+       gv' <- doBindGlobals xs gv
+       let gvout = M.insert ptr v gv'  -- return [v]
+       return gvout
+  
+            
