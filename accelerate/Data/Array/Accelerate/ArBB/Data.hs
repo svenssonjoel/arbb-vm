@@ -22,7 +22,8 @@ import Data.Array.Accelerate.Array.Representation
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
-
+-- for debug
+import Foreign.Marshal.Array
 
 -- Use to carry along a Map of bindings
 import qualified Control.Monad.State as ST
@@ -200,7 +201,9 @@ bindGlobals gb = doBindGlobals (M.toList gb) M.empty
        let n = arrayDescLength arrd
            st = arrayDescType arrd  
        liftIO$ putStrLn (show n)
-       liftIO$ putStrLn (show st)     
+       liftIO$ putStrLn (show st)
+       array <- liftIO$ peekArray 10 (castPtr ptr)  
+       liftIO$ putStrLn (show (array :: [Int32]))    
        
 -- ArBB CALLS           
        bin <- createDenseBinding_ ptr 1 [fromIntegral n] [4 {- sizeof element -}]

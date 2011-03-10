@@ -57,15 +57,23 @@ import Foreign.Ptr
 import Foreign.Marshal.Array
 
 
-
 import Data.Array.Accelerate.ArBB.Data
 import Data.Array.Accelerate.ArBB.Type
 
 import Data.Typeable
 import Data.Int
+import Data.IORef
 
 import qualified Data.Map as M
 
+import System.IO.Unsafe
+
+storage = unsafePerformIO$ newIORef (0 :: Integer)
+
+getN _ = unsafePerformIO$ do 
+  n <- readIORef storage
+  writeIORef storage (n+1)
+  return n 
 
 type ArBBEnv = [Variable]
        
@@ -80,8 +88,8 @@ executeArBB acc = do
     let gb = collectGlobals acc (M.empty)
     glob_vars <- bindGlobals gb
   
-    dummy <- getScalarType_ ArbbI32
-    dt    <- getDenseType_ dummy 1 
+    dummy <- getScalarType_ ArbbI32 -- cheat
+    dt    <- getDenseType_ dummy 1  -- cheat
     -- An ArBB function with no inputs. (Ok ? ) 
     fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
        o1 <- executeArBB' acc glob_vars
@@ -95,19 +103,19 @@ executeArBB acc = do
 ---------  
 
       
-    
-    withArray_ (replicate 200 0 :: [Int32]) $ \ out -> do 
-      outb <- createDenseBinding_ (castPtr out) 1 [200] [4]
+--- CHEAT    
+    withArray_ (replicate 1024 0 :: [Int32]) $ \ out -> do 
+      outb <- createDenseBinding_ (castPtr out) 1 [1024] [4]
       gout <- createGlobal_ dt "output" outb  
       vout <- variableFromGlobal_ gout 
       
       execute_ fun [vout] []
   -- Error accessing non-mapped memory !!?!?!!  
   
-      result <- liftIO$ peekArray 1 out
+      result <- liftIO$ peekArray 10 out
       liftIO$ putStrLn (show result)
       return ()
-    
+--------    
     return ()
     
 
@@ -254,7 +262,9 @@ defineDenseTypes (x:xs) = do
 defineLocalVars :: [Type] -> EmitArbb [Variable]
 defineLocalVars [] = return [] 
 defineLocalVars (t:ts) = do 
-  v <- createLocal_ t "name" -- name needs to be unique ? 
+  let name = "name" ++ show (getN ())
+  liftIO$ putStrLn ("Creating local variable: " ++name)    
+  v <- createLocal_ t name -- "name" -- name needs to be unique ? 
   vs <- defineLocalVars ts
   return (v:vs) 
 
@@ -314,7 +324,9 @@ genPrimApp :: PrimFun c ->
 genPrimApp op args st env = do 
    inputs <- genExp args env
    sty <- getScalarType_ st  -- What type is result here ??? (How do I get that type?)
-   res <- createLocal_ sty "res" -- needs a unique name? 
+   let resname = "res" ++ show (getN ())  -- needs a unique name? 
+   liftIO$ putStrLn ("Creating a result variable: " ++resname)
+   res <- createLocal_ sty resname
    genPrim op res inputs
    return res    
 

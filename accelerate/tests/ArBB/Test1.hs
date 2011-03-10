@@ -30,7 +30,7 @@ sumUp xs =
 
 
 
-input = ((fromList  (Sugar.listToShape [10]) [1..10 :: Int]) :: Data.Array.Accelerate.Array Sugar.DIM1  Int) 
+input = ((fromList  (Sugar.listToShape [1024]) [1..1024 :: Int]) :: Data.Array.Accelerate.Array Sugar.DIM1  Int) 
 
 --input2 = ((fromList [1..10 :: Float]) :: Data.Array.Accelerate.Array Int Float) 
 
