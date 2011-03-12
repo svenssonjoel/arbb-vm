@@ -51,8 +51,6 @@ import Data.Array.Accelerate.Array.Representation
 
 import Data.Array.Accelerate.Analysis.Type
 
-
---import Foreign.Storable as F
 import Foreign.Ptr 
 import Foreign.Marshal.Array
 
@@ -68,15 +66,9 @@ import qualified Data.Map as M
 
 import System.IO.Unsafe
 
-storage = unsafePerformIO$ newIORef (0 :: Integer)
 
-getN _ = unsafePerformIO$ do 
-  n <- readIORef storage
-  writeIORef storage (n+1)
-  return n 
-
-type ArBBEnv = [Variable]
-       
+type ArBBEnv = [Variable]    
+    
 ------------------------------------------------------------------------------
 -- run (The entry point)
 run :: Arrays a => Acc a -> a 
@@ -97,6 +89,12 @@ run acc = undefined
    to perform the actuall copying (instead of the ArBB system taking 
    care of it automatically) 
    
+
+   Thing to consider: 
+     The is_remote argument to functions. what does it mean ? 
+     
+   
+
 -} 
 
 executeArBB :: (Typeable aenv, Typeable a) => OpenAcc aenv a -> EmitArbb ()
@@ -118,26 +116,11 @@ executeArBB acc = do
        
   
     -- An ArBB function with no inputs. (Ok ? ) 
-    fun <- funDef_ "main" [dt] [] $ \ [o] [] -> do 
+    fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
        o1 <- executeArBB' acc glob_vars
-       
-       --add <- funDef_ "add" [dummy] [dummy] $ \ [o] [i1] -> do
-       --  one <- int32_ 1
-       --  op_ ArbbOpAdd [o] [i1,one] 
-       
-     
-       --res <- createLocal_ dummy "apa"
-       --a   <- createLocal_ dt "imd"
-       --opDynamic_ ArbbOpNewVector [a] [vin] 
-       --op_ ArbbOpCopy [a] [vin]
-       --map_ add [o] [vin] 
-       
-  
-       assignTo [o] o1 
-       --assignTo o [i]
-       --assignTo [o] [res]
-
-----------
+       assignTo o o1 
+ 
+---------
     str <- serializeFunction_ fun 
     liftIO$ putStrLn (getCString str)
 ---------  
@@ -150,9 +133,9 @@ executeArBB acc = do
       vout <- variableFromGlobal_ gout 
       
       execute_ fun [vout] [my_v] -- [vin]
-  -- Error accessing non-mapped memory !!?!?!!  
+ 
   
-      result <- liftIO$ peekArray 10 out
+      result <- liftIO$ peekArray 1024 out
       liftIO$ putStrLn (show result)
       return ()
 --------    
@@ -185,75 +168,10 @@ execMap ot it f inputs = do
   assignTo inp_vars inputs
   map_ fun out_vars inp_vars     
   return out_vars
-
-{-
-  -- BIG CHEATY PART STARTS HERE 
-  withArray_ (replicate 10 0 :: [Int32]) $ \ out -> do 
-    outb <- createDenseBinding_ (castPtr out) 1 [10] [4]
-    gout <- createGlobal_ (out_dense !! 0) "output" outb -- Cheat! 
-    vout <- variableFromGlobal_ gout 
-    execute_ maper [vout] input_vars
-    
-    result <- liftIO$ peekArray 10 out
-    liftIO$ putStrLn (show result)
-
   
-  return [] 
-  -}
-
-
-{-
-bArray :: (Array sh e) 
-         -> EmitArbb [Variable]
-bArray (Array sh ad) = do
-   let n = size sh
-   bindArray ad n
-  -}
------------------------------------------------------------------------------- 
--- Experiment: Execute OpenAcc
-{- 
-executeArBB :: OpenAcc aenv a -> EmitArbb [Variable] 
-executeArBB (Use (Array sh ad)) = let n = size sh 
-                                  in  bindArray ad n
-executeArBB m@(Map f ac) = do 
-  mapfun <- genArBB m -- This one cheats a bit at the moment 
-  a <- executeArBB ac -- get the inputs to map 
-  let inpT = getAccType ac -- Gives an ArBB Type
-      outT = getAccType m 
-  out_dense <- defineDenseTypes outT
-  inp_dense <- defineDenseTypes inpT
-
-  maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
-    map_ mapfun outs inps 
-   
-  
-  -- BIG CHEATY PART STARTS HERE 
-  withArray_ (replicate 10 0 :: [Int32]) $ \ out -> do 
-    outb <- createDenseBinding_ (castPtr out) 1 [10] [4]
-    gout <- createGlobal_ (out_dense !! 0) "output" outb -- Cheat! 
-    vout <- variableFromGlobal_ gout 
-    execute_ maper [vout] a
-    
-    result <- liftIO$ peekArray 10 out
-    liftIO$ putStrLn (show result)
-
-  return [undefined] 
--} 
 
 ------------------------------------------------------------------------------
--- generate ArBB functions from AST Nodes
--- TODO: Fix map case... 
-{-
-genArBB :: OpenAcc aenv t -> EmitArbb Function 
-genArBB op@(Map f a1) = do  -- Emit a function that takes an array 
-  fun <- genMap (getAccType op) -- output type (of elements)
-                (getAccType a1) -- input type (of elemets)  
-                f 
-  return fun
--}  
-------------------------------------------------------------------------------
--- What to do in case of Map ? 
- 
+-- What to do in case of Map 
 genMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
 genMap out inp fun = do
   out' <- defineTypes out
@@ -298,7 +216,7 @@ defineDenseTypes (x:xs) = do
 defineLocalVars :: [Type] -> EmitArbb [Variable]
 defineLocalVars [] = return [] 
 defineLocalVars (t:ts) = do 
-  let name = "name" ++ show (getN ())
+  let name = "name"
   liftIO$ putStrLn ("Creating local variable: " ++name)    
   v <- createLocal_ t name -- "name" -- name needs to be unique ? 
   vs <- defineLocalVars ts
@@ -359,8 +277,8 @@ genPrimApp :: PrimFun c ->
               EmitArbb Variable
 genPrimApp op args st env = do 
    inputs <- genExp args env
-   sty <- getScalarType_ st  -- What type is result here ??? (How do I get that type?)
-   let resname = "res" ++ show (getN ())  -- needs a unique name? 
+   sty <- getScalarType_ st 
+   let resname = "res" -- needs a unique name? 
    liftIO$ putStrLn ("Creating a result variable: " ++resname)
    res <- createLocal_ sty resname
    genPrim op res inputs
@@ -401,12 +319,13 @@ arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeDouble _))) val
   = float64_ val
 -- TODO: Keep going for all Accelerate Types
 
+
+
+
 ------------------------------------------------------------------------------
 -- idxToInt -- This is defined in one of the CUDA backend files 
 idxToInt :: Idx env t -> Int
 idxToInt ZeroIdx       = 0
 idxToInt (SuccIdx idx) = 1 + idxToInt idx
-
-
 
 

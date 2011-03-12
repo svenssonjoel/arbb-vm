@@ -17,11 +17,13 @@ import           Data.Array.Accelerate.AST
 import Data.Array.Accelerate.ArBB.Type
 import Data.Array.Accelerate.Array.Representation
 
-import Intel.ArbbVM
-import Intel.ArbbVM.Convenience
+import           Intel.ArbbVM
+import           Intel.ArbbVM.Convenience
+import qualified Intel.ArbbVM.Type as ArBB 
 
--- for debug
+
 import Foreign.Marshal.Array
+import Foreign.Marshal.Utils
 
 import qualified Data.Map as M 
 ------------------------------------------------------------------------------
@@ -54,42 +56,8 @@ data ArrayDesc = ArrayDesc { arrayDescLength :: Word64,
 ; dispatcher ArrayEltRchar   = error "mkPrimDispatcher: ArrayEltRchar"      \
 ; dispatcher _               = error "mkPrimDispatcher: not primitive"
 
- 
 ------------------------------------------------------------------------------
--- bindArray
-{- 
-bindArray :: AD.ArrayElt e => AD.ArrayData e -> Int -> EmitArbb [Variable]
-bindArray ad n = doBind AD.arrayElt ad
-  where 
-    doBind :: ArrayEltR e -> AD.ArrayData e -> EmitArbb [Variable]
-    doBind ArrayEltRunit             _  = return []
-    doBind (ArrayEltRpair aeR1 aeR2) ad = do 
-       v1 <- doBind aeR1 (fst' ad) 
-       v2 <- doBind aeR2 (snd' ad) 
-       return (v1 ++ v2)
-    doBind aer                       ad = doBindPrim aer ad n 
-     where 
-      { doBindPrim :: ArrayEltR e -> AD.ArrayData e -> Int -> EmitArbb [Variable] 
-      mkPrimDispatch(doBindPrim,bindArrayPrim)
-      }
-
-bindArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
-                 ScalarType -> 
-                 AD.ArrayData e -> 
-                 Int -> EmitArbb [Variable]
-bindArrayPrim st ad n = do  
-   liftIO$ putStrLn (show (getArray ad))        
-   let wptr = getArray ad
-   bin <- createDenseBinding_ (wordPtrToPtr wptr) 1 [fromIntegral n] [4 {- sizeof element -}]
-   liftIO$ putStrLn (show st)
-   sty <- getScalarType_ st   -- Not a Cheat anymore
-   dty <- getDenseType_ sty 1  
-   gin <- createGlobal_ dty "input" bin -- Cheat (why marked as cheat ?)
-   v <- variableFromGlobal_ gin
-   return [v]
-
--}
-
+-- small helpers. 
 fst' :: AD.ArrayData (a,b) -> AD.ArrayData a
 fst' = AD.fstArrayData
 
@@ -97,8 +65,6 @@ snd' :: AD.ArrayData (a,b) -> AD.ArrayData b
 snd' = AD.sndArrayData
 
 
---getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
---getArray = ptrToWordPtr . AD.ptrsOfArrayData 
 getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> Ptr ()
 getArray = castPtr . AD.ptrsOfArrayData 
 
@@ -208,20 +174,29 @@ bindGlobals gb = doBindGlobals (M.toList gb) M.empty
        array <- liftIO$ peekArray 10 (castPtr ptr)  
        liftIO$ putStrLn (show (array :: [Int32]))    
        
--- ArBB CALLS           
-       bin <- createDenseBinding_ ptr 1 [n] [4 {- sizeof element -}]
-       liftIO$ putStrLn ("Binding: " ++ show ptr)
+-- ArBB CALLS 
+
        let name = "input" ++ show ptr
        liftIO$ putStrLn ("   To variable: "  ++ name)
       
+       bin <- getBindingNull_
        sty <- getScalarType_ st   
        dty <- getDenseType_ sty 1  
        gin <- createGlobal_ dty name bin 
+       -- g_apa <- createGlobal_ dty "in" bin
        v <- variableFromGlobal_ gin
+       
+       num_elems <- usize_ n 
+        
+       opDynamicImm_ ArbbOpAlloc [v] [num_elems]
+     
+       m_ptr <- mapToHost_ v [1] ArbbReadWriteRange
+       liftIO$ copyBytes m_ptr ptr ((fromIntegral n) * (ArBB.size st)) 
+             
+   
 -------------
        
        gv' <- doBindGlobals xs gv
        let gvout = M.insert ptr v gv' 
        return gvout
   
-            

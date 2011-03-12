@@ -18,7 +18,7 @@ module Intel.ArbbVM.Convenience
    opDynamic_, opDynamicImm_,
    map_,  call_, 
 
-   mapToHost_, 
+   mapToHost_,
 
    const_, int32_, int64_,float32_, float64_, bool_,
    const_storable_,
