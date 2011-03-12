@@ -73,6 +73,7 @@ type ArBBEnv = [Variable]
 -- run (The entry point)
 run :: Arrays a => Acc a -> a 
 run acc = unsafePerformIO$ arbbSession$ do 
+    
     undefined 
      
 
@@ -110,13 +111,6 @@ executeArBB acc = do
     dt    <- getDenseType_ dummy 1  -- cheat
  
 
-    i_d  <- liftIO$ newArray (replicate 1024 2 :: [Int32])         
-    i_a <- createDenseBinding_ (castPtr i_d) 1 [1024] [4]
-    g_apa  <- createGlobal_  dt "in" i_a  
-    vin <- variableFromGlobal_ g_apa            
-   
-       
-  
     -- An ArBB function with no inputs. (Ok ? ) 
     fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
        o1 <- executeArBB' acc glob_vars
@@ -127,8 +121,8 @@ executeArBB acc = do
     liftIO$ putStrLn (getCString str)
 ---------  
 
-      
 --- CHEAT    
+   
     withArray_ (replicate 1024 0 :: [Int32]) $ \ out -> do 
       outb <- createDenseBinding_ (castPtr out) 1 [1024] [4]
       gout <- createGlobal_ dt "output" outb  
