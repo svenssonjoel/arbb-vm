@@ -72,7 +72,9 @@ type ArBBEnv = [Variable]
 ------------------------------------------------------------------------------
 -- run (The entry point)
 run :: Arrays a => Acc a -> a 
-run acc = undefined 
+run acc = unsafePerformIO$ arbbSession$ do 
+    undefined 
+     
 
 {- 
    tip: 
