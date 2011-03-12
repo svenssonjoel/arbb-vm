@@ -8,8 +8,6 @@ import Foreign.Ptr
 import Data.Int
 import Data.Word
 import Data.Typeable
---import Data.Maybe
---import Data.Word
 
 import qualified Data.Array.Accelerate.Array.Data as AD
 import           Data.Array.Accelerate.Array.Data (ArrayEltR(..)) 
@@ -25,9 +23,6 @@ import Intel.ArbbVM.Convenience
 -- for debug
 import Foreign.Marshal.Array
 
--- Use to carry along a Map of bindings
-import qualified Control.Monad.State as ST
-
 import qualified Data.Map as M 
 ------------------------------------------------------------------------------
 -- 
@@ -35,7 +30,7 @@ import qualified Data.Map as M
 -- Array to name bindigs
 type GlobalBindings a = M.Map (Ptr ()) a 
 
-data ArrayDesc = ArrayDesc { arrayDescLength :: Int, 
+data ArrayDesc = ArrayDesc { arrayDescLength :: Word64, 
                              arrayDescType   :: ScalarType } 
 
  
@@ -61,7 +56,8 @@ data ArrayDesc = ArrayDesc { arrayDescLength :: Int,
 
  
 ------------------------------------------------------------------------------
--- bindArray 
+-- bindArray
+{- 
 bindArray :: AD.ArrayElt e => AD.ArrayData e -> Int -> EmitArbb [Variable]
 bindArray ad n = doBind AD.arrayElt ad
   where 
@@ -92,6 +88,8 @@ bindArrayPrim st ad n = do
    v <- variableFromGlobal_ gin
    return [v]
 
+-}
+
 fst' :: AD.ArrayData (a,b) -> AD.ArrayData a
 fst' = AD.fstArrayData
 
@@ -99,8 +97,10 @@ snd' :: AD.ArrayData (a,b) -> AD.ArrayData b
 snd' = AD.sndArrayData
 
 
-getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
-getArray = ptrToWordPtr . AD.ptrsOfArrayData 
+--getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> WordPtr
+--getArray = ptrToWordPtr . AD.ptrsOfArrayData 
+getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> Ptr ()
+getArray = castPtr . AD.ptrsOfArrayData 
 
 
  
@@ -115,14 +115,14 @@ collectGlobals acc@(OpenAcc pacc) gb =
      case pacc of 
        (Use (Array sh ad)) -> 
          let n = size sh 
-         in insertArray ad n gb  
+         in insertArray ad (fromIntegral n) gb  
        (Map f acc) -> collectGlobals acc gb 
 
 ------------------------------------------------------------------------------
 -- insertArray
 
 insertArray :: AD.ArrayElt e => 
-               AD.ArrayData e -> Int -> 
+               AD.ArrayData e -> Word64 -> 
                GlobalBindings ArrayDesc -> 
                GlobalBindings ArrayDesc 
 insertArray ad n gb = doInsert AD.arrayElt ad gb
@@ -138,17 +138,18 @@ insertArray ad n gb = doInsert AD.arrayElt ad gb
        in gb''
     doInsert aer                       ad gb = doInsertPrim aer ad n gb
      where 
-      { doInsertPrim :: ArrayEltR e -> AD.ArrayData e -> Int -> GlobalBindings ArrayDesc -> GlobalBindings ArrayDesc
+      { doInsertPrim :: ArrayEltR e -> AD.ArrayData e -> Word64 -> GlobalBindings ArrayDesc -> GlobalBindings ArrayDesc
       mkPrimDispatch(doInsertPrim,insertArrayPrim)
       }
 
 insertArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
                  ScalarType -> 
                  AD.ArrayData e -> 
-                 Int -> GlobalBindings ArrayDesc ->
+                 Word64 -> GlobalBindings ArrayDesc ->
                  GlobalBindings ArrayDesc 
 insertArrayPrim st ad n gb = 
-   let ptr = wordPtrToPtr (getArray ad)
+   -- let ptr = wordPtrToPtr (getArray ad)
+   let ptr = getArray ad
    in case M.lookup  ptr gb  of 
         (Just _) -> gb
         Nothing ->  
@@ -184,7 +185,8 @@ lookupArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) =>
                  GlobalBindings Variable ->
                  [Variable] 
 lookupArrayPrim st ad  gv = 
-   let ptr = wordPtrToPtr (getArray ad)
+   --let ptr = wordPtrToPtr (getArray ad)
+   let ptr = getArray ad
    in case M.lookup  ptr gv  of 
         (Just v) -> [v]
         Nothing -> error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 
@@ -199,24 +201,27 @@ bindGlobals gb = doBindGlobals (M.toList gb) M.empty
     doBindGlobals [] gv = return gv
     doBindGlobals ((ptr,arrd):xs) gv = do 
        let n = arrayDescLength arrd
-           st = arrayDescType arrd  
+           st = arrayDescType arrd
+--- DEBUG   
        liftIO$ putStrLn (show n)
        liftIO$ putStrLn (show st)
        array <- liftIO$ peekArray 10 (castPtr ptr)  
        liftIO$ putStrLn (show (array :: [Int32]))    
        
 -- ArBB CALLS           
-       bin <- createDenseBinding_ ptr 1 [fromIntegral n] [4 {- sizeof element -}]
+       bin <- createDenseBinding_ ptr 1 [n] [4 {- sizeof element -}]
        liftIO$ putStrLn ("Binding: " ++ show ptr)
-       liftIO$ putStrLn ("   To variable: input" ++ show ptr)
+       let name = "input" ++ show ptr
+       liftIO$ putStrLn ("   To variable: "  ++ name)
+      
        sty <- getScalarType_ st   
        dty <- getDenseType_ sty 1  
-       gin <- createGlobal_ dty ("input") bin 
+       gin <- createGlobal_ dty name bin 
        v <- variableFromGlobal_ gin
 -------------
        
        gv' <- doBindGlobals xs gv
-       let gvout = M.insert ptr v gv'  -- return [v]
+       let gvout = M.insert ptr v gv' 
        return gvout
   
             

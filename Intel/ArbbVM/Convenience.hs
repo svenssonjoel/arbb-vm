@@ -13,8 +13,12 @@ module Intel.ArbbVM.Convenience
 
    arbbSession, EmitArbb,  
    if_, while_, readScalar_,
-   funDef_, funDefS_, call_, op_, 
-   opDynamic_, map_,
+   funDef_, funDefS_,
+   op_, opImm_,  
+   opDynamic_, opDynamicImm_,
+   map_,  call_, 
+
+   mapToHost_, 
 
    const_, int32_, int64_,float32_, float64_, bool_,
    const_storable_,
@@ -98,13 +102,25 @@ getCtx =
  do (ctx,_) <- S.get
     return ctx
 
+------------------------------------------------------------------------------
+-- Map an ArBB array into host addrspace
+mapToHost_ :: Variable -> [Word64] -> RangeAccessMode -> EmitArbb (Ptr ())
+mapToHost_ var pitch mode = do 
+   ctx <- getCtx
+   L mapToHost ctx var pitch mode 
 --------------------------------------------------------------------------------
 -- Convenience functions for common patterns:
+
+opImm_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb()
+opImm_ code out inp = L opImm code out inp
 
 op_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb ()
 op_ code out inp = 
  do fun <- getFun "Convenience.op_ cannot execute an Opcode"
     L op fun code out inp
+
+opDynamicImm_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb()
+opDynamicImm_ code out inp = L opDynamicImm code out inp
 
 opDynamic_ :: Opcode -> [Variable] -> [Variable] -> EmitArbb ()
 opDynamic_ code out inp = 

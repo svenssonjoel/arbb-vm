@@ -25,7 +25,8 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       
                       createDenseBinding, freeBinding, getFunctionType,
                       beginFunction, endFunction, 
-                      op, opDynamic, callOp, execute, compile, 
+                      op, opImm, opDynamic, opDynamicImm,
+		      callOp, execute, compile, 
                       finish, createConstant, createLocal,
                       variableFromGlobal, getParameter, readScalar,
                       writeScalar, serializeFunction, freeVMString,
@@ -422,7 +423,16 @@ endFunction f =
 -- ----------------------------------------------------------------------
 -- Operations of various kinds
 
--- Operations on scalaras 
+-- Operations on scalaras
+opImm :: Opcode -> [Variable] -> [Variable] -> IO ()
+opImm opcode outp inp = 
+    op' (Function nullPtr) opcode outp inp nullPtr nullPtr >>= 
+    dbg0 "arbb_op" [("fun", show $ nullPtr),
+     	 	    ("Opcode", show opcode),
+		    ("outputs", show (map fromVariable outp)),
+		    ("inputs" , show (map fromVariable inp))] >>=
+    throwIfErrorIO0  
+ 
 op :: Function -> Opcode -> [Variable] -> [Variable] -> IO ()
 op f opcode outp inp = 
     op' f opcode outp inp nullPtr nullPtr >>= 
@@ -443,6 +453,7 @@ op f opcode outp inp =
     -- alloca- `ErrorDetails' peekErrorDet* 
 
 -- Operation that works on arrays of various length
+-- TODO: Add Debug printing here
 opDynamic fnt opc outp inp = 
     opDynamic' fnt 
                opc 
@@ -455,6 +466,20 @@ opDynamic fnt opc outp inp =
    where 
      nin = length inp 
      nout = length outp  
+
+opDynamicImm  opc outp inp = 
+    opDynamic' (Function nullPtr) 
+               opc 
+               nout 
+               outp 
+               nin 
+               inp 
+               nullPtr 
+               nullPtr >>= throwIfErrorIO0      
+   where 
+     nin = length inp 
+     nout = length outp  
+
      
 {# fun unsafe arbb_op_dynamic as opDynamic' 
    { fromFunction `Function' ,

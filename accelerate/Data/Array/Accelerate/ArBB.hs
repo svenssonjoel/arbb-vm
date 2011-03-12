@@ -82,20 +82,60 @@ type ArBBEnv = [Variable]
 run :: Arrays a => Acc a -> a 
 run acc = undefined 
 
+{- 
+   tip: 
+
+   Use bind_to_host to map an array created using arbb_op_alloc 
+   into host memory and then copy data into the "host" side pointer
+   This method should have performance benefits if "kernels" are 
+   reused. However, I am unsure the method will affect our performance 
+   any. It may, though, be a method that works right now, since 
+   the copy-in scenario seems buggy.
+
+   Using bind_to_host should still be compatible with the approach 
+   I have started but requires "more work" because our code needs
+   to perform the actuall copying (instead of the ArBB system taking 
+   care of it automatically) 
+   
+-} 
 
 executeArBB :: (Typeable aenv, Typeable a) => OpenAcc aenv a -> EmitArbb ()
 executeArBB acc = do
     let gb = collectGlobals acc (M.empty)
-    glob_vars <- bindGlobals gb
-  
+    glob_vars <- bindGlobals gb 
+    let lst = M.toList glob_vars
+        my_v = snd (head lst)   
+
     dummy <- getScalarType_ ArbbI32 -- cheat
     dt    <- getDenseType_ dummy 1  -- cheat
-    -- An ArBB function with no inputs. (Ok ? ) 
-    fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
-       o1 <- executeArBB' acc glob_vars
-       assignTo o o1 
-       return () 
+ 
 
+    i_d  <- liftIO$ newArray (replicate 1024 2 :: [Int32])         
+    i_a <- createDenseBinding_ (castPtr i_d) 1 [1024] [4]
+    g_apa  <- createGlobal_  dt "in" i_a  
+    vin <- variableFromGlobal_ g_apa            
+   
+       
+  
+    -- An ArBB function with no inputs. (Ok ? ) 
+    fun <- funDef_ "main" [dt] [] $ \ [o] [] -> do 
+       o1 <- executeArBB' acc glob_vars
+       
+       --add <- funDef_ "add" [dummy] [dummy] $ \ [o] [i1] -> do
+       --  one <- int32_ 1
+       --  op_ ArbbOpAdd [o] [i1,one] 
+       
+     
+       --res <- createLocal_ dummy "apa"
+       --a   <- createLocal_ dt "imd"
+       --opDynamic_ ArbbOpNewVector [a] [vin] 
+       --op_ ArbbOpCopy [a] [vin]
+       --map_ add [o] [vin] 
+       
+  
+       assignTo [o] o1 
+       --assignTo o [i]
+       --assignTo [o] [res]
 
 ----------
     str <- serializeFunction_ fun 
@@ -109,7 +149,7 @@ executeArBB acc = do
       gout <- createGlobal_ dt "output" outb  
       vout <- variableFromGlobal_ gout 
       
-      execute_ fun [vout] []
+      execute_ fun [vout] [my_v] -- [vin]
   -- Error accessing non-mapped memory !!?!?!!  
   
       result <- liftIO$ peekArray 10 out
@@ -119,7 +159,7 @@ executeArBB acc = do
     return ()
     
 
-
+-- TODO: Do I need the Typeable ? 
 executeArBB' :: (Typeable aenv, Typeable a) => 
                 OpenAcc aenv a -> 
                 GlobalBindings Variable -> 
@@ -128,7 +168,7 @@ executeArBB' acc@(OpenAcc pacc) gv =
   case pacc of
      (Use (Array sh ad)) -> return (lookupArray ad gv) 
      m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
-                              (getAccType  acc) -- input type (of elemets)  
+                              (getAccType  acc)         -- input type (of elemets)  
                               f =<< executeArBB' acc gv 
 
         
@@ -143,15 +183,7 @@ execMap ot it f inputs = do
   inp_vars  <- defineLocalVars inp_dense
 
   assignTo inp_vars inputs
-  -- maper <- funDef_ "mapf" out_dense inp_dense $ \ outs inps -> do 
-  
-  --liftIO$ putStrLn "map"
-  --liftIO$ putStrLn ("N out: " ++ show (length out_vars))
-  --liftIO$ putStrLn ("N inp: " ++ show (length inp_vars))
-  
-  map_ fun out_vars inp_vars
-     
-     
+  map_ fun out_vars inp_vars     
   return out_vars
 
 {-
