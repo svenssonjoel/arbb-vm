@@ -25,6 +25,8 @@ import qualified Intel.ArbbVM.Type as ArBB
 import Foreign.Marshal.Array
 import Foreign.Marshal.Utils
 
+import Control.Monad.ST
+
 import qualified Data.Map as M 
 ------------------------------------------------------------------------------
 -- 
@@ -35,7 +37,6 @@ type GlobalBindings a = M.Map (Ptr ()) a
 data ArrayDesc = ArrayDesc { arrayDescLength :: Word64, 
                              arrayDescType   :: ScalarType } 
 
- 
 
 ------------------------------------------------------------------------------
 -- The accelerate guys seem to love these CPP hacks (im trying to keep up)
@@ -199,4 +200,102 @@ bindGlobals gb = doBindGlobals (M.toList gb) M.empty
        gv' <- doBindGlobals xs gv
        let gvout = M.insert ptr v gv' 
        return gvout
+
+
+
+
   
+------------------------------------------------------------------------------
+-- 
+data InternalArray sh where 
+     InternalArray :: (Sugar.Shape sh) 
+                   => Sugar.EltRepr sh 
+                   -> Vars             -- bound to ArBB Variables 
+                   -> InternalArray sh
+
+data Vars  
+   = VarsUnit  
+   | VarsPrim Variable
+   | VarsPair Vars Vars 
+   deriving Show 
+
+-- depth first order (If I am not mistaken) 
+varsToList VarsUnit =[] 
+varsToList (VarsPrim v)  = [v] 
+varsToList (VarsPair v1 v2) = varsToList v1 ++ varsToList v2
+
+data Result arrs where 
+  ResultUnit :: Result () 
+  ResultArray :: (Sugar.Shape sh, Sugar.Elt e) => InternalArray sh -> Result (Array sh e) 
+  ResultPair :: Result a1 -> Result a2 -> Result (a1,a2)
+
+-- again depth first order !
+resultToVList ::Result  a -> [Vars] 
+resultToVList ResultUnit = [] 
+resultToVList (ResultArray (InternalArray _ vars)) = [vars] 
+resultToVList (ResultPair r1 r2) = resultToVList r1 ++ resultToVList r2
+
+resultToArrays :: Arrays a => Result a ->  EmitArbb a
+resultToArrays res = doResultToArray arrays res
+  where 
+    doResultToArray :: ArraysR arrs -> Result arrs -> EmitArbb arrs 
+    doResultToArray ArraysRunit       ResultUnit   = return () 
+    doResultToArray ArraysRarray      (ResultArray (InternalArray sh v)) = do
+      ad <- varsToAD AD.arrayElt v 
+      return $ Array sh ad -- (varsToAD AD.arrayElt v)
+       
+ 
+varsToAD :: ArrayEltR e -> Vars -> EmitArbb (AD.ArrayData e)
+varsToAD ArrayEltRunit VarsUnit = return AD.AD_Unit
+varsToAD (ArrayEltRpair r1 r2) (VarsPair a b) = do 
+    a1 <- varsToAD r1 a 
+    b1 <- varsToAD r2 b 
+    return $ AD.AD_Pair a1 b1 -- (varsToAD r1 a) (varsToAD r2 b)
+-- TODO: Change to the general case. use CPP hackery 
+varsToAD (ArrayEltRint32) (VarsPrim v) = do
+    primInt32 v 
+
+-- TODO: WHAT IS THE RIGHT THING TO DO HERE ? 
+-- WARNING: AREA OF "HACKING WITHOUT A CLUE" ! 
+primInt32 :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+             Variable -> EmitArbb (AD.ArrayData e)
+primInt32 v = liftIO$ unsafeSTToIO$ do
+    new <- AD.newArrayData 10  -- should depend on length
+    -- TODO: Result should be copied from ArBB into this array
+    AD.unsafeFreezeArrayData new
+-- TODO: Move to Data.hs and make use of similar CPP hackery 
+    
+------------------------------------------------------------------------------ 
+-- LookupArrayR  
+lookupArrayR :: AD.ArrayElt e => 
+               AD.ArrayData e ->  
+               GlobalBindings Variable -> 
+               Vars 
+lookupArrayR ad gv = doLookup AD.arrayElt ad gv
+  where 
+    doLookup :: ArrayEltR e -> 
+                AD.ArrayData e ->      
+                GlobalBindings Variable -> 
+                Vars 
+    doLookup ArrayEltRunit             _  gv = VarsUnit
+    doLookup (ArrayEltRpair aeR1 aeR2) ad gv =  
+       let v1 = doLookup aeR1 (fst' ad) gv
+           v2 = doLookup aeR2 (snd' ad) gv
+       in VarsPair v1 v2
+    doLookup aer                       ad gv = doLookupPrim aer ad gv
+     where 
+      { doLookupPrim :: ArrayEltR e -> AD.ArrayData e -> GlobalBindings Variable -> Vars
+      mkPrimDispatch(doLookupPrim,lookupArrayRPrim)
+      }
+
+lookupArrayRPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+                 ScalarType -> 
+                 AD.ArrayData e -> 
+                 GlobalBindings Variable ->
+                 Vars 
+lookupArrayRPrim st ad  gv = 
+   --let ptr = wordPtrToPtr (getArray ad)
+   let ptr = getArray ad
+   in case M.lookup  ptr gv  of 
+        (Just v) -> VarsPrim v
+        Nothing -> error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 

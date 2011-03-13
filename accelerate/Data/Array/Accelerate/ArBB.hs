@@ -21,6 +21,7 @@
     - Only possible if all the Accelerate concepts are 
       implementable entirely within ArBB (That we wont
       need to emulate any accelerate functionality) 
+      (This may be possible anyway... ) 
 
 -- About Accelerate
 
@@ -29,10 +30,15 @@
       ArBB backend needs to export the same. 
    AST.hs contains the typeclass Arrays.      
 
+-- Things that I stumble upon using Accelerate
+     - Many "different" things have same name. importing module X or Y 
+       makes difference!  
+       Big difference between using Shape and Sugar.Shape! 
+       (This problem occurs again and again).
+       You can spend lots of time hunting obscure error messages.
 
 
 -}
-
 
 
 module Data.Array.Accelerate.ArBB where 
@@ -61,12 +67,14 @@ import Data.Array.Accelerate.ArBB.Type
 
 import Data.Typeable
 import Data.Int
--- import Data.IORef
 
 import qualified Data.Map as M
 
 import System.IO.Unsafe
-import Control.Monad.ST
+
+import qualified  Control.Monad.State.Strict as S 
+import Control.Monad
+#define L S.lift$
 
 type ArBBEnv = [Variable]    
     
@@ -96,58 +104,17 @@ run acc = unsafePerformIO$ arbbSession$ do
 
    Thing to consider: 
      The is_remote argument to functions. what does it mean ? 
+   
+
+     Needs some kind of "shaped" type description of arrays as well 
+       to go along with the "InternalArray" datatype   
+
 -} 
 
-
-data InternalArray sh where 
-     InternalArray :: (Shape sh) 
-                   => Sugar.EltRepr sh 
-                   -> Vars             -- bound to ArBB Variables 
-                   -> InternalArray sh
-
-data Vars  
-   = VarsUnit  
-   | VarsPrim Variable
-   | VarsPair Vars Vars 
-
-data Result arrs where 
-  ResultUnit :: Result () 
-  ResultArray :: (Shape sh,  Sugar.Elt e) => InternalArray sh -> Result (Array sh e) 
-  ResultPair :: Result a1 -> Result a2 -> Result (a1,a2)
-
-resultToArrays :: Arrays a => Result a ->  EmitArbb a
-resultToArrays res = doResultToArray arrays res
-  where 
-    doResultToArray :: ArraysR arrs -> Result arrs -> EmitArbb arrs 
-    doResultToArray ArraysRunit       ResultUnit   = return () 
-    doResultToArray ArraysRarray      (ResultArray (InternalArray sh v)) = do
-      ad <- varsToAD AD.arrayElt v 
-      return $ Array sh ad -- (varsToAD AD.arrayElt v)
-       
- 
-varsToAD :: ArrayEltR e -> Vars -> EmitArbb (AD.ArrayData e)
-varsToAD ArrayEltRunit VarsUnit = return AD.AD_Unit
-varsToAD (ArrayEltRpair r1 r2) (VarsPair a b) = do 
-    a1 <- varsToAD r1 a 
-    b1 <- varsToAD r2 b 
-    return $ AD.AD_Pair a1 b1 -- (varsToAD r1 a) (varsToAD r2 b)
--- TODO: Change to the general case. use CPP hackery 
-varsToAD (ArrayEltRint32) (VarsPrim v) = do
-    primInt32 v 
-
--- TODO: WHAT IS THE RIGHT THING TO DO HERE ? 
--- WARNING: AREA OF "HACKING WITHOUT A CLUE" ! 
-primInt32 :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
-             Variable -> EmitArbb (AD.ArrayData e)
-primInt32 v = liftIO$ unsafeSTToIO$ do
-    new <- AD.newArrayData 10  -- should depend on length
-    -- TODO: Result should be copied from ArBB into this array
-    AD.unsafeFreezeArrayData new
--- TODO: Move to Data.hs and make use of similar CPP hackery 
-    
-
-
-executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb ()
+------------------------------------------------------------------------------
+-- ExecuteArBB 
+{- 
+executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb () -- (Result a) 
 executeArBB acc = do
     let gb = collectGlobals acc (M.empty)
     glob_vars <- bindGlobals gb 
@@ -184,9 +151,113 @@ executeArBB acc = do
       return ()
 --------    
     return ()
+-}
+
+execute' :: Function -> Result b -> Result a -> EmitArbb (Result b) 
+execute' f shape input = do 
+   let ins'   = resultToVList input
+       outs'  = resultToVList shape 
+       ins    = concatMap varsToList ins'
+       outs   = concatMap varsToList outs' 
+   execute_ f outs ins 
+   return shape     
+
+{- 
+topLevelFun :: (Arrays a) => 
+               String -> 
+               [Type] -> 
+               [Type] -> 
+               ([Variable] -> [Variable] -> EmitArbb (Result a)) -> 
+               EmitArbb (Function, Result a)
+topLevelFun  name t_out t_in body = do 
+     fun <- funDef_ name t_out t_int 
+-} 
+
+
+topLevelFun :: String -> [Type] -> [Type] -> 
+               ([Variable] -> [Variable] -> EmitArbb (Result a))->      
+               EmitArbb (Function, Result a) 
+topLevelFun name outty inty userbody = 
+  do 
+     ctx <- getCtx
+     fnt     <- L getFunctionType ctx outty inty
+     fun     <- L beginFunction ctx fnt name 0
+
+     invars  <- L forM [0 .. length inty  - 1]   (getParameter fun 0)
+     outvars <- L forM [0 .. length outty - 1]   (getParameter fun 1)
+
+     -- Push on the stack:
+     S.modify (\ (c,ls) -> (c, fun:ls))
+
+     -- Now generate body:
+   
+     result_shape <- userbody outvars invars
+   
+     -- Pop off the stack:
+     S.modify (\ (c, h:t) -> (c, t))
+     L endFunction fun
+
+     -- EXPERIMENTAL!  Compile immediately!!
+     L compile fun
+     return (fun, result_shape)
+
+
+
+
+executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb () --  (Result a) -- ()  
+executeArBB acc = do
+    let gb = collectGlobals acc (M.empty)
+    glob_vars <- bindGlobals gb 
+    let lst = M.toList glob_vars
+        my_v = snd (head lst)   
+
+    dummy <- getScalarType_ ArbbI32 -- cheat
+    dt    <- getDenseType_ dummy 1  -- cheat
+ 
+    -- grr do i need a different set of funDef_ and execute_ functions...
+    -- maybe !!!
+    -- An ArBB function with no inputs. (Ok ? ) 
+    (fun,rs) <- topLevelFun "main" [dt] [] $ \ o [] -> do 
+       o1 <- executeArBB' acc glob_vars
+       return o1
+       -- return o1
+       --case o1 of  -- HACK 
+        -- ResultArray (InternalArray sh (VarsPrim v)) -> do -- HACK
+        --   op_ ArbbOpCopy o [v]  -- HACK 
+        --   return () 
+          --assignTo o o1 
     
 
+    -- how do I create this outputs object ? 
+    -- let outputs = ResultsArray ( 
+    -- execute' fun outputs ResultUnit             
+                  
+                  
+---------
+    str <- serializeFunction_ fun 
+    liftIO$ putStrLn (getCString str)
+---------  
+
+--- CHEAT    
+{- 
+    withArray_ (replicate 1024 0 :: [Int32]) $ \ out -> do 
+      outb <- createDenseBinding_ (castPtr out) 1 [1024] [4]
+      gout <- createGlobal_ dt "output" outb  
+      vout <- variableFromGlobal_ gout 
+      
+      execute_ fun [vout] [my_v] -- [vin]
+ 
+  
+      result <- liftIO$ peekArray 1024 out
+      liftIO$ putStrLn (show result)
+      return ()
+--------    
+    return ()
+-}     
+
 -- TODO: Do I need the Typeable ? 
+
+{-
 executeArBB' :: (Typeable aenv, Typeable a) => 
                 OpenAcc aenv a -> 
                 GlobalBindings Variable -> 
@@ -197,8 +268,23 @@ executeArBB' acc@(OpenAcc pacc) gv =
      m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
                               (getAccType  acc)         -- input type (of elemets)  
                               f =<< executeArBB' acc gv 
+-}
+ 
+executeArBB' :: (Typeable aenv, Arrays a) => 
+                OpenAcc aenv a -> 
+                GlobalBindings Variable -> 
+                EmitArbb (Result a)  
+executeArBB' acc@(OpenAcc pacc) gv = 
+  case pacc of
+     (Use (Array sh ad)) -> do 
+          let vars = lookupArrayR ad gv
+          liftIO$ putStrLn$ show vars
+          return$  ResultArray (InternalArray sh vars)
+     m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
+                              (getAccType  acc)         -- input type (of elemets)  
+                              f =<< executeArBB' acc gv 
 
-        
+{-        
 execMap ot it f inputs = do 
   fun <- genMap ot -- output type (of elements)
                 it -- input type (of elemets)  
@@ -212,6 +298,47 @@ execMap ot it f inputs = do
   assignTo inp_vars inputs
   map_ fun out_vars inp_vars     
   return out_vars
+-}
+
+execMap :: (Sugar.Elt t') => [ScalarType] -> [ScalarType] -> 
+           OpenFun env aenv (t -> t')  -> 
+           Result (Array sh t) -> -- input
+           EmitArbb (Result (Array sh t'))   -- output 
+            
+execMap ot it f inputs = do 
+  fun <- genMap ot -- output type (of elements)
+                it -- input type (of elemets)  
+                f 
+  
+  out_dense <- defineDenseTypes ot
+  inp_dense <- defineDenseTypes it
+  out_vars  <- defineLocalVars out_dense
+  inp_vars  <- defineLocalVars inp_dense
+
+  -- assignTo inp_vars inputs
+  doInputs inputs inp_vars
+  map_ fun out_vars inp_vars
+  doOutputs inputs out_vars 
+ 
+-- HACKITY HACK !
+ where
+  doInputs :: Result (Array sh t) -> [Variable] -> EmitArbb ()
+  doInputs inputs inp_vars= 
+   case inputs of  
+         ResultArray  (InternalArray sh (VarsPair VarsUnit (VarsPrim v))) -> do -- HACK
+           op_ ArbbOpCopy inp_vars [v]  -- HACK 
+           return ()   
+  doOutputs :: (Sugar.Elt t') => Result (Array sh t) -> [Variable] -> EmitArbb (Result (Array sh t'))  
+  doOutputs inputs out_vars = 
+   case inputs of  -- HACK
+        ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim v))) -> do -- HACK) -> do -- HACK 
+          return$ ResultArray (InternalArray sh (VarsPrim (head out_vars))) -- HACK
+        ResultArray (InternalArray sh v) -> do -- HACK 
+          liftIO$ putStrLn$ show v
+          return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK
+  -- return ()          
+  -- return out_vars
+
   
 
 ------------------------------------------------------------------------------
