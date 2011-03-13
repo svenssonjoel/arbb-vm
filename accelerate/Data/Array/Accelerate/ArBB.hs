@@ -20,7 +20,7 @@
     
     - Only possible if all the Accelerate concepts are 
       implementable entirely within ArBB (That we wont
-      to emulate any accelerate functionality) 
+      need to emulate any accelerate functionality) 
 
 -- About Accelerate
 
@@ -46,6 +46,7 @@ import qualified Data.Array.Accelerate.Type as Type
 import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
 import qualified Data.Array.Accelerate.Array.Data as AD 
+import           Data.Array.Accelerate.Array.Data (ArrayEltR(..))
 
 import Data.Array.Accelerate.Array.Representation
 
@@ -60,12 +61,12 @@ import Data.Array.Accelerate.ArBB.Type
 
 import Data.Typeable
 import Data.Int
-import Data.IORef
+-- import Data.IORef
 
 import qualified Data.Map as M
 
 import System.IO.Unsafe
-
+import Control.Monad.ST
 
 type ArBBEnv = [Variable]    
     
@@ -95,12 +96,58 @@ run acc = unsafePerformIO$ arbbSession$ do
 
    Thing to consider: 
      The is_remote argument to functions. what does it mean ? 
-     
-   
-
 -} 
 
-executeArBB :: (Typeable aenv, Typeable a) => OpenAcc aenv a -> EmitArbb ()
+
+data InternalArray sh where 
+     InternalArray :: (Shape sh) 
+                   => Sugar.EltRepr sh 
+                   -> Vars             -- bound to ArBB Variables 
+                   -> InternalArray sh
+
+data Vars  
+   = VarsUnit  
+   | VarsPrim Variable
+   | VarsPair Vars Vars 
+
+data Result arrs where 
+  ResultUnit :: Result () 
+  ResultArray :: (Shape sh,  Sugar.Elt e) => InternalArray sh -> Result (Array sh e) 
+  ResultPair :: Result a1 -> Result a2 -> Result (a1,a2)
+
+resultToArrays :: Arrays a => Result a ->  EmitArbb a
+resultToArrays res = doResultToArray arrays res
+  where 
+    doResultToArray :: ArraysR arrs -> Result arrs -> EmitArbb arrs 
+    doResultToArray ArraysRunit       ResultUnit   = return () 
+    doResultToArray ArraysRarray      (ResultArray (InternalArray sh v)) = do
+      ad <- varsToAD AD.arrayElt v 
+      return $ Array sh ad -- (varsToAD AD.arrayElt v)
+       
+ 
+varsToAD :: ArrayEltR e -> Vars -> EmitArbb (AD.ArrayData e)
+varsToAD ArrayEltRunit VarsUnit = return AD.AD_Unit
+varsToAD (ArrayEltRpair r1 r2) (VarsPair a b) = do 
+    a1 <- varsToAD r1 a 
+    b1 <- varsToAD r2 b 
+    return $ AD.AD_Pair a1 b1 -- (varsToAD r1 a) (varsToAD r2 b)
+-- TODO: Change to the general case. use CPP hackery 
+varsToAD (ArrayEltRint32) (VarsPrim v) = do
+    primInt32 v 
+
+-- TODO: WHAT IS THE RIGHT THING TO DO HERE ? 
+-- WARNING: AREA OF "HACKING WITHOUT A CLUE" ! 
+primInt32 :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+             Variable -> EmitArbb (AD.ArrayData e)
+primInt32 v = liftIO$ unsafeSTToIO$ do
+    new <- AD.newArrayData 10  -- should depend on length
+    -- TODO: Result should be copied from ArBB into this array
+    AD.unsafeFreezeArrayData new
+-- TODO: Move to Data.hs and make use of similar CPP hackery 
+    
+
+
+executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb ()
 executeArBB acc = do
     let gb = collectGlobals acc (M.empty)
     glob_vars <- bindGlobals gb 
