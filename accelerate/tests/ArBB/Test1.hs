@@ -43,5 +43,4 @@ apa = -- arbbSession$ do
   
 
 main = do
-     putStrLn "Hello World"
      putStrLn$ show apa

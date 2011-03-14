@@ -287,7 +287,7 @@ primInt32 :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) =>
 primInt32 v n = do
     ptr <- mapToHost_ v [1] ArbbReadOnlyRange
     dat <- liftIO$ peekArray n (castPtr ptr) :: EmitArbb [Int]
-    liftIO$ putStrLn (show dat)
+    -- liftIO$ putStrLn (show dat)
     liftIO$ unsafeSTToIO$ do
      new <- AD.newArrayData n  -- should depend on length
  

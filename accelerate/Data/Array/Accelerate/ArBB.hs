@@ -177,7 +177,6 @@ executeArBB acc = do
     outputs <- outputVariables rs -- Create a container for the outputs
     execute' fun outputs ResultUnit
     
-    liftIO$ putStrLn "END OF executeArBB"              
     resultToArrays outputs         
                   
 ------------------------------------------------------------------------------
@@ -189,27 +188,22 @@ executeArBB' :: (Typeable aenv, Arrays a) =>
 executeArBB' acc@(OpenAcc pacc) gv = 
   case pacc of
      (Use (Array sh ad)) -> do 
-          liftIO$ putStrLn "ENTERING Use Case" 
           let vars = lookupArrayR ad gv
-          liftIO$ putStrLn$ show vars
+         --  liftIO$ putStrLn$ show vars
           return$  ResultArray (InternalArray sh vars)
-     m@(Map f acc) -> do
-            liftIO$ putStrLn "ENTERING Map Case"  
-            execMap (getAccType' (OpenAcc m))  -- output type (of elements)
-                    (getAccType'  acc)         -- input type (of elemets)  
-                    f =<< executeArBB' acc gv 
+     m@(Map f acc) -> execMap (getAccType' (OpenAcc m))  -- output type (of elements)
+                              (getAccType'  acc)         -- input type (of elemets)  
+                              f =<< executeArBB' acc gv 
 
 
 ------------------------------------------------------------------------------
---  
-
+--  execMap 
 execMap :: (Sugar.Elt t') => ArBBType ScalarType -> ArBBType ScalarType -> 
            OpenFun env aenv (t -> t')  -> 
            Result (Array sh t) -> -- input (should be a single array) 
            EmitArbb (Result (Array sh t'))   -- output 
             
 execMap ot it f (ResultArray (InternalArray sh v))  = do 
-  liftIO$ putStrLn "ENTERING execMap"       
   fun <- genMap ot -- output type (of elements)
                 it -- input type (of elemets)  
                 f 
@@ -222,40 +216,14 @@ execMap ot it f (ResultArray (InternalArray sh v))  = do
 
   assignToVars inp_vars' v
   
-  -- assignTo inp_vars inputs
-  -- doInputs inputs inp_vars
   let inp_vars = varsToList inp_vars'
   let out_vars = varsToList out_vars' 
-
-  liftIO$ putStrLn "generating Map" 
   
   map_ fun out_vars inp_vars
-  --doOutputs inputs out_vars 
  
   let outs =  listToVars v out_vars 
   return (ResultArray (InternalArray sh outs))
 
--- HACKITY HACK !
-{- 
- where
-  doInputs :: Result (Array sh t) -> [Variable] -> EmitArbb ()
-  doInputs inputs inp_vars= 
-   case inputs of  
-         ResultArray  (InternalArray sh (VarsPair VarsUnit (VarsPrim v))) -> do -- HACK
-           op_ ArbbOpCopy inp_vars [v]  -- HACK 
-           return ()   
-  doOutputs :: (Sugar.Elt t') => Result (Array sh t) -> [Variable] -> EmitArbb (Result (Array sh t'))  
-  doOutputs inputs out_vars = 
-   case inputs of  -- HACK
-        ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim v))) -> do -- HACK) -> do -- HACK 
-          return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK
-        ResultArray (InternalArray sh v) -> do -- HACK 
-          liftIO$ putStrLn$ show v
-          return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK
-  -- return ()          
-  -- return out_vars
--}
-  
 
 ------------------------------------------------------------------------------
 -- What to do in case of Map 
@@ -275,7 +243,7 @@ genMap out inp fun = do
     assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
 ----------
   str <- serializeFunction_ fun 
-  liftIO$ putStrLn "mapee function" 
+  -- liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
 ---------  
     
@@ -294,12 +262,7 @@ assignToVars (VarsPrim v1) (VarsPrim v2) = do
 assignToVars (VarsPair v1 v2) ( VarsPair v3 v4) = do 
    assignToVars v1 v3
    assignToVars v2 v4 
-assignToVars x y = do 
-   liftIO$ putStrLn "Showing x" 
-   liftIO$ putStrLn$ show x
-   liftIO$ putStrLn "Showing y" 
-   liftIO$ putStrLn$ show y
-   return ()
+assignToVars x y = error "assignToVars: Mismatch" 
 
 ------------------------------------------------------------------------------
 -- define ArBB VM types for a list of type "names" 
@@ -323,7 +286,7 @@ defineLocalVars :: [Type] -> EmitArbb [Variable]
 defineLocalVars [] = return [] 
 defineLocalVars (t:ts) = do 
   let name = "name"
-  liftIO$ putStrLn ("Creating local variable: " ++name)    
+  -- liftIO$ putStrLn ("Creating local variable: " ++name)    
   v <- createLocal_ t name -- "name" -- name needs to be unique ? 
   vs <- defineLocalVars ts
   return (v:vs) 
@@ -355,7 +318,7 @@ defineLocalVarsNew :: ArBBType Type -> EmitArbb Vars
 defineLocalVarsNew ArBBTypeUnit = return VarsUnit
 defineLocalVarsNew (ArBBTypeSingle t) = do 
   let name = "name"
-  liftIO$ putStrLn ("Creating local variable: " ++name)    
+  -- liftIO$ putStrLn ("Creating local variable: " ++name)    
   v <- createLocal_ t name -- "name" -- name needs to be unique ? 
   return$ VarsPrim v
 defineLocalVarsNew (ArBBTypePair t1 t2) = do 
@@ -420,7 +383,7 @@ genPrimApp op args st env = do
    inputs <- genExp args env
    sty <- getScalarType_ st 
    let resname = "res" -- needs a unique name? 
-   liftIO$ putStrLn ("Creating a result variable: " ++resname)
+   -- liftIO$ putStrLn ("Creating a result variable: " ++resname)
    res <- createLocal_ sty resname
    genPrim op res inputs
    return res    
