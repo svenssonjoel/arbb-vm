@@ -190,33 +190,41 @@ executeArBB' acc@(OpenAcc pacc) gv =
           let vars = lookupArrayR ad gv
           liftIO$ putStrLn$ show vars
           return$  ResultArray (InternalArray sh vars)
-     m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
-                              (getAccType  acc)         -- input type (of elemets)  
+     m@(Map f acc) -> execMap (getAccType' (OpenAcc m))  -- output type (of elements)
+                              (getAccType'  acc)         -- input type (of elemets)  
                               f =<< executeArBB' acc gv 
 
+
 ------------------------------------------------------------------------------
--- 
-execMap :: (Sugar.Elt t') => [ScalarType] -> [ScalarType] -> 
+--  
+
+execMap :: (Sugar.Elt t') => ArBBType ScalarType -> ArBBType ScalarType -> 
            OpenFun env aenv (t -> t')  -> 
-           Result (Array sh t) -> -- input
+           Result (Array sh t) -> -- input (should be a single array) 
            EmitArbb (Result (Array sh t'))   -- output 
             
-execMap ot it f inputs = do 
+execMap ot it f (ResultArray (InternalArray sh v))  = do 
   fun <- genMap ot -- output type (of elements)
                 it -- input type (of elemets)  
                 f 
   
-  out_dense <- defineDenseTypes ot
-  inp_dense <- defineDenseTypes it
-  out_vars  <- defineLocalVars out_dense
-  inp_vars  <- defineLocalVars inp_dense
+  out_dense <- defineDenseTypesNew ot
+  inp_dense <- defineDenseTypesNew it
+  out_vars'  <- defineLocalVarsNew out_dense
+  inp_vars'  <- defineLocalVarsNew inp_dense
 
   -- assignTo inp_vars inputs
-  doInputs inputs inp_vars
+  -- doInputs inputs inp_vars
+  let inp_vars = varsToList inp_vars'
+  let out_vars = varsToList out_vars' 
   map_ fun out_vars inp_vars
-  doOutputs inputs out_vars 
+  --doOutputs inputs out_vars 
  
+  let outs =  listToVars v out_vars 
+  return (ResultArray (InternalArray sh outs))
+
 -- HACKITY HACK !
+{- 
  where
   doInputs :: Result (Array sh t) -> [Variable] -> EmitArbb ()
   doInputs inputs inp_vars= 
@@ -234,19 +242,25 @@ execMap ot it f inputs = do
           return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK
   -- return ()          
   -- return out_vars
-
+-}
   
 
 ------------------------------------------------------------------------------
 -- What to do in case of Map 
-genMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
+genMap :: ArBBType ScalarType -> 
+          ArBBType ScalarType -> 
+          OpenFun env aenv t -> 
+          EmitArbb Function 
 genMap out inp fun = do
-  out' <- defineTypes out
-  inp' <- defineTypes inp
+  out' <- defineTypesNew out
+  inp' <- defineTypesNew inp
+
+  let l_inp = arBBTypeToList inp' 
+  let l_out = arBBTypeToList out'
   -- Start by generating the function to be mapped!
-  fun <- funDef_ "f" out' inp' $ \ outs inps -> do 
+  fun <- funDef_ "f" l_out l_inp $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
-    assignTo outs vars
+    assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
 ----------
   str <- serializeFunction_ fun 
   liftIO$ putStrLn "mapee function" 
@@ -288,6 +302,41 @@ defineLocalVars (t:ts) = do
   v <- createLocal_ t name -- "name" -- name needs to be unique ? 
   vs <- defineLocalVars ts
   return (v:vs) 
+
+defineTypesNew :: ArBBType ScalarType -> EmitArbb (ArBBType Type)
+defineTypesNew ArBBTypeUnit = return ArBBTypeUnit
+defineTypesNew (ArBBTypeSingle st)  = do 
+   t <- getScalarType_ st 
+   return$ ArBBTypeSingle t
+defineTypesNew (ArBBTypePair st1 st2) = do 
+   t1 <- defineTypesNew st1
+   t2 <- defineTypesNew st2 
+   return$ ArBBTypePair t1 t2
+
+defineDenseTypesNew :: ArBBType ScalarType -> EmitArbb (ArBBType Type) 
+defineDenseTypesNew ArBBTypeUnit = return ArBBTypeUnit
+defineDenseTypesNew (ArBBTypeSingle st) = do 
+  t <- getScalarType_ st
+  d <- getDenseType_ t 1 
+  return (ArBBTypeSingle d) 
+defineDenseTypesNew (ArBBTypePair st1 st2) = do 
+  t1 <- defineDenseTypesNew st1 
+  t2 <- defineDenseTypesNew st2 
+  return (ArBBTypePair t1 t2) 
+
+ 
+-- TODO: IMPLEMENT
+defineLocalVarsNew :: ArBBType Type -> EmitArbb Vars
+defineLocalVarsNew ArBBTypeUnit = return VarsUnit
+defineLocalVarsNew (ArBBTypeSingle t) = do 
+  let name = "name"
+  liftIO$ putStrLn ("Creating local variable: " ++name)    
+  v <- createLocal_ t name -- "name" -- name needs to be unique ? 
+  return$ VarsPrim v
+defineLocalVarsNew (ArBBTypePair t1 t2) = do 
+  v1 <- defineLocalVarsNew t1
+  v2 <- defineLocalVarsNew t2 
+  return$ VarsPair v1 v2
 
 ------------------------------------------------------------------------------
 -- generate code for function 
@@ -496,3 +545,63 @@ executeArBB' acc@(OpenAcc pacc) gv =
                               (getAccType  acc)         -- input type (of elemets)  
                               f =<< executeArBB' acc gv 
 -}
+
+
+{- 
+execMap :: (Sugar.Elt t') => [ScalarType] -> [ScalarType] -> 
+           OpenFun env aenv (t -> t')  -> 
+           Result (Array sh t) -> -- input
+           EmitArbb (Result (Array sh t'))   -- output 
+            
+execMap ot it f inputs = do 
+  fun <- genMap ot -- output type (of elements)
+                it -- input type (of elemets)  
+                f 
+  
+  out_dense <- defineDenseTypes ot
+  inp_dense <- defineDenseTypes it
+  out_vars  <- defineLocalVars out_dense
+  inp_vars  <- defineLocalVars inp_dense
+
+  -- assignTo inp_vars inputs
+  doInputs inputs inp_vars
+  map_ fun out_vars inp_vars
+  doOutputs inputs out_vars 
+ 
+-- HACKITY HACK !
+ where
+  doInputs :: Result (Array sh t) -> [Variable] -> EmitArbb ()
+  doInputs inputs inp_vars= 
+   case inputs of  
+         ResultArray  (InternalArray sh (VarsPair VarsUnit (VarsPrim v))) -> do -- HACK
+           op_ ArbbOpCopy inp_vars [v]  -- HACK 
+           return ()   
+  doOutputs :: (Sugar.Elt t') => Result (Array sh t) -> [Variable] -> EmitArbb (Result (Array sh t'))  
+  doOutputs inputs out_vars = 
+   case inputs of  -- HACK
+        ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim v))) -> do -- HACK) -> do -- HACK 
+          return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK
+        ResultArray (InternalArray sh v) -> do -- HACK 
+          liftIO$ putStrLn$ show v
+          return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK
+  -- return ()          
+  -- return out_vars
+
+
+
+genMap :: [ScalarType] -> [ScalarType] -> OpenFun env aenv t -> EmitArbb Function 
+genMap out inp fun = do
+  out' <- defineTypes out
+  inp' <- defineTypes inp
+  -- Start by generating the function to be mapped!
+  fun <- funDef_ "f" out' inp' $ \ outs inps -> do 
+    vars <- genFun fun inps -- inputs as the "environment"  
+    assignTo outs vars
+----------
+  str <- serializeFunction_ fun 
+  liftIO$ putStrLn "mapee function" 
+  liftIO$ putStrLn (getCString str)
+---------  
+    
+  return fun
+-} 

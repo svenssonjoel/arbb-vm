@@ -225,6 +225,15 @@ varsToList VarsUnit =[]
 varsToList (VarsPrim v)  = [v] 
 varsToList (VarsPair v1 v2) = varsToList v1 ++ varsToList v2
 
+listToVars v xs = snd $ doListToVars v xs
+  where 
+   doListToVars VarsUnit [] = ([], VarsUnit)
+   doListToVars (VarsPrim _) (x:xs) = (xs, VarsPrim x)
+   doListToVars (VarsPair v1 v2) xs = 
+      let (rest,r1) = doListToVars v1 xs 
+          (rest',r2) = doListToVars v2 rest 
+      in (rest',VarsPair r1 r2)
+
 ------------------------------------------------------------------------------ 
 -- Result is a structure of ArBB variables that mirrors 
 -- the structure of "Arrays" in Accelerate
@@ -249,7 +258,9 @@ resultToArrays res = doResultToArray arrays res
     doResultToArray ArraysRarray      (ResultArray (InternalArray sh v)) = do
       ad <- varsToAD AD.arrayElt v (size sh)
       return $ Array sh ad -- (varsToAD AD.arrayElt v)
-       
+     
+
+  
 ------------------------------------------------------------------------------
 --
 varsToAD :: ArrayEltR e -> Vars -> Int -> EmitArbb (AD.ArrayData e)
