@@ -225,12 +225,12 @@ varsToList VarsUnit =[]
 varsToList (VarsPrim v)  = [v] 
 varsToList (VarsPair v1 v2) = varsToList v1 ++ varsToList v2
 
-listToVars v xs = snd $ doListToVars v xs
+listToVars v xs = let ([],a) =  doListToVars v xs in a 
   where 
-   doListToVars VarsUnit [] = ([], VarsUnit)
+   doListToVars VarsUnit xs = (xs, VarsUnit)
    doListToVars (VarsPrim _) (x:xs) = (xs, VarsPrim x)
    doListToVars (VarsPair v1 v2) xs = 
-      let (rest,r1) = doListToVars v1 xs 
+      let (rest, r1) = doListToVars v1 xs 
           (rest',r2) = doListToVars v2 rest 
       in (rest',VarsPair r1 r2)
 
@@ -290,11 +290,11 @@ primInt32 v n = do
     liftIO$ putStrLn (show dat)
     liftIO$ unsafeSTToIO$ do
      new <- AD.newArrayData n  -- should depend on length
-     -- TODO: Result should be copied from ArBB into this array
+ 
      targ <- AD.ptrsOfMutableArrayData new
      unsafeIOToST$ copyBytes (castPtr targ) ptr ( n * 4 {- sizeof Int32 -})
      AD.unsafeFreezeArrayData new
--- TODO: Move to Data.hs and make use of similar CPP hackery 
+-- TODO:  make use of  CPP hackery 
 
 outputVariables :: Result a -> EmitArbb (Result a) 
 outputVariables ResultUnit = return ResultUnit 

@@ -175,7 +175,9 @@ executeArBB acc = do
        return o1 -- Is "like" a shape descriptor
     
     outputs <- outputVariables rs -- Create a container for the outputs
-    execute' fun outputs ResultUnit             
+    execute' fun outputs ResultUnit
+    
+    liftIO$ putStrLn "END OF executeArBB"              
     resultToArrays outputs         
                   
 ------------------------------------------------------------------------------
@@ -187,12 +189,15 @@ executeArBB' :: (Typeable aenv, Arrays a) =>
 executeArBB' acc@(OpenAcc pacc) gv = 
   case pacc of
      (Use (Array sh ad)) -> do 
+          liftIO$ putStrLn "ENTERING Use Case" 
           let vars = lookupArrayR ad gv
           liftIO$ putStrLn$ show vars
           return$  ResultArray (InternalArray sh vars)
-     m@(Map f acc) -> execMap (getAccType' (OpenAcc m))  -- output type (of elements)
-                              (getAccType'  acc)         -- input type (of elemets)  
-                              f =<< executeArBB' acc gv 
+     m@(Map f acc) -> do
+            liftIO$ putStrLn "ENTERING Map Case"  
+            execMap (getAccType' (OpenAcc m))  -- output type (of elements)
+                    (getAccType'  acc)         -- input type (of elemets)  
+                    f =<< executeArBB' acc gv 
 
 
 ------------------------------------------------------------------------------
@@ -204,19 +209,26 @@ execMap :: (Sugar.Elt t') => ArBBType ScalarType -> ArBBType ScalarType ->
            EmitArbb (Result (Array sh t'))   -- output 
             
 execMap ot it f (ResultArray (InternalArray sh v))  = do 
+  liftIO$ putStrLn "ENTERING execMap"       
   fun <- genMap ot -- output type (of elements)
                 it -- input type (of elemets)  
                 f 
   
   out_dense <- defineDenseTypesNew ot
   inp_dense <- defineDenseTypesNew it
-  out_vars'  <- defineLocalVarsNew out_dense
-  inp_vars'  <- defineLocalVarsNew inp_dense
+  out_vars' <- defineLocalVarsNew out_dense
+  inp_vars' <- defineLocalVarsNew inp_dense
 
+
+  assignToVars inp_vars' v
+  
   -- assignTo inp_vars inputs
   -- doInputs inputs inp_vars
   let inp_vars = varsToList inp_vars'
   let out_vars = varsToList out_vars' 
+
+  liftIO$ putStrLn "generating Map" 
+  
   map_ fun out_vars inp_vars
   --doOutputs inputs out_vars 
  
@@ -275,6 +287,19 @@ assignTo [] [] = return ()
 assignTo (x:xs) (y:ys) = do 
    op_ ArbbOpCopy [x] [y] 
 assignTo _ _ = error "AssignTo: Mismatch!"
+
+assignToVars VarsUnit VarsUnit = return ()
+assignToVars (VarsPrim v1) (VarsPrim v2) = do 
+   op_ ArbbOpCopy [v1] [v2]
+assignToVars (VarsPair v1 v2) ( VarsPair v3 v4) = do 
+   assignToVars v1 v3
+   assignToVars v2 v4 
+assignToVars x y = do 
+   liftIO$ putStrLn "Showing x" 
+   liftIO$ putStrLn$ show x
+   liftIO$ putStrLn "Showing y" 
+   liftIO$ putStrLn$ show y
+   return ()
 
 ------------------------------------------------------------------------------
 -- define ArBB VM types for a list of type "names" 

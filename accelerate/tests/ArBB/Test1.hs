@@ -42,4 +42,6 @@ apa = -- arbbSession$ do
   in ArBB.run f 
   
 
-main = return apa
+main = do
+     putStrLn "Hello World"
+     putStrLn$ show apa

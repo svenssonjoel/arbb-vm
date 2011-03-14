@@ -24,7 +24,7 @@ arBBTypeToList :: ArBBType s -> [s]
 arBBTypeToList ArBBTypeUnit = []
 arBBTypeToList (ArBBTypeSingle s) = [s] 
 arBBTypeToList (ArBBTypePair t1 t2) = 
-  let s1 = arBBTypeToList t1 
+  let s1 = arBBTypeToList t1
       s2 = arBBTypeToList t2 
   in s1 ++ s2
 
@@ -39,7 +39,7 @@ tupleType' Type.UnitTuple = ArBBTypeUnit
 tupleType' (Type.SingleTuple st)  = ArBBTypeSingle (scalarType st)
 -- Swap these on the ArBB side ? (what matches up with preorder?) 
 tupleType' (Type.PairTuple t1 t0) = ArBBTypePair (tupleType' t1) 
-                                             (tupleType' t0) 
+                                                 (tupleType' t0) 
  
 getAccType :: OpenAcc aenv (Array dim e) -> [Intel.ArbbVM.ScalarType]
 getAccType =  tupleType . accType
