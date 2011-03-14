@@ -37,6 +37,31 @@
        (This problem occurs again and again).
        You can spend lots of time hunting obscure error messages.
 
+-- About ARBB 
+   tip: 
+
+   Use bind_to_host to map an array created using arbb_op_alloc 
+   into host memory and then copy data into the "host" side pointer
+   This method should have performance benefits if "kernels" are 
+   reused. However, I am unsure the method will affect our performance 
+   any. It may, though, be a method that works right now, since 
+   the copy-in scenario seems buggy.
+
+   Using bind_to_host should still be compatible with the approach 
+   I have started but requires "more work" because our code needs
+   to perform the actuall copying (instead of the ArBB system taking 
+   care of it automatically) 
+   
+
+   Thing to consider: 
+     The is_remote argument to functions. what does it mean ? 
+   
+
+     Needs some kind of "shaped" type description of arrays as well 
+       to go along with the "InternalArray" datatype   
+
+
+
 
 -}
 
@@ -51,6 +76,7 @@ import Data.Array.Accelerate.Tuple
 import qualified Data.Array.Accelerate.Type as Type
 import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
+import qualified Data.Array.Accelerate.Smart       as Sugar
 import qualified Data.Array.Accelerate.Array.Data as AD 
 import           Data.Array.Accelerate.Array.Data (ArrayEltR(..))
 
@@ -80,79 +106,12 @@ type ArBBEnv = [Variable]
     
 ------------------------------------------------------------------------------
 -- run (The entry point)
-run :: Arrays a => Acc a -> a 
+run :: Arrays a => Sugar.Acc a -> a 
 run acc = unsafePerformIO$ arbbSession$ do 
-    
-    undefined 
-     
-
-{- 
-   tip: 
-
-   Use bind_to_host to map an array created using arbb_op_alloc 
-   into host memory and then copy data into the "host" side pointer
-   This method should have performance benefits if "kernels" are 
-   reused. However, I am unsure the method will affect our performance 
-   any. It may, though, be a method that works right now, since 
-   the copy-in scenario seems buggy.
-
-   Using bind_to_host should still be compatible with the approach 
-   I have started but requires "more work" because our code needs
-   to perform the actuall copying (instead of the ArBB system taking 
-   care of it automatically) 
+    executeArBB (Sugar.convertAcc acc)
    
-
-   Thing to consider: 
-     The is_remote argument to functions. what does it mean ? 
-   
-
-     Needs some kind of "shaped" type description of arrays as well 
-       to go along with the "InternalArray" datatype   
-
--} 
-
 ------------------------------------------------------------------------------
--- ExecuteArBB 
-{- 
-executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb () -- (Result a) 
-executeArBB acc = do
-    let gb = collectGlobals acc (M.empty)
-    glob_vars <- bindGlobals gb 
-    let lst = M.toList glob_vars
-        my_v = snd (head lst)   
-
-    dummy <- getScalarType_ ArbbI32 -- cheat
-    dt    <- getDenseType_ dummy 1  -- cheat
- 
-
-    -- An ArBB function with no inputs. (Ok ? ) 
-    fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
-       o1 <- executeArBB' acc glob_vars
-       assignTo o o1 
-                  
-                  
----------
-    str <- serializeFunction_ fun 
-    liftIO$ putStrLn (getCString str)
----------  
-
---- CHEAT    
-   
-    withArray_ (replicate 1024 0 :: [Int32]) $ \ out -> do 
-      outb <- createDenseBinding_ (castPtr out) 1 [1024] [4]
-      gout <- createGlobal_ dt "output" outb  
-      vout <- variableFromGlobal_ gout 
-      
-      execute_ fun [vout] [my_v] -- [vin]
- 
-  
-      result <- liftIO$ peekArray 1024 out
-      liftIO$ putStrLn (show result)
-      return ()
---------    
-    return ()
--}
-
+-- 
 execute' :: Function -> Result b -> Result a -> EmitArbb (Result b) 
 execute' f shape input = do 
    let ins'   = resultToVList input
@@ -162,18 +121,8 @@ execute' f shape input = do
    execute_ f outs ins 
    return shape     
 
-{- 
-topLevelFun :: (Arrays a) => 
-               String -> 
-               [Type] -> 
-               [Type] -> 
-               ([Variable] -> [Variable] -> EmitArbb (Result a)) -> 
-               EmitArbb (Function, Result a)
-topLevelFun  name t_out t_in body = do 
-     fun <- funDef_ name t_out t_int 
--} 
-
-
+------------------------------------------------------------------------------
+-- 
 topLevelFun :: String -> [Type] -> [Type] -> 
                ([Variable] -> [Variable] -> EmitArbb (Result a))->      
                EmitArbb (Function, Result a) 
@@ -211,67 +160,26 @@ executeArBB acc = do
     let lst = M.toList glob_vars
         my_v = snd (head lst)   
 
+-- i need system to get these types "done" properly also! 
+-- something similar to how the variables are handled in the execute'
+-- function might work ! 
     dummy <- getScalarType_ ArbbI32 -- cheat
     dt    <- getDenseType_ dummy 1  -- cheat
  
-    -- grr do i need a different set of funDef_ and execute_ functions...
-    -- maybe !!!
     -- An ArBB function with no inputs. (Ok ? ) 
     (fun,rs) <- topLevelFun "main" [dt] [] $ \ o [] -> do 
        o1 <- executeArBB' acc glob_vars
        let vlist = resultToVList o1 
        let vs = concatMap varsToList  vlist
        assignTo o vs 
-       return o1
-       
-       -- return o1
-       --case o1 of  -- HACK 
-        -- ResultArray (InternalArray sh (VarsPrim v)) -> do -- HACK
-        --   op_ ArbbOpCopy o [v]  -- HACK 
-        --   return () 
-          --assignTo o o1 
+       return o1 -- Is "like" a shape descriptor
     
-    outputs <- outputVariables rs 
+    outputs <- outputVariables rs -- Create a container for the outputs
     execute' fun outputs ResultUnit             
-    resultToArrays outputs             
+    resultToArrays outputs         
                   
----------
---    str <- serializeFunction_ fun 
---    liftIO$ putStrLn (getCString str)
----------  
-
---- CHEAT    
-{- 
-    withArray_ (replicate 1024 0 :: [Int32]) $ \ out -> do 
-      outb <- createDenseBinding_ (castPtr out) 1 [1024] [4]
-      gout <- createGlobal_ dt "output" outb  
-      vout <- variableFromGlobal_ gout 
-      
-      execute_ fun [vout] [my_v] -- [vin]
- 
-  
-      result <- liftIO$ peekArray 1024 out
-      liftIO$ putStrLn (show result)
-      return ()
---------    
-    return ()
--}     
-
--- TODO: Do I need the Typeable ? 
-
-{-
-executeArBB' :: (Typeable aenv, Typeable a) => 
-                OpenAcc aenv a -> 
-                GlobalBindings Variable -> 
-                EmitArbb [Variable] 
-executeArBB' acc@(OpenAcc pacc) gv = 
-  case pacc of
-     (Use (Array sh ad)) -> return (lookupArray ad gv) 
-     m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
-                              (getAccType  acc)         -- input type (of elemets)  
-                              f =<< executeArBB' acc gv 
--}
- 
+------------------------------------------------------------------------------
+--
 executeArBB' :: (Typeable aenv, Arrays a) => 
                 OpenAcc aenv a -> 
                 GlobalBindings Variable -> 
@@ -286,22 +194,8 @@ executeArBB' acc@(OpenAcc pacc) gv =
                               (getAccType  acc)         -- input type (of elemets)  
                               f =<< executeArBB' acc gv 
 
-{-        
-execMap ot it f inputs = do 
-  fun <- genMap ot -- output type (of elements)
-                it -- input type (of elemets)  
-                f 
-  
-  out_dense <- defineDenseTypes ot
-  inp_dense <- defineDenseTypes it
-  out_vars  <- defineLocalVars out_dense
-  inp_vars  <- defineLocalVars inp_dense
-
-  assignTo inp_vars inputs
-  map_ fun out_vars inp_vars     
-  return out_vars
--}
-
+------------------------------------------------------------------------------
+-- 
 execMap :: (Sugar.Elt t') => [ScalarType] -> [ScalarType] -> 
            OpenFun env aenv (t -> t')  -> 
            Result (Array sh t) -> -- input
@@ -502,3 +396,103 @@ idxToInt ZeroIdx       = 0
 idxToInt (SuccIdx idx) = 1 + idxToInt idx
 
 
+
+
+
+
+------------------------------------------------------------------------------
+-- ExecuteArBB 
+{- 
+executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb () -- (Result a) 
+executeArBB acc = do
+    let gb = collectGlobals acc (M.empty)
+    glob_vars <- bindGlobals gb 
+    let lst = M.toList glob_vars
+        my_v = snd (head lst)   
+
+    dummy <- getScalarType_ ArbbI32 -- cheat
+    dt    <- getDenseType_ dummy 1  -- cheat
+ 
+
+    -- An ArBB function with no inputs. (Ok ? ) 
+    fun <- funDef_ "main" [dt] [] $ \ o [] -> do 
+       o1 <- executeArBB' acc glob_vars
+       assignTo o o1 
+                  
+                  
+---------
+    str <- serializeFunction_ fun 
+    liftIO$ putStrLn (getCString str)
+---------  
+
+--- CHEAT    
+   
+    withArray_ (replicate 1024 0 :: [Int32]) $ \ out -> do 
+      outb <- createDenseBinding_ (castPtr out) 1 [1024] [4]
+      gout <- createGlobal_ dt "output" outb  
+      vout <- variableFromGlobal_ gout 
+      
+      execute_ fun [vout] [my_v] -- [vin]
+ 
+  
+      result <- liftIO$ peekArray 1024 out
+      liftIO$ putStrLn (show result)
+      return ()
+--------    
+    return ()
+-}
+
+
+{-        
+execMap ot it f inputs = do 
+  fun <- genMap ot -- output type (of elements)
+                it -- input type (of elemets)  
+                f 
+  
+  out_dense <- defineDenseTypes ot
+  inp_dense <- defineDenseTypes it
+  out_vars  <- defineLocalVars out_dense
+  inp_vars  <- defineLocalVars inp_dense
+
+  assignTo inp_vars inputs
+  map_ fun out_vars inp_vars     
+  return out_vars
+-}
+
+
+---------
+--    str <- serializeFunction_ fun 
+--    liftIO$ putStrLn (getCString str)
+---------  
+
+--- CHEAT    
+{- 
+    withArray_ (replicate 1024 0 :: [Int32]) $ \ out -> do 
+      outb <- createDenseBinding_ (castPtr out) 1 [1024] [4]
+      gout <- createGlobal_ dt "output" outb  
+      vout <- variableFromGlobal_ gout 
+      
+      execute_ fun [vout] [my_v] -- [vin]
+ 
+  
+      result <- liftIO$ peekArray 1024 out
+      liftIO$ putStrLn (show result)
+      return ()
+--------    
+    return ()
+-}     
+
+-- TODO: Do I need the Typeable ? 
+
+{-
+executeArBB' :: (Typeable aenv, Typeable a) => 
+                OpenAcc aenv a -> 
+                GlobalBindings Variable -> 
+                EmitArbb [Variable] 
+executeArBB' acc@(OpenAcc pacc) gv = 
+  case pacc of
+     (Use (Array sh ad)) -> return (lookupArray ad gv) 
+     m@(Map f acc) -> execMap (getAccType (OpenAcc m))  -- output type (of elements)
+                              (getAccType  acc)         -- input type (of elemets)  
+                              f =<< executeArBB' acc gv 
+-}

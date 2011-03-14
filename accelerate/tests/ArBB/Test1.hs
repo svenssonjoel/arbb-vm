@@ -11,7 +11,9 @@ import qualified Data.Array.Accelerate.Smart as Sugar
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
 
 
-import Data.Array.Accelerate.ArBB
+import           Data.Array.Accelerate.ArBB hiding (run)
+import qualified Data.Array.Accelerate.ArBB as ArBB 
+
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
@@ -34,31 +36,10 @@ sumUp xs =
 
 input = ((fromList  (Sugar.listToShape [1024]) [1..1024 :: Int]) :: Data.Array.Accelerate.Array Sugar.DIM1  Int) 
 
---input2 = ((fromList [1..10 :: Float]) :: Data.Array.Accelerate.Array Int Float) 
 
-
---apa = arbbSession $ do 
---    f <- testa (incr input)
---    str <- serializeFunction_ f
---    liftIO$ putStrLn (getCString str)
-
-{-
-bepa = arbbSession$ do           
-   let f = incr input
-   compileArBB (Sugar.convertAcc f)
-   genArBB (Sugar.convertAcc f)
--}
-
-{-
-cepa = arbbSession$ do 
+apa = -- arbbSession$ do 
   let f = incr input
-  dummies <- executeArBB (Sugar.convertAcc f)
-  return ()
--}
-
-depa = arbbSession$ do 
-  let f = incr input
-  executeArBB (Sugar.convertAcc f)
+  in ArBB.run f 
   
 
-main =  depa
+main = return apa

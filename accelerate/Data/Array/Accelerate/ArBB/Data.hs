@@ -170,10 +170,10 @@ bindGlobals gb = doBindGlobals (M.toList gb) M.empty
        let n = arrayDescLength arrd
            st = arrayDescType arrd
 --- DEBUG   
-       liftIO$ putStrLn (show n)
-       liftIO$ putStrLn (show st)
-       array <- liftIO$ peekArray 10 (castPtr ptr)  
-       liftIO$ putStrLn (show (array :: [Int32]))    
+--       liftIO$ putStrLn (show n)
+--       liftIO$ putStrLn (show st)
+--       array <- liftIO$ peekArray 10 (castPtr ptr)  
+--       liftIO$ putStrLn (show (array :: [Int32]))    
        
 -- ArBB CALLS 
 
@@ -184,17 +184,18 @@ bindGlobals gb = doBindGlobals (M.toList gb) M.empty
        sty <- getScalarType_ st   
        dty <- getDenseType_ sty 1  
        gin <- createGlobal_ dty name bin 
-       -- g_apa <- createGlobal_ dty "in" bin
+
        v <- variableFromGlobal_ gin
        
        num_elems <- usize_ n 
         
+       -- this executes immediately (allocates space for num_elements
+       -- on the ArBB "side") 
        opDynamicImm_ ArbbOpAlloc [v] [num_elems]
      
+       -- mapToHost space and copy bytes into ArBB 
        m_ptr <- mapToHost_ v [1] ArbbReadWriteRange
-       liftIO$ copyBytes m_ptr ptr ((fromIntegral n) * (ArBB.size st)) 
-             
-   
+       liftIO$ copyBytes m_ptr ptr ((fromIntegral n) * (ArBB.size st))                
 -------------
        
        gv' <- doBindGlobals xs gv
@@ -219,22 +220,27 @@ data Vars
    | VarsPair Vars Vars 
    deriving Show 
 
--- depth first order (If I am not mistaken) 
+-- preorder traversal 
 varsToList VarsUnit =[] 
 varsToList (VarsPrim v)  = [v] 
 varsToList (VarsPair v1 v2) = varsToList v1 ++ varsToList v2
 
+------------------------------------------------------------------------------ 
+-- Result is a structure of ArBB variables that mirrors 
+-- the structure of "Arrays" in Accelerate
 data Result arrs where 
   ResultUnit :: Result () 
   ResultArray :: (Sugar.Shape sh, Sugar.Elt e) => InternalArray sh -> Result (Array sh e) 
   ResultPair :: Result a1 -> Result a2 -> Result (a1,a2)
 
--- again depth first order !
+-- again preorder traversal
 resultToVList ::Result  a -> [Vars] 
 resultToVList ResultUnit = [] 
 resultToVList (ResultArray (InternalArray _ vars)) = [vars] 
 resultToVList (ResultPair r1 r2) = resultToVList r1 ++ resultToVList r2
 
+------------------------------------------------------------------------------
+-- resultToArrays 
 resultToArrays :: Arrays a => Result a ->  EmitArbb a
 resultToArrays res = doResultToArray arrays res
   where 
@@ -244,7 +250,8 @@ resultToArrays res = doResultToArray arrays res
       ad <- varsToAD AD.arrayElt v (size sh)
       return $ Array sh ad -- (varsToAD AD.arrayElt v)
        
- 
+------------------------------------------------------------------------------
+--
 varsToAD :: ArrayEltR e -> Vars -> Int -> EmitArbb (AD.ArrayData e)
 varsToAD ArrayEltRunit VarsUnit  n = return AD.AD_Unit
 varsToAD (ArrayEltRpair r1 r2) (VarsPair a b) n = do 
