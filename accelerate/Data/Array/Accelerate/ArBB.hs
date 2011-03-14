@@ -204,7 +204,7 @@ topLevelFun name outty inty userbody =
 
 
 
-executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb () --  (Result a) -- ()  
+executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb a -- ()  
 executeArBB acc = do
     let gb = collectGlobals acc (M.empty)
     glob_vars <- bindGlobals gb 
@@ -219,7 +219,11 @@ executeArBB acc = do
     -- An ArBB function with no inputs. (Ok ? ) 
     (fun,rs) <- topLevelFun "main" [dt] [] $ \ o [] -> do 
        o1 <- executeArBB' acc glob_vars
+       let vlist = resultToVList o1 
+       let vs = concatMap varsToList  vlist
+       assignTo o vs 
        return o1
+       
        -- return o1
        --case o1 of  -- HACK 
         -- ResultArray (InternalArray sh (VarsPrim v)) -> do -- HACK
@@ -227,15 +231,13 @@ executeArBB acc = do
         --   return () 
           --assignTo o o1 
     
-
-    -- how do I create this outputs object ? 
-    -- let outputs = ResultsArray ( 
-    -- execute' fun outputs ResultUnit             
-                  
+    outputs <- outputVariables rs 
+    execute' fun outputs ResultUnit             
+    resultToArrays outputs             
                   
 ---------
-    str <- serializeFunction_ fun 
-    liftIO$ putStrLn (getCString str)
+--    str <- serializeFunction_ fun 
+--    liftIO$ putStrLn (getCString str)
 ---------  
 
 --- CHEAT    
@@ -332,7 +334,7 @@ execMap ot it f inputs = do
   doOutputs inputs out_vars = 
    case inputs of  -- HACK
         ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim v))) -> do -- HACK) -> do -- HACK 
-          return$ ResultArray (InternalArray sh (VarsPrim (head out_vars))) -- HACK
+          return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK
         ResultArray (InternalArray sh v) -> do -- HACK 
           liftIO$ putStrLn$ show v
           return$ ResultArray (InternalArray sh (VarsPair VarsUnit (VarsPrim (head out_vars)))) -- HACK

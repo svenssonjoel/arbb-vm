@@ -241,29 +241,71 @@ resultToArrays res = doResultToArray arrays res
     doResultToArray :: ArraysR arrs -> Result arrs -> EmitArbb arrs 
     doResultToArray ArraysRunit       ResultUnit   = return () 
     doResultToArray ArraysRarray      (ResultArray (InternalArray sh v)) = do
-      ad <- varsToAD AD.arrayElt v 
+      ad <- varsToAD AD.arrayElt v (size sh)
       return $ Array sh ad -- (varsToAD AD.arrayElt v)
        
  
-varsToAD :: ArrayEltR e -> Vars -> EmitArbb (AD.ArrayData e)
-varsToAD ArrayEltRunit VarsUnit = return AD.AD_Unit
-varsToAD (ArrayEltRpair r1 r2) (VarsPair a b) = do 
-    a1 <- varsToAD r1 a 
-    b1 <- varsToAD r2 b 
+varsToAD :: ArrayEltR e -> Vars -> Int -> EmitArbb (AD.ArrayData e)
+varsToAD ArrayEltRunit VarsUnit  n = return AD.AD_Unit
+varsToAD (ArrayEltRpair r1 r2) (VarsPair a b) n = do 
+    a1 <- varsToAD r1 a n 
+    b1 <- varsToAD r2 b n 
     return $ AD.AD_Pair a1 b1 -- (varsToAD r1 a) (varsToAD r2 b)
 -- TODO: Change to the general case. use CPP hackery 
-varsToAD (ArrayEltRint32) (VarsPrim v) = do
-    primInt32 v 
+varsToAD (ArrayEltRint32) (VarsPrim v) n = do
+    primInt32 v n
+varsToAD (ArrayEltRint64) (VarsPrim v) n = do
+    primInt32 v n
+varsToAD (ArrayEltRint) (VarsPrim v) n = do
+    primInt32 v n
+varsToAD (ArrayEltRpair _ _) (VarsPrim _) _ = error "mismatch0"
+varsToAD (ArrayEltRunit)     (VarsPrim _) _ = error "mismatch1"      
+    
 
 -- TODO: WHAT IS THE RIGHT THING TO DO HERE ? 
 -- WARNING: AREA OF "HACKING WITHOUT A CLUE" ! 
 primInt32 :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
-             Variable -> EmitArbb (AD.ArrayData e)
-primInt32 v = liftIO$ unsafeSTToIO$ do
-    new <- AD.newArrayData 10  -- should depend on length
-    -- TODO: Result should be copied from ArBB into this array
-    AD.unsafeFreezeArrayData new
+             Variable -> Int -> EmitArbb (AD.ArrayData e)
+primInt32 v n = do
+    ptr <- mapToHost_ v [1] ArbbReadOnlyRange
+    dat <- liftIO$ peekArray n (castPtr ptr) :: EmitArbb [Int]
+    liftIO$ putStrLn (show dat)
+    liftIO$ unsafeSTToIO$ do
+     new <- AD.newArrayData n  -- should depend on length
+     -- TODO: Result should be copied from ArBB into this array
+     targ <- AD.ptrsOfMutableArrayData new
+     unsafeIOToST$ copyBytes (castPtr targ) ptr ( n * 4 {- sizeof Int32 -})
+     AD.unsafeFreezeArrayData new
 -- TODO: Move to Data.hs and make use of similar CPP hackery 
+
+outputVariables :: Result a -> EmitArbb (Result a) 
+outputVariables ResultUnit = return ResultUnit 
+outputVariables (ResultArray (InternalArray sh vars)) = do 
+    vars' <- newOutputVars (size sh) vars 
+    return (ResultArray (InternalArray sh vars'))
+outputVariables (ResultPair  r1 r2) = do 
+    r1' <- outputVariables r1
+    r2' <- outputVariables r2 
+    return (ResultPair r1' r2') 
+
+newOutputVars :: Int -> Vars -> EmitArbb Vars
+newOutputVars n (VarsUnit) = return VarsUnit
+newOutputVars n (VarsPrim v) = do 
+    bin <- getBindingNull_
+    t <- getScalarType_ ArbbI32  -- HACK 
+    dt <- getDenseType_ t 1      -- HACK
+    gout <- createGlobal_ dt "out" bin
+    v <- variableFromGlobal_ gout 
+    
+    num_elems <- usize_ n 
+    opDynamicImm_ ArbbOpAlloc [v] [num_elems]
+    return (VarsPrim v) 
+newOutputVars n (VarsPair v1 v2) = do 
+    v1' <- newOutputVars n v1     
+    v2' <- newOutputVars n v2 
+    return (VarsPair v1' v2')        
+                
+               
     
 ------------------------------------------------------------------------------ 
 -- LookupArrayR  

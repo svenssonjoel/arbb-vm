@@ -15,6 +15,8 @@ import Data.Array.Accelerate.ArBB
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
+import Data.Int
+
 import Prelude hiding (map)
 
 incr xs = 
@@ -56,7 +58,7 @@ cepa = arbbSession$ do
 
 depa = arbbSession$ do 
   let f = incr input
-  dummies <- executeArBB (Sugar.convertAcc f)
-  return ()
+  executeArBB (Sugar.convertAcc f)
+  
 
 main =  depa
