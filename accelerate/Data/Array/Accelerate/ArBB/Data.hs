@@ -200,6 +200,7 @@ bindGlobals gb = doBindGlobals (M.toList gb) M.empty
        
        gv' <- doBindGlobals xs gv
        let gvout = M.insert ptr v gv' 
+       liftIO$ putStrLn "leaving bindGlobals" 
        return gvout
 
 
@@ -243,10 +244,12 @@ data Result arrs where
   ResultPair :: Result a1 -> Result a2 -> Result (a1,a2)
 
 -- again preorder traversal
-resultToVList ::Result  a -> [Vars] 
+resultToVList :: Result  a -> [Vars] 
 resultToVList ResultUnit = [] 
 resultToVList (ResultArray (InternalArray _ vars)) = [vars] 
 resultToVList (ResultPair r1 r2) = resultToVList r1 ++ resultToVList r2
+
+-- resultToTList :: Result a -> [
 
 ------------------------------------------------------------------------------
 -- resultToArrays 
@@ -276,9 +279,9 @@ varsToAD (ArrayEltRint64) (VarsPrim v) n = do
     primInt32 v n
 varsToAD (ArrayEltRint) (VarsPrim v) n = do
     primInt32 v n
-varsToAD (ArrayEltRpair _ _) (VarsPrim _) _ = error "mismatch0"
-varsToAD (ArrayEltRunit)     (VarsPrim _) _ = error "mismatch1"      
-    
+varsToAD (ArrayEltRpair _ _) (VarsPrim _) _ = error "varsToAD: mismatch0"
+varsToAD (ArrayEltRunit)     (VarsPrim _) _ = error "varsToAD: mismatch1"      
+varsToAD _ _ _ = error "varsToAD: mismatch2"    
 
 -- TODO: WHAT IS THE RIGHT THING TO DO HERE ? 
 -- WARNING: AREA OF "HACKING WITHOUT A CLUE" ! 

@@ -66,7 +66,7 @@
 -}
 
 
-module Data.Array.Accelerate.ArBB where 
+module Data.Array.Accelerate.ArBBimm where 
 
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
@@ -155,43 +155,41 @@ printInfo ArraysRunit _ = "UNIT"
 printInfo ArraysRarray _ = "ARRAY" 
 printInfo (ArraysRpair _ _) _ = "PAIR"
 
-{-
-arraysToTypeList :: ArraysR a -> OpenAcc aenv a -> EmitArbb [Type]
-arraysToTypeList ArraysRunit _ = []
-arraysToTypeList ArraysRarray acc = accToTypeList acc 
-arraysToTypeList (ArraysRpair a1 a2) = 
--} 
 
 executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb a -- ()  
 executeArBB acc = do
+ 
     let gb = collectGlobals acc (M.empty)
+  
     glob_vars <- bindGlobals gb 
-    let lst = M.toList glob_vars
-        my_v = snd (head lst)   
+  
+    --let lst = M.toList glob_vars
+    --    my_v = snd (head lst)   
 
     -- let arrs = arrays :: ArraysR a 
-    liftIO$ putStrLn (printInfo arrays acc)
+    --liftIO$ putStrLn (printInfo arrays acc)
 
-    --out_types <- arraysToTypeList arrays acc
-    
 -- i need system to get these types "done" properly also! 
 -- something similar to how the variables are handled in the execute'
 -- function might work ! 
-    dummy <- getScalarType_ ArbbI32 -- cheat
-    dt    <- getDenseType_ dummy 1  -- cheat
+    --dummy <- getScalarType_ ArbbI32 -- cheat
+    --dt    <- getDenseType_ dummy 1  -- cheat
  
+    -- TODO: use imemdiate calls instead. (Don't generate function)  
     -- An ArBB function with no inputs. (Ok ? ) 
-    (fun,rs) <- topLevelFun "main" [dt] [] $ \ o [] -> do 
-       o1 <- executeArBB' acc glob_vars
-       let vlist = resultToVList o1 
-       let vs = concatMap varsToList  vlist
-       assignTo o vs 
-       return o1 -- Is treated as a shape descriptor
+    --(fun,rs) <- topLevelFun "main" [dt] [] $ \ o [] -> do 
+      
+    o1 <- executeArBB' acc glob_vars
+    --let vlist = resultToVList o1 
+    --let vs = concatMap varsToList  vlist
+    --outputs <- outputVariables o1 -- Create a container for the outputs     
+    --assignTo outputs vs 
+    -- return o1 -- Is treated as a shape descriptor
     
-    outputs <- outputVariables rs -- Create a container for the outputs
-    execute' fun outputs ResultUnit
+     
+    -- execute' fun outputs ResultUnit
     
-    resultToArrays outputs         
+    resultToArrays o1 -- outputs         
                   
 ------------------------------------------------------------------------------
 --
@@ -201,7 +199,7 @@ executeArBB' :: (Typeable aenv, Arrays a) =>
                 EmitArbb (Result a)  
 executeArBB' acc@(OpenAcc pacc) gv = 
   case pacc of
-     (Use (Array sh ad)) -> do 
+     (Use (Array sh ad)) -> do
           let vars = lookupArrayR ad gv
          --  liftIO$ putStrLn$ show vars
           return$  ResultArray (InternalArray sh vars)
@@ -211,7 +209,7 @@ executeArBB' acc@(OpenAcc pacc) gv =
 
 
 ------------------------------------------------------------------------------
---  execMap 
+--  execMap (CLEAN UP) 
 execMap :: (Sugar.Elt t') => ArBBType ScalarType -> ArBBType ScalarType -> 
            OpenFun env aenv (t -> t')  -> 
            Result (Array sh t) -> -- input (should be a single array) 
@@ -222,25 +220,35 @@ execMap ot it f (ResultArray (InternalArray sh v))  = do
                 it -- input type (of elemets)  
                 f 
   
-  out_dense <- defineDenseTypesNew ot
-  inp_dense <- defineDenseTypesNew it
-  out_vars' <- defineLocalVarsNew out_dense
-  inp_vars' <- defineLocalVarsNew inp_dense
-
-
-  assignToVars inp_vars' v
+  out_dense' <- defineDenseTypesNew ot
+  inp_dense' <- defineDenseTypesNew it
+  out_vars' <- defineGlobalVarsNew out_dense'
+  inp_vars' <- defineGlobalVarsNew inp_dense'
+  
+  assignToVarsImm inp_vars' v
   
   let inp_vars = varsToList inp_vars'
   let out_vars = varsToList out_vars' 
-  
-  map_ fun out_vars inp_vars
- 
-  let outs =  listToVars v out_vars 
-  return (ResultArray (InternalArray sh outs))
+  let inp_dense = arBBTypeToList inp_dense'
+  let out_dense = arBBTypeToList out_dense' 
+
+  maper <- funDef_ "aap" out_dense inp_dense $ \ out inp -> do
+    map_ fun out inp
+
+ ----------
+  str <- serializeFunction_ maper 
+  -- liftIO$ putStrLn "mapee function" 
+  liftIO$ putStrLn (getCString str)
+ ---------    
+
+  execute_ maper out_vars inp_vars  
+
+  let outs =  listToVars v out_vars -- out_vars 
+  return (ResultArray (InternalArray sh outs)) -- result of Map is single array 
 
 
 ------------------------------------------------------------------------------
--- What to do in case of Map 
+-- This is function definition.. genMap is bad name !! 
 genMap :: ArBBType ScalarType -> 
           ArBBType ScalarType -> 
           OpenFun env aenv t -> 
@@ -270,6 +278,11 @@ assignTo (x:xs) (y:ys) = do
    op_ ArbbOpCopy [x] [y] 
 assignTo _ _ = error "AssignTo: Mismatch!"
 
+assignToImm [] [] = return () 
+assignToImm (x:xs) (y:ys) = do 
+   opImm_ ArbbOpCopy [x] [y] 
+assignToImm _ _ = error "AssignTo: Mismatch!"
+
 assignToVars VarsUnit VarsUnit = return ()
 assignToVars (VarsPrim v1) (VarsPrim v2) = do 
    op_ ArbbOpCopy [v1] [v2]
@@ -277,6 +290,14 @@ assignToVars (VarsPair v1 v2) ( VarsPair v3 v4) = do
    assignToVars v1 v3
    assignToVars v2 v4 
 assignToVars x y = error "assignToVars: Mismatch" 
+
+assignToVarsImm VarsUnit VarsUnit = return ()
+assignToVarsImm (VarsPrim v1) (VarsPrim v2) = do 
+   opImm_ ArbbOpCopy [v1] [v2]
+assignToVarsImm (VarsPair v1 v2) ( VarsPair v3 v4) = do 
+   assignToVarsImm v1 v3
+   assignToVarsImm v2 v4 
+assignToVarsImm x y = error "assignToVars: Mismatch" 
 
 ------------------------------------------------------------------------------
 -- define ArBB VM types for a list of type "names" 
@@ -305,6 +326,17 @@ defineLocalVars (t:ts) = do
   vs <- defineLocalVars ts
   return (v:vs) 
 
+{-
+defineGlobalVars :: [Type] -> EmitArbb [Variable]
+defineGlobalVars [] = return [] 
+defineGlobalVars (t:ts) = do 
+  let name = "name"
+  -- liftIO$ putStrLn ("Creating local variable: " ++name)    
+  v <- createGlobal_ t name -- "name" -- name needs to be unique ? 
+  vs <- defineGlobalVars ts
+  return (v:vs) 
+-}
+
 defineTypesNew :: ArBBType ScalarType -> EmitArbb (ArBBType Type)
 defineTypesNew ArBBTypeUnit = return ArBBTypeUnit
 defineTypesNew (ArBBTypeSingle st)  = do 
@@ -327,7 +359,7 @@ defineDenseTypesNew (ArBBTypePair st1 st2) = do
   return (ArBBTypePair t1 t2) 
 
  
--- TODO: IMPLEMENT
+
 defineLocalVarsNew :: ArBBType Type -> EmitArbb Vars
 defineLocalVarsNew ArBBTypeUnit = return VarsUnit
 defineLocalVarsNew (ArBBTypeSingle t) = do 
@@ -338,6 +370,20 @@ defineLocalVarsNew (ArBBTypeSingle t) = do
 defineLocalVarsNew (ArBBTypePair t1 t2) = do 
   v1 <- defineLocalVarsNew t1
   v2 <- defineLocalVarsNew t2 
+  return$ VarsPair v1 v2
+
+defineGlobalVarsNew :: ArBBType Type -> EmitArbb Vars
+defineGlobalVarsNew ArBBTypeUnit = return VarsUnit
+defineGlobalVarsNew (ArBBTypeSingle t) = do 
+  let name = "name"
+  b <- getBindingNull_
+  -- liftIO$ putStrLn ("Creating local variable: " ++name)    
+  gv <- createGlobal_ t name b-- "name" -- name needs to be unique ? 
+  v  <- variableFromGlobal_ gv
+  return$ VarsPrim v
+defineGlobalVarsNew (ArBBTypePair t1 t2) = do 
+  v1 <- defineGlobalVarsNew t1
+  v2 <- defineGlobalVarsNew t2 
   return$ VarsPair v1 v2
 
 ------------------------------------------------------------------------------

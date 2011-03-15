@@ -13,11 +13,17 @@ import qualified Foreign.Storable as F
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
-
+data ArBBArrType s 
+     = ArBBArrTypeUnit 
+     | ArBBArrTypeSingle s 
+     | ArBBArrTypePair (ArBBArrType s) (ArBBArrType s) 
+ -- identical ? use same.. but hmm confusing ? 
 data ArBBType s 
    = ArBBTypeUnit 
    | ArBBTypeSingle s
    | ArBBTypePair   (ArBBType s) (ArBBType s)
+
+
 
 -- same preorder traversal as with the variables in D.A.A.ArBB.Data 
 arBBTypeToList :: ArBBType s -> [s] 
@@ -104,4 +110,5 @@ nonNumType (Type.TypeCSChar _) = ArbbI8 -- huh ? (Signed char)
 nonNumType (Type.TypeCUChar _) = ArbbU8
 
 
-
+--getInputType :: Arrays a => OpenAcc aenv a -> ArBBArrType (ArBBType ScalarType) 
+--getInputType = undefined

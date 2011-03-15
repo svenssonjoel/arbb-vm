@@ -27,6 +27,7 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       beginFunction, endFunction, 
                       op, opImm, opDynamic, opDynamicImm,
 		      callOp, execute, compile, 
+		  
                       finish, createConstant, createLocal,
                       variableFromGlobal, getParameter, readScalar,
                       writeScalar, serializeFunction, freeVMString,
@@ -502,6 +503,7 @@ callOp caller opc callee outp inp =
                         ("inputs" , show (map fromVariable inp))] >>=                               
    
   throwIfErrorIO0
+
 
 {# fun unsafe arbb_call_op as callOp'
    { fromFunction `Function' ,
