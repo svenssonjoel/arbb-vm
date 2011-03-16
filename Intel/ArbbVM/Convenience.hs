@@ -23,7 +23,8 @@ module Intel.ArbbVM.Convenience
    const_, int32_, int64_,float32_, float64_, bool_,
    const_storable_,
    usize_, isize_, 
-   incr_int32_, copy_,
+   incr_int32_, 
+   copy_, copyImm_, 
 
    local_bool_, local_int32_, local_float64_, 
    global_nobind_, global_nobind_int32_,
@@ -355,7 +356,7 @@ incr_int32_ var = do one <- int32_ 1
 		     op_ ArbbOpAdd [var] [var,one] 
 
 copy_ v1 v2 = op_ ArbbOpCopy [v1] [v2]
-
+copyImm_ v1 v2 = opImm_ ArbbOpCopy [v1] [v2]
 
 ------------------------------------------------------------
 
