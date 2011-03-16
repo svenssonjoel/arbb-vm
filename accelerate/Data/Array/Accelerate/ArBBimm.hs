@@ -286,17 +286,7 @@ genBFun out inp1 inp2 fun = do
 
  
 ------------------------------------------------------------------------------
--- Assign outputs of something to a list of variables 
---assignTo [] [] = return () 
---assignTo (x:xs) (y:ys) = do 
---   op_ ArbbOpCopy [x] [y] 
---assignTo _ _ = error "AssignTo: Mismatch!"
-
-assignToImm [] [] = return () 
-assignToImm (x:xs) (y:ys) = do 
-   opImm_ ArbbOpCopy [x] [y] 
-assignToImm _ _ = error "AssignTo: Mismatch!"
-
+-- Assign 
 assignToVars VarsUnit VarsUnit = return ()
 assignToVars (VarsPrim v1) (VarsPrim v2) = do 
    op_ ArbbOpCopy [v1] [v2]
