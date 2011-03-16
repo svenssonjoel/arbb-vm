@@ -23,7 +23,7 @@ import Prelude hiding (map)
 
 incr xs = 
      let xs' = use xs
-     in map (\x -> x+1) xs'
+     in map (\x -> x*2+1) xs'
 
 
 sumUp xs = 
@@ -33,14 +33,14 @@ sumUp xs =
 
 
 
-
-input = ((fromList  (Sugar.listToShape [1024]) [1..1024 :: Int]) :: Data.Array.Accelerate.Array Sugar.DIM1  Int) 
+input :: Data.Array.Accelerate.Array Sugar.DIM1 Int
+input = (fromList  (Sugar.listToShape [1024]) [1..1024 :: Int]) 
 
 
 apa = -- arbbSession$ do 
   let f = incr input
   in ArBB.run f 
   
-
 main = do
+     putStrLn$ "USING: Immediate ArBB Backend" 
      putStrLn$ show apa
