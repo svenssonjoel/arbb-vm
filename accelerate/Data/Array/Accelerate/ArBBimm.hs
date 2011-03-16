@@ -133,9 +133,16 @@ executeArBB' acc@(OpenAcc pacc) gv =
           let vars = lookupArrayR ad gv
          --  liftIO$ putStrLn$ show vars
           return$  ResultArray (InternalArray sh vars)
+     -- TODO: These need consider the "shape" of the input arrays also.
+     --       Are they one, two or N dimensional.
      m@(Map f acc) -> execMap (getAccType' (OpenAcc m))  -- output type (of elements)
                               (getAccType'  acc)         -- input type (of elemets)  
                               f =<< executeArBB' acc gv 
+     zw@(ZipWith f ac1 ac2) -> execZipWith (getAccType' (OpenAcc zw))
+                                           (getAccType' ac1)
+                                           (getAccType' ac2) 
+                                           f =<< liftM2 (,) (executeArBB' ac1 gv) 
+                                                            (executeArBB' ac2 gv)
 
 
 ------------------------------------------------------------------------------
@@ -176,9 +183,58 @@ execMap ot it f (ResultArray (InternalArray sh v))  = do
   let outs =  listToVars v out_vars -- out_vars 
   return (ResultArray (InternalArray sh outs)) -- result of Map is single array 
 
+execZipWith :: (Sugar.Elt t3) => 
+               ArBBType ScalarType -> -- outType
+               ArBBType ScalarType -> -- Elements type in array 1
+               ArBBType ScalarType -> -- Elements type in array 2
+               OpenFun env aenv (t1 -> t2 -> t3)  -> 
+               (Result (Array sh t1), Result (Array sh t2)) -> -- input (should be a pair of arrays) 
+               EmitArbb (Result (Array sh t3))   -- output 
+execZipWith ot it1 it2  f (ResultArray (InternalArray sh1 v1), 
+                           ResultArray (InternalArray sh2 v2))  = do 
+  fun <- genBFun ot -- output type (of elements)
+                 it1 -- input type (of elements)  
+                 it2 -- input type (of elements) 
+                 f 
+  
+  out_dense' <- defineDenseTypesNew ot
+  inp_dense1' <- defineDenseTypesNew it1
+  inp_dense2' <- defineDenseTypesNew it2    
+  out_vars' <- defineGlobalVarsNew out_dense'
+  inp_vars1' <- defineGlobalVarsNew inp_dense1'
+  inp_vars2' <- defineGlobalVarsNew inp_dense2'    
+  
+  -- TODO: figure out what is correct to do here 
+  assignToVarsImm inp_vars1' v1 
+  assignToVarsImm inp_vars2' v2 
+
+  
+  let inp_vars = varsToList inp_vars1' ++ varsToList inp_vars2'
+  let out_vars = varsToList out_vars' 
+  let inp_dense = arBBTypeToList inp_dense1' ++ arBBTypeToList inp_dense2' 
+  let out_dense = arBBTypeToList out_dense' 
+
+  zipper <- funDef_ "aap" out_dense inp_dense $ \ out inp -> do
+    map_ fun out inp
+
+ ----------
+  str <- serializeFunction_ zipper
+  liftIO$ putStrLn (getCString str)
+ ---------    
+
+  execute_ zipper out_vars inp_vars  
+
+  -- Using v1 here in the output states that the 
+  -- output has same "shape" as v1 does 
+  let outs =  listToVars v1  out_vars -- out_vars 
+  return (ResultArray (InternalArray sh1 outs)) 
+
 
 ------------------------------------------------------------------------------
 -- This is function definition.. genMap is bad name !! 
+
+-- TODO: Generalise function generation.
+
 genMap :: ArBBType ScalarType -> 
           ArBBType ScalarType -> 
           OpenFun env aenv t -> 
@@ -192,7 +248,8 @@ genMap out inp fun = do
   -- Start by generating the function to be mapped!
   fun <- funDef_ "f" l_out l_inp $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
-    assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
+    zipWithM_ copy_ outs vars
+    --assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
 ----------
   str <- serializeFunction_ fun 
   -- liftIO$ putStrLn "mapee function" 
@@ -200,13 +257,40 @@ genMap out inp fun = do
 ---------  
     
   return fun
+
+
+genBFun :: ArBBType ScalarType -> 
+           ArBBType ScalarType ->
+           ArBBType ScalarType ->  
+           OpenFun env aenv t -> 
+           EmitArbb Function 
+genBFun out inp1 inp2 fun = do
+  out' <- defineTypesNew out
+  inp1' <- defineTypesNew inp1
+  inp2' <- defineTypesNew inp2
+
+  let l_inp = arBBTypeToList inp1' ++ arBBTypeToList inp2'
+  let l_out = arBBTypeToList out'
+  -- Start by generating the function to be mapped!
+  fun <- funDef_ "f" l_out l_inp $ \ outs inps -> do 
+    vars <- genFun fun inps -- inputs as the "environment"  
+    zipWithM_ copy_ outs vars
+    --assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
+----------
+  str <- serializeFunction_ fun 
+  -- liftIO$ putStrLn "mapee function" 
+  liftIO$ putStrLn (getCString str)
+---------  
+    
+  return fun
+
  
 ------------------------------------------------------------------------------
 -- Assign outputs of something to a list of variables 
-assignTo [] [] = return () 
-assignTo (x:xs) (y:ys) = do 
-   op_ ArbbOpCopy [x] [y] 
-assignTo _ _ = error "AssignTo: Mismatch!"
+--assignTo [] [] = return () 
+--assignTo (x:xs) (y:ys) = do 
+--   op_ ArbbOpCopy [x] [y] 
+--assignTo _ _ = error "AssignTo: Mismatch!"
 
 assignToImm [] [] = return () 
 assignToImm (x:xs) (y:ys) = do 

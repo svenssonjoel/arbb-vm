@@ -186,7 +186,8 @@ executeArBB acc = do
        o1 <- executeArBB' acc glob_vars
        let vlist = resultToVList o1 
        let vs = concatMap varsToList  vlist
-       assignTo o vs 
+       --assignTo o vs 
+       zipWithM_ copy_  o vs 
        return o1 -- Is treated as a shape descriptor
     
     outputs <- outputVariables rs -- Create a container for the outputs

@@ -84,6 +84,8 @@ collectGlobals acc@(OpenAcc pacc) gb =
          let n = size sh 
          in insertArray ad (fromIntegral n) gb  
        (Map f acc) -> collectGlobals acc gb 
+       (ZipWith _ a1 a2) -> let gb' = collectGlobals a1 gb
+                            in  collectGlobals a2 gb'
 
 ------------------------------------------------------------------------------
 -- insertArray

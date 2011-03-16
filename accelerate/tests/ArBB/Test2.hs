@@ -19,7 +19,7 @@ import Intel.ArbbVM.Convenience
 
 import Data.Int
 
-import Prelude hiding (map)
+import Prelude hiding (map,zipWith)
 
 incr xs = 
      let xs' = use xs
@@ -30,17 +30,30 @@ sumUp xs =
      let xs' = use xs
      in fold (+) 0 xs'
 
+pairSum xs ys = 
+   let xs' = use xs
+       ys' = use ys 
+   in zipWith (+) xs' ys'
 
 
 
 input :: Data.Array.Accelerate.Array Sugar.DIM1 Int
-input = (fromList  (Sugar.listToShape [1024]) [1..1024 :: Int]) 
+input = fromList  (Sugar.listToShape [1024]) [1..1024 :: Int]
+
+input2 :: Data.Array.Accelerate.Array Sugar.DIM1 Int
+input2 = fromList  (Sugar.listToShape [1024]) (Prelude.replicate 1024 1024 :: [Int]) 
 
 
 apa = -- arbbSession$ do 
   let f = incr input
   in ArBB.run f 
-  
+
+bepa = 
+  let f = pairSum input input2 
+  in ArBB.run f  
+
 main = do
-     putStrLn$ "USING: Immediate ArBB Backend" 
+     putStrLn "USING: Immediate ArBB Backend" 
      putStrLn$ show apa
+     putStrLn "Testing zipWith" 
+     putStrLn$ show bepa
