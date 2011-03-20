@@ -168,9 +168,9 @@ useOp :: Array dim e
 useOp inp@(Array sh ad)  = do 
   res <- lookupArray ad
   case res of 
-       Just v -> return  inp -- Already will this happen ? (ever ?)  
+       Just v -> return  inp -- This can happen if Let is used 
        Nothing -> do
-          copyIn ad n d -- allocates on Arbbside 
+          copyIn ad n d -- allocates on Arbb Side 
           return$ inp -- Array (sh) ad
         where
            n = size sh
