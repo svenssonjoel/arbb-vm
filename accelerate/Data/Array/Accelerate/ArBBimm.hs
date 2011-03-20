@@ -4,96 +4,50 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-} 
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE CPP #-}
 
 
 ------------------------------------------------------------------------------
-{- Thougths on Accelerate -> ArBB Bindings
- 
-   CUDA Bindings generates the program in "stages" that
-   correspond to the "kernel"-Skeletons. 
-   It may be the case that the ArBB backend can adopt a more 
-   unstaged approach. The entire Accelerate program could 
-   perhaps be compiled into a single ArBB function. 
-   
-    + Intermediate arrays managed entirely by ArBB. 
-    
-    - Only possible if all the Accelerate concepts are 
-      implementable entirely within ArBB (That we wont
-      need to emulate any accelerate functionality) 
-      (This may be possible anyway... ) 
-
--- About Accelerate
-
-   
-   CUDA.hs contains a function called run :: Arrays a => Acc a -> a 
-      ArBB backend needs to export the same. 
-   AST.hs contains the typeclass Arrays.      
-
--- Things that I stumble upon using Accelerate
-     - Many "different" things have same name. importing module X or Y 
-       makes difference!  
-       Big difference between using Shape and Sugar.Shape! 
-       (This problem occurs again and again).
-       You can spend lots of time hunting obscure error messages.
-
--- About ARBB 
-   tip: 
-
-   Use bind_to_host to map an array created using arbb_op_alloc 
-   into host memory and then copy data into the "host" side pointer
-   This method should have performance benefits if "kernels" are 
-   reused. However, I am unsure the method will affect our performance 
-   any. It may, though, be a method that works right now, since 
-   the copy-in scenario seems buggy.
-
-   Using bind_to_host should still be compatible with the approach 
-   I have started but requires "more work" because our code needs
-   to perform the actuall copying (instead of the ArBB system taking 
-   care of it automatically) 
-   
-
-   Thing to consider: 
-     The is_remote argument to functions. what does it mean ? 
-   
-
-     Needs some kind of "shaped" type description of arrays as well 
-       to go along with the "InternalArray" datatype   
-
-
-
-
+{- 
+ This file contains an ArBB D.A.Accelerate backend that uses 
+ ArBB in an "immediate mode". Small ArBB functions are generated and executed 
+ interleaved with xImm_ calls for various tasks. 
 -}
 
 
 module Data.Array.Accelerate.ArBBimm where 
 
 import Intel.ArbbVM
-import Intel.ArbbVM.Convenience
+import Intel.ArbbVM.Convenience hiding (liftIO)
+import qualified Intel.ArbbVM.Convenience as ArBB
 
 import Data.Array.Accelerate.AST
 import Data.Array.Accelerate.Tuple
 import qualified Data.Array.Accelerate.Type as Type
+
 import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
 import qualified Data.Array.Accelerate.Smart       as Sugar
 import qualified Data.Array.Accelerate.Array.Data as AD 
-import           Data.Array.Accelerate.Array.Data (ArrayEltR(..))
 
 import Data.Array.Accelerate.Array.Representation
 
 import Data.Array.Accelerate.Analysis.Type
 
 import Foreign.Ptr 
-import Foreign.Marshal.Array
+import Foreign.Marshal.Array hiding (newArray) 
 
 
-import Data.Array.Accelerate.ArBB.Data
+-- WHEN Data2 works change name to Data
+import Data.Array.Accelerate.ArBB.Data2
 import Data.Array.Accelerate.ArBB.Type
 import Data.Array.Accelerate.ArBB.Gen
+import Data.Array.Accelerate.ArBB.State
 
 import Data.Typeable
 import Data.Int
+import Data.Maybe
 
 import qualified Data.Map as M
 
@@ -101,48 +55,205 @@ import System.IO.Unsafe
 
 import qualified  Control.Monad.State.Strict as S 
 import Control.Monad
+import Control.Applicative
 #define L S.lift$
 
+{- 
+
+   Attempt no 3 (or 4) at an ArBB back-end for Accelerate. 
+    This time we are much more "copying" the approach of the 
+    CUDA backend. 
+    Each "real" arrays has a "shadow" array in Haskell world.
+     The "real" arrays are managed by ArBB 
+       - This is of course very wasteful! 
+       + So far, it works.. 
 
     
+     GLOBAL_TODO_LIST:
+       # Add reference counting to the arrays (look at what CUDA back-end does) 
+   
+
+
+     I think people often say that the functional programming paradigm
+       makes it easier to write correct programs (or some-such ?) 
+       
+     For me I think FP makes it harder to write bad programs. 
+           (And often what I want to write, are bad programs!) 
+          
+-}
+    
 ------------------------------------------------------------------------------
--- run (The entry point)
+-- run (The entry point) 
+
 run :: Arrays a => Sugar.Acc a -> a 
 run acc = unsafePerformIO$ arbbSession$ do 
-    executeArBB (Sugar.convertAcc acc)
+     let acc' = (Sugar.convertAcc acc)
+     (a,_) <- runExecState (collect =<< executeArBB acc' Empty) 
+     return a
+
+------------------------------------------------------------------------------ 
+-- collect (98% Copy-n-paste from CUDA back-end) 
+collect :: Arrays a
+        =>  a
+        -> ExecState a
+collect a = collectR arrays a
+  where 
+    collectR :: ArraysR a -> a -> ExecState a   
+    collectR ArraysRunit  () = return ()
+    collectR ArraysRarray  (arr@(Array sh ad)) =  do
+         copyOut ad (size sh)
+         return arr 
+    collectR (ArraysRpair ar1 ar2) (a1,a2) = do 
+       (,) <$> collectR ar1 a1 <*> collectR ar2 a2 
+
+
 
 ------------------------------------------------------------------------------
 -- ExecuteArBB 
-executeArBB :: (Typeable aenv, Arrays a) =>  OpenAcc aenv a -> EmitArbb a -- ()  
-executeArBB acc = do
- 
-    let gb = collectGlobals acc (M.empty) 
-    glob_vars <- bindGlobals gb 
+executeArBB :: (Typeable aenv, Typeable a ) =>  
+               OpenAcc aenv a -> 
+               Val aenv ->  
+               ExecState a -- ()  
+executeArBB acc@(OpenAcc pacc) aenv = do
+   case pacc of 
+   
+      Let a b ->  do 
+        a0 <- executeArBB a aenv   
+        executeArBB b (aenv `Push` a0) 
+  
+      Let2 a b -> do 
+        (a1,a0) <- executeArBB a aenv 
+        executeArBB b (aenv `Push` a1 `Push` a0)  
 
-    resultToArrays =<< executeArBB' acc glob_vars
-                  
-------------------------------------------------------------------------------
---
-executeArBB' :: (Typeable aenv, Arrays a) => 
-                OpenAcc aenv a -> 
-                GlobalBindings Variable -> 
-                EmitArbb (Result a)  
-executeArBB' acc@(OpenAcc pacc) gv = 
-  case pacc of
-     (Use (Array sh ad)) -> do
-          let vars = lookupArrayR ad gv
-         --  liftIO$ putStrLn$ show vars
-          return$  ResultArray (InternalArray sh vars)
-     -- TODO: These need consider the "shape" of the input arrays also.
-     --       Are they one, two or N dimensional.
+      -- TODO: Implement Avar ix. use prj defined in AST.hs 
+      Avar ix -> error "NOT YET IMPLEMENTED: lookup let-bound array"   
+        
+      Use a -> useOp a -- load array here 
+
+      -- TODO: These need consider the "shape" of the input arrays also.
+      Map _ a -> do
+        a0 <- executeArBB a aenv 
+        mapOp acc aenv a0 -- could pass just "f" and a0 ? 
+     
+      -- TODO: Implement zipWithOp 
+      ZipWith _ a b -> do 
+        a0 <- executeArBB a aenv
+        b0 <- executeArBB b aenv 
+        zipWithOp acc aenv a0 b0 -- could pass just "f" and a0 + b0 ?
+           
+     
+  
+{- 
      m@(Map f acc) -> execMap (getAccType' (OpenAcc m))  -- output type (of elements)
                               (getAccType'  acc)         -- input type (of elemets)  
-                              f =<< executeArBB' acc gv 
+                              f =<< executeArBB acc aenv gv 
      zw@(ZipWith f ac1 ac2) -> execZipWith (getAccType' (OpenAcc zw))
                                            (getAccType' ac1)
                                            (getAccType' ac2) 
-                                           f =<< liftM2 (,) (executeArBB' ac1 gv) 
-                                                            (executeArBB' ac2 gv)
+                                           f =<< liftM2 (,) (executeArBB ac1 aenv gv) 
+                                                            (executeArBB ac2 aenv gv)
+     fd@(Fold f e ac1) -> execFold (getAccType (OpenAcc fd)) 
+                                   (getExpType e) 
+                                   (getAccType ac1) =<< executeArBB ac1 aenv gv
+     
+    --resultToArrays =<< executeArBB' acc aenv glob_vars
+-} 
+
+
+------------------------------------------------------------------------------
+-- 
+
+useOp :: Array dim e
+      -> ExecState (Array dim e) 
+useOp inp@(Array sh ad)  = do 
+  res <- lookupArray ad
+  case res of 
+       Just v -> return  inp -- Already will this happen ? (ever ?)  
+       Nothing -> do
+          copyIn ad n d -- allocates on Arbbside 
+          return$ inp -- Array (sh) ad
+        where
+           n = size sh
+           d = dim sh
+      
+------------------------------------------------------------------------------
+-- mapOp below SEEMS to work. 
+--  TODO: Clean-up crew is definitely needed! 
+--  TODO: (ArBB)Typechecking fails when input array is not 1D 
+
+mapOp :: (Sugar.Elt e, Typeable aenv)
+      => OpenAcc aenv (Array dim e)
+      -> Val aenv
+      -> Array dim e'
+      -> ExecState (Array dim e)
+mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do  
+  inputArray' <- lookupArray in0 -- find the input variables
+  ad `seq` newArray ad d
+  vs' <- lookupArray ad -- find the output variables
+  
+
+  -- Compute map f -----
+  -- input variables are in inputArray
+  -- outputs sould be placed in "vs"   (Improve names)          
+  let vs = fromJust vs' -- HACKITY 
+  let inputArray = fromJust inputArray' -- HACKITY
+  let ot = getAccType' acc
+  let it = getAccType' inp   
+
+
+  fun <- genMap ot -- output type (of elements)
+                it -- input type (of elemets)  
+                f 
+  
+  out_dense' <- defineDenseTypesNew ot  -- TODO: Mention dimensionality here ?
+  inp_dense' <- defineDenseTypesNew it  -- TODO: Same as above 
+  --out_vars' <- defineGlobalVarsNew out_dense'
+  --inp_vars' <- defineGlobalVarsNew inp_dense'
+  
+  --assignToVarsImm inp_vars' v
+  
+  let inp_vars = varsToList inputArray
+  let out_vars = varsToList vs 
+  let inp_dense = arBBTypeToList inp_dense'
+  let out_dense = arBBTypeToList out_dense' 
+
+  maper <- liftArBB$ funDef_ "aap" out_dense inp_dense $ \ out inp -> do
+    map_ fun out inp
+
+ ----------
+  str <- liftArBB$ serializeFunction_ maper 
+  -- liftIO$ putStrLn "mapee function" 
+  liftIO$ putStrLn (getCString str)
+ ---------    
+
+  liftArBB$ execute_ maper out_vars inp_vars  
+
+
+
+  ----------------------
+          
+  return$ Array (sh0) ad
+  where
+    n = size sh0
+    d = dim sh0
+    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
+   
+ 
+zipWithOp = undefined  
+
+
+{-
+              
+------------------------------------------------------------------------------
+--
+--executeArBB' :: (Typeable aenv, Arrays a) => 
+--                OpenAcc aenv a -> 
+--                Val aenv -> 
+--                GlobalBindings Variable -> 
+--                EmitArbb (Result a)  
+--executeArBB' acc@(OpenAcc pacc) aenv gv = 
+--  case pacc of
+                                                                          
 
 
 ------------------------------------------------------------------------------
@@ -182,6 +293,9 @@ execMap ot it f (ResultArray (InternalArray sh v))  = do
 
   let outs =  listToVars v out_vars -- out_vars 
   return (ResultArray (InternalArray sh outs)) -- result of Map is single array 
+
+------------------------------------------------------------------------------
+--
 
 execZipWith :: (Sugar.Elt t3) => 
                ArBBType ScalarType -> -- outType
@@ -229,7 +343,10 @@ execZipWith ot it1 it2  f (ResultArray (InternalArray sh1 v1),
   let outs =  listToVars v1  out_vars -- out_vars 
   return (ResultArray (InternalArray sh1 outs)) 
 
-
+------------------------------------------------------------------------------
+-- 
+execFold = error "Fold not implemented" 
+-}
 ------------------------------------------------------------------------------
 -- This is function definition.. genMap is bad name !! 
 
@@ -238,7 +355,7 @@ execZipWith ot it1 it2  f (ResultArray (InternalArray sh1 v1),
 genMap :: ArBBType ScalarType -> 
           ArBBType ScalarType -> 
           OpenFun env aenv t -> 
-          EmitArbb Function 
+          ExecState Function 
 genMap out inp fun = do
   out' <- defineTypesNew out
   inp' <- defineTypesNew inp
@@ -246,19 +363,19 @@ genMap out inp fun = do
   let l_inp = arBBTypeToList inp' 
   let l_out = arBBTypeToList out'
   -- Start by generating the function to be mapped!
-  fun <- funDef_ "f" l_out l_inp $ \ outs inps -> do 
+  fun <- liftArBB$ funDef_ "f" l_out l_inp $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
     zipWithM_ copy_ outs vars
     --assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
 ----------
-  str <- serializeFunction_ fun 
+  str <- liftArBB$ serializeFunction_ fun 
   -- liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
 ---------  
     
   return fun
 
-
+{- 
 genBFun :: ArBBType ScalarType -> 
            ArBBType ScalarType ->
            ArBBType ScalarType ->  
@@ -284,7 +401,7 @@ genBFun out inp1 inp2 fun = do
     
   return fun
 
- 
+-} 
 ------------------------------------------------------------------------------
 -- Assign 
 assignToVars VarsUnit VarsUnit = return ()
@@ -316,7 +433,7 @@ defineDenseTypes :: [ScalarType] -> EmitArbb [Type]
 defineDenseTypes [] = return []
 defineDenseTypes (x:xs) = do 
    t <- getScalarType_ x
-   d <- getDenseType_ t 1 
+   d <- getDenseType_ t 1 -- TODO: Always one dimensional ? 
    ds <- defineDenseTypes xs 
    return (d:ds)
  
@@ -325,7 +442,6 @@ defineLocalVars :: [Type] -> EmitArbb [Variable]
 defineLocalVars [] = return [] 
 defineLocalVars (t:ts) = do 
   let name = "name"
-  -- liftIO$ putStrLn ("Creating local variable: " ++name)    
   v <- createLocal_ t name -- "name" -- name needs to be unique ? 
   vs <- defineLocalVars ts
   return (v:vs) 
@@ -341,49 +457,48 @@ defineGlobalVars (t:ts) = do
   return (v:vs) 
 -}
 
-defineTypesNew :: ArBBType ScalarType -> EmitArbb (ArBBType Type)
+defineTypesNew :: ArBBType ScalarType -> ExecState (ArBBType Type)
 defineTypesNew ArBBTypeUnit = return ArBBTypeUnit
 defineTypesNew (ArBBTypeSingle st)  = do 
-   t <- getScalarType_ st 
+   t <- liftArBB$ getScalarType_ st 
    return$ ArBBTypeSingle t
 defineTypesNew (ArBBTypePair st1 st2) = do 
    t1 <- defineTypesNew st1
    t2 <- defineTypesNew st2 
    return$ ArBBTypePair t1 t2
 
-defineDenseTypesNew :: ArBBType ScalarType -> EmitArbb (ArBBType Type) 
+defineDenseTypesNew :: ArBBType ScalarType -> ExecState (ArBBType Type) 
 defineDenseTypesNew ArBBTypeUnit = return ArBBTypeUnit
 defineDenseTypesNew (ArBBTypeSingle st) = do 
-  t <- getScalarType_ st
-  d <- getDenseType_ t 1 
+  t <- liftArBB$ getScalarType_ st
+  d <- liftArBB$ getDenseType_ t 1 
   return (ArBBTypeSingle d) 
 defineDenseTypesNew (ArBBTypePair st1 st2) = do 
   t1 <- defineDenseTypesNew st1 
   t2 <- defineDenseTypesNew st2 
   return (ArBBTypePair t1 t2) 
 
- 
 
-defineLocalVarsNew :: ArBBType Type -> EmitArbb Vars
+
+defineLocalVarsNew :: ArBBType Type -> ExecState Vars
 defineLocalVarsNew ArBBTypeUnit = return VarsUnit
 defineLocalVarsNew (ArBBTypeSingle t) = do 
   let name = "name"
   -- liftIO$ putStrLn ("Creating local variable: " ++name)    
-  v <- createLocal_ t name -- "name" -- name needs to be unique ? 
+  v <- liftArBB$ createLocal_ t name -- "name" -- name needs to be unique ? 
   return$ VarsPrim v
 defineLocalVarsNew (ArBBTypePair t1 t2) = do 
   v1 <- defineLocalVarsNew t1
   v2 <- defineLocalVarsNew t2 
   return$ VarsPair v1 v2
 
-defineGlobalVarsNew :: ArBBType Type -> EmitArbb Vars
+defineGlobalVarsNew :: ArBBType Type -> ExecState Vars
 defineGlobalVarsNew ArBBTypeUnit = return VarsUnit
 defineGlobalVarsNew (ArBBTypeSingle t) = do 
   let name = "name"
-  b <- getBindingNull_
-  -- liftIO$ putStrLn ("Creating local variable: " ++name)    
-  gv <- createGlobal_ t name b-- "name" -- name needs to be unique ? 
-  v  <- variableFromGlobal_ gv
+  b <- liftArBB$ getBindingNull_
+  gv <- liftArBB$ createGlobal_ t name b-- "name" -- name needs to be unique ? 
+  v  <- liftArBB$ variableFromGlobal_ gv
   return$ VarsPrim v
 defineGlobalVarsNew (ArBBTypePair t1 t2) = do 
   v1 <- defineGlobalVarsNew t1
@@ -391,3 +506,20 @@ defineGlobalVarsNew (ArBBTypePair t1 t2) = do
   return$ VarsPair v1 v2
 
 
+
+------------------------------------------------------------------------------ 
+-- 
+
+--TODO: Figure out how the refcounts are used. see newArray in Execute.hs 
+--      in the CUDA backend.
+{- 
+newArray :: (Sugar.Shape sh, Sugar.Elt e)
+         => sh                          -- shape
+         -> ExecState (Array sh e)
+newArray  sh = do
+  -- ad  `seq` mallocArray ad (Just rc) (1 `max` n)
+  return $ Array (Sugar.fromElt sh) ad
+  where
+    n      = Sugar.size sh
+    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
+-}

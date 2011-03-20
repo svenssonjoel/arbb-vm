@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs #-}
-module Data.Array.Accelerate.ArBB.Data where 
+module Data.Array.Accelerate.ArBB.Data2 where 
 
 import Foreign.Ptr
 import Data.Int
@@ -18,7 +18,7 @@ import Data.Array.Accelerate.ArBB.Type
 import Data.Array.Accelerate.Array.Representation
 
 import           Intel.ArbbVM
-import           Intel.ArbbVM.Convenience 
+import           Intel.ArbbVM.Convenience hiding (liftIO)
 import qualified Intel.ArbbVM.Type as ArBB 
 
 
@@ -28,14 +28,13 @@ import Foreign.Marshal.Utils
 import Control.Monad.ST
 import qualified Control.Monad.State.Strict as S 
 
-import qualified Data.Array.Accelerate.ArBB.State as State
+import Data.Array.Accelerate.ArBB.State
 
 import qualified Data.Map as M 
 ------------------------------------------------------------------------------
 -- 
 
 -- Array to name bindigs
-type GlobalBindings a = M.Map (Ptr ()) a 
 
 data ArrayDesc = ArrayDesc { arrayDescLength :: Word64, 
                              arrayDescType   :: ScalarType } 
@@ -73,154 +72,17 @@ getArray :: (AD.ArrayPtrs e ~ Ptr a, AD.ArrayElt e) => AD.ArrayData e -> Ptr ()
 getArray = castPtr . AD.ptrsOfArrayData 
 
 
- 
-------------------------------------------------------------------------------
--- Collect global bindings
-
-collectGlobals :: (Typeable aenv, Typeable a) =>        
-                  OpenAcc aenv a -> 
-                  GlobalBindings ArrayDesc ->  
-                  GlobalBindings ArrayDesc
-collectGlobals acc@(OpenAcc pacc) gb =
-     case pacc of
-       (Let x y) -> error "collectGlobals: Let is not implemented" 
-       (Use (Array sh ad)) -> 
-         let n = size sh 
-         in insertArray ad (fromIntegral n) gb  
-       (Map f acc) -> collectGlobals acc gb 
-       (ZipWith _ a1 a2) -> let gb' = collectGlobals a1 gb
-                            in  collectGlobals a2 gb'
-
-------------------------------------------------------------------------------
--- insertArray
-
-insertArray :: AD.ArrayElt e => 
-               AD.ArrayData e -> Word64 -> 
-               GlobalBindings ArrayDesc -> 
-               GlobalBindings ArrayDesc 
-insertArray ad n gb = doInsert AD.arrayElt ad gb
-  where 
-    doInsert :: ArrayEltR e -> 
-                AD.ArrayData e ->      
-                GlobalBindings ArrayDesc -> 
-                GlobalBindings ArrayDesc 
-    doInsert ArrayEltRunit             _  gb = gb
-    doInsert (ArrayEltRpair aeR1 aeR2) ad gb =  
-       let gb'  = doInsert aeR1 (fst' ad) gb
-           gb'' = doInsert aeR2 (snd' ad) gb'
-       in gb''
-    doInsert aer                       ad gb = doInsertPrim aer ad n gb
-     where 
-      { doInsertPrim :: ArrayEltR e -> AD.ArrayData e -> Word64 -> GlobalBindings ArrayDesc -> GlobalBindings ArrayDesc
-      mkPrimDispatch(doInsertPrim,insertArrayPrim)
-      }
-
-insertArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
-                 ScalarType -> 
-                 AD.ArrayData e -> 
-                 Word64 -> GlobalBindings ArrayDesc ->
-                 GlobalBindings ArrayDesc 
-insertArrayPrim st ad n gb = 
-   -- let ptr = wordPtrToPtr (getArray ad)
-   let ptr = getArray ad
-   in case M.lookup  ptr gb  of 
-        (Just _) -> gb
-        Nothing ->  
-          let arrd = ArrayDesc n st 
-          in M.insert ptr arrd gb
- 
-------------------------------------------------------------------------------
--- lookupArray
-lookupArray :: AD.ArrayElt e => 
-               AD.ArrayData e ->  
-               GlobalBindings Variable -> 
-               [Variable] 
-lookupArray ad gv = doLookup AD.arrayElt ad gv
-  where 
-    doLookup :: ArrayEltR e -> 
-                AD.ArrayData e ->      
-                GlobalBindings Variable -> 
-                [Variable] 
-    doLookup ArrayEltRunit             _  gv = []
-    doLookup (ArrayEltRpair aeR1 aeR2) ad gv =  
-       let v1 = doLookup aeR1 (fst' ad) gv
-           v2 = doLookup aeR2 (snd' ad) gv
-       in v1 ++ v2
-    doLookup aer                       ad gv = doLookupPrim aer ad gv
-     where 
-      { doLookupPrim :: ArrayEltR e -> AD.ArrayData e -> GlobalBindings Variable -> [Variable]
-      mkPrimDispatch(doLookupPrim,lookupArrayPrim)
-      }
-
-lookupArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
-                 ScalarType -> 
-                 AD.ArrayData e -> 
-                 GlobalBindings Variable ->
-                 [Variable] 
-lookupArrayPrim st ad  gv = 
-   --let ptr = wordPtrToPtr (getArray ad)
-   let ptr = getArray ad
-   in case M.lookup  ptr gv  of 
-        (Just v) -> [v]
-        Nothing -> error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 
-          
-
-------------------------------------------------------------------------------
--- bindGlobals
-
-bindGlobals :: GlobalBindings ArrayDesc -> EmitArbb (GlobalBindings Variable)
-bindGlobals gb = doBindGlobals (M.toList gb) M.empty 
-  where 
-    doBindGlobals [] gv = return gv
-    doBindGlobals ((ptr,arrd):xs) gv = do 
-       let n = arrayDescLength arrd
-           st = arrayDescType arrd
---- DEBUG   
---       liftIO$ putStrLn (show n)
---       liftIO$ putStrLn (show st)
---       array <- liftIO$ peekArray 10 (castPtr ptr)  
---       liftIO$ putStrLn (show (array :: [Int32]))    
-       
--- ArBB CALLS 
-
-       let name = "input" ++ show ptr
-       liftIO$ putStrLn ("   To variable: "  ++ name)
-      
-       bin <- getBindingNull_
-       sty <- getScalarType_ st   
-       dty <- getDenseType_ sty 1  
-       gin <- createGlobal_ dty name bin 
-
-       v <- variableFromGlobal_ gin
-       
-       num_elems <- usize_ n 
-        
-       -- this executes immediately (allocates space for num_elements
-       -- on the ArBB "side") 
-       opDynamicImm_ ArbbOpAlloc [v] [num_elems]
-     
-       -- mapToHost space and copy bytes into ArBB 
-       m_ptr <- mapToHost_ v [1] ArbbReadWriteRange
-       liftIO$ copyBytes m_ptr ptr ((fromIntegral n) * (ArBB.size st))                
--------------
-       
-       gv' <- doBindGlobals xs gv
-       let gvout = M.insert ptr v gv' 
-       liftIO$ putStrLn "leaving bindGlobals" 
-       return gvout
-
-
-
-
-  
+   
 ------------------------------------------------------------------------------
 -- 
+
+{- 
 data InternalArray sh where 
      InternalArray :: (Sugar.Shape sh) 
                    => Sugar.EltRepr sh 
                    -> Vars             -- bound to ArBB Variables 
                    -> InternalArray sh
-
+-}
 data Vars  
    = VarsUnit  
    | VarsPrim Variable
@@ -240,7 +102,7 @@ listToVars v xs = let ([],a) =  doListToVars v xs in a
       let (rest, r1) = doListToVars v1 xs 
           (rest',r2) = doListToVars v2 rest 
       in (rest',VarsPair r1 r2)
-
+{- 
 ------------------------------------------------------------------------------ 
 -- Result is a structure of ArBB variables that mirrors 
 -- the structure of "Arrays" in Accelerate
@@ -332,80 +194,218 @@ newOutputVars n (VarsPair v1 v2) = do
     v2' <- newOutputVars n v2 
     return (VarsPair v1' v2')        
                 
-               
-    
------------------------------------------------------------------------------- 
--- LookupArrayR  
-lookupArrayR :: AD.ArrayElt e => 
-               AD.ArrayData e ->  
-               GlobalBindings Variable -> 
-               Vars 
-lookupArrayR ad gv = doLookup AD.arrayElt ad gv
-  where 
-    doLookup :: ArrayEltR e -> 
-                AD.ArrayData e ->      
-                GlobalBindings Variable -> 
-                Vars 
-    doLookup ArrayEltRunit             _  gv = VarsUnit
-    doLookup (ArrayEltRpair aeR1 aeR2) ad gv =  
-       let v1 = doLookup aeR1 (fst' ad) gv
-           v2 = doLookup aeR2 (snd' ad) gv
-       in VarsPair v1 v2
-    doLookup aer                       ad gv = doLookupPrim aer ad gv
-     where 
-      { doLookupPrim :: ArrayEltR e -> AD.ArrayData e -> GlobalBindings Variable -> Vars
-      mkPrimDispatch(doLookupPrim,lookupArrayRPrim)
-      }
-
-lookupArrayRPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
-                 ScalarType -> 
-                 AD.ArrayData e -> 
-                 GlobalBindings Variable ->
-                 Vars 
-lookupArrayRPrim st ad  gv = 
-   --let ptr = wordPtrToPtr (getArray ad)
-   let ptr = getArray ad
-   in case M.lookup  ptr gv  of 
-        (Just v) -> VarsPrim v
-        Nothing -> error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 
-
-
-
-
+ -}
 ------------------------------------------------------------------------------ 
 -- LookupArray that uses the state 
 
-lookupArrayState :: AD.ArrayElt e => 
+-- TODO: THIS IS HACKY, find better way 
+lookupArray :: AD.ArrayElt e => 
                AD.ArrayData e ->  
-               GlobalBindings Variable -> 
-               State.ExecState Vars 
-lookupArrayState ad gv = doLookup AD.arrayElt ad gv
+  --             GlobalBindings Variable -> 
+               ExecState (Maybe Vars)
+lookupArray ad = doLookup AD.arrayElt ad {- gv -}
   where 
     doLookup :: ArrayEltR e -> 
                 AD.ArrayData e ->      
-                GlobalBindings Variable -> 
-                State.ExecState Vars 
-    doLookup ArrayEltRunit             _  gv = return VarsUnit
-    doLookup (ArrayEltRpair aeR1 aeR2) ad gv =  do 
-       v1 <- doLookup aeR1 (fst' ad) gv
-       v2 <- doLookup aeR2 (snd' ad) gv
-       return$ VarsPair v1 v2
-    doLookup aer                       ad gv = doLookupPrim aer ad gv
+--                GlobalBindings Variable -> 
+                ExecState (Maybe Vars)
+    doLookup ArrayEltRunit             _  = return$ Just VarsUnit
+    doLookup (ArrayEltRpair aeR1 aeR2) ad =  do 
+       v1 <- doLookup aeR1 (fst' ad) 
+       v2 <- doLookup aeR2 (snd' ad) 
+       case (v1,v2) of 
+         (Just v1', Just v2') -> return$ Just (VarsPair v1' v2') 
+         (Nothing,Nothing) -> return$ Nothing 
+         (Just VarsUnit,Nothing) -> return$ Nothing -- hackity
+         a -> error (show a) "lookupArray, Bug in ArBB backend" 
+       
+    doLookup aer                       ad = doLookupPrim aer ad
      where 
-      { doLookupPrim :: ArrayEltR e -> AD.ArrayData e -> GlobalBindings Variable -> State.ExecState Vars
-      mkPrimDispatch(doLookupPrim,lookupArrayStateRPrim)
+      { doLookupPrim :: ArrayEltR e -> AD.ArrayData e -> ExecState (Maybe Vars)
+      mkPrimDispatch(doLookupPrim,lookupArrayPrim)
       }
 
-lookupArrayStateRPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+lookupArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
                  ScalarType -> 
                  AD.ArrayData e -> 
-                 GlobalBindings Variable ->
-                 State.ExecState Vars 
-lookupArrayStateRPrim st ad  gv = do 
+                 ExecState (Maybe Vars) 
+lookupArrayPrim _ ad = do 
    arraymap <- S.get 
    
+   let ptr = getArray ad -- get the key into the map
+   liftIO$ putStrLn (show ptr)
+   liftIO$ putStrLn (show arraymap)
+   case M.lookup  ptr arraymap  of 
+        (Just v) -> return$ Just (VarsPrim v)
+        Nothing -> return Nothing -- error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 
+
+
+
+------------------------------------------------------------------------------
+--
+{- 
+   Not sure how to do this but.. 
+   Intermediate arrays are just "variables" in ArBB. 
+   I dont actually need to manually allocate them, rather ArBB does that 
+   for me!. 
+   
+   newArray is the ArBB part of the operation. 
+   this should, when used, be paired up with th creation 
+   of a new haskell (the one passed as key into this newArray function)
+
+-} 
+
+
+-- What do you really need for a new array, Type and Size! 
+newArray :: (AD.ArrayElt e) => 
+               AD.ArrayData e ->  
+               Int -> -- Dimensions  
+  --             GlobalBindings Variable -> 
+               ExecState () 
+newArray ad dims = doNew AD.arrayElt ad 
+  where 
+    doNew :: ArrayEltR e -> 
+                AD.ArrayData e ->      
+--                GlobalBindings Variable -> 
+                ExecState () 
+    doNew ArrayEltRunit             _  = return () -- VarsUnit
+    doNew (ArrayEltRpair aeR1 aeR2) ad =  do 
+       {-v1 <- -} doNew aeR1 (fst' ad) 
+       {-v2 <- -} doNew aeR2 (snd' ad) 
+       -- return$ VarsPair v1 v2
+    doNew aer                       ad = doNewPrim aer dims ad -- dims 
+     where 
+      { doNewPrim :: ArrayEltR e -> Int -> AD.ArrayData e -> ExecState ()
+      mkPrimDispatch(doNewPrim,newArrayPrim)
+      }
+
+
+-- TODO: Size may not be needed here, investigate. 
+newArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+                 ScalarType -> -- type of elements, and num of dimensions
+                 Int ->  -- dimensions          
+                 AD.ArrayData e -> -- key into table 
+                 ExecState () 
+newArrayPrim st d ad = do 
+   arraymap <- S.get 
    
    let ptr = getArray ad -- get the key into the map
    case M.lookup  ptr arraymap  of 
-        (Just v) -> return$ VarsPrim v
-        Nothing -> error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 
+        (Just _) -> error "newArrayPrim: Implementation of ArBB backend is faulty!" 
+        
+        -- The answer should be NO right ? otherwise someone already tried 
+        -- to "create" this array 
+        Nothing -> do 
+          t <- liftArBB$  getScalarType_ st
+          dt <- liftArBB$ getDenseType_ t d -- get n dimensional (up to three) 
+          bin <- liftArBB$ getBindingNull_ 
+          g <- liftArBB$ createGlobal_ dt "Optimus_Prime" bin
+          v <- liftArBB$ variableFromGlobal_ g
+          S.put (M.insert ptr v arraymap) 
+          return ()
+
+
+
+
+------------------------------------------------------------------------------
+-- RENAME THIS COPYIN
+-- Create arrays on ArBB side and load the data ! 
+copyIn :: (AD.ArrayElt e) 
+       => AD.ArrayData e 
+       -> Int  -- Total size 
+       -> Int -- number of dimensions
+       -> ExecState () 
+copyIn ad s d = doCopyIn AD.arrayElt ad 
+  where 
+    doCopyIn :: ArrayEltR e -> 
+                AD.ArrayData e ->      
+--                GlobalBindings Variable -> 
+                ExecState () 
+    doCopyIn ArrayEltRunit             _  = return () -- VarsUnit
+    doCopyIn (ArrayEltRpair aeR1 aeR2) ad =  do 
+       {-v1 <- -} doCopyIn aeR1 (fst' ad) 
+       {-v2 <- -} doCopyIn aeR2 (snd' ad) 
+       -- return$ VarsPair v1 v2
+    doCopyIn aer                       ad = doCopyInPrim aer s d ad -- dims 
+     where 
+      { doCopyInPrim :: ArrayEltR e -> Int -> Int -> AD.ArrayData e -> ExecState ()
+      mkPrimDispatch(doCopyInPrim,copyInPrim)
+      }
+
+
+-- TODO: Size may not be needed here, investigate. 
+copyInPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+                 ScalarType -> -- type of elements, and num of dimensions
+                 Int ->  -- total size 
+                 Int ->  -- dimensions          
+                 AD.ArrayData e -> -- key into table 
+                 ExecState () 
+copyInPrim st s d ad = do 
+   arraymap <- S.get 
+   
+   let ptr = getArray ad -- get the key into the map
+   case M.lookup  ptr arraymap  of 
+        (Just _) -> error "newArrayPrim: Implementation of ArBB backend is faulty!" 
+        
+        -- The answer should be NO right ? otherwise someone already tried 
+        -- to "create" this array 
+        Nothing -> do 
+          t <- liftArBB$  getScalarType_ st
+          dt <- liftArBB$ getDenseType_ t d -- get n dimensional (up to three) 
+          bin <- liftArBB$ getBindingNull_ 
+          g <- liftArBB$ createGlobal_ dt "Optimus_Prime" bin
+          v <- liftArBB$ variableFromGlobal_ g
+          
+        
+-- Allocate something of size s         
+          num_elems <- liftArBB$ usize_ s 
+          liftArBB$ opDynamicImm_ ArbbOpAlloc [v] [num_elems] 
+          m_ptr <- liftArBB$ mapToHost_ v [1] ArbbWriteOnlyRange --whats the one ?
+          liftIO$ copyBytes m_ptr ptr ((fromIntegral s) * (ArBB.size st))                   
+-- --       
+          S.put (M.insert ptr v arraymap) 
+          return ()
+
+
+
+------------------------------------------------------------------------------
+-- COPYOUT 
+copyOut :: (AD.ArrayElt e) => 
+               AD.ArrayData e ->  
+               Int -> -- Total size 
+               ExecState () 
+copyOut ad s = doCopyOut AD.arrayElt ad 
+  where 
+    doCopyOut :: ArrayEltR e -> 
+                AD.ArrayData e ->      
+--                GlobalBindings Variable -> 
+                ExecState () 
+    doCopyOut ArrayEltRunit             _  = return () -- VarsUnit
+    doCopyOut (ArrayEltRpair aeR1 aeR2) ad =  do 
+       {-v1 <- -} doCopyOut aeR1 (fst' ad) 
+       {-v2 <- -} doCopyOut aeR2 (snd' ad) 
+       -- return$ VarsPair v1 v2
+    doCopyOut aer                       ad = doCopyOutPrim aer s ad -- dims 
+     where 
+      { doCopyOutPrim :: ArrayEltR e -> Int -> AD.ArrayData e -> ExecState ()
+      mkPrimDispatch(doCopyOutPrim,copyOutPrim)
+      }
+
+
+-- TODO: Size may not be needed here, investigate. 
+copyOutPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
+                 ScalarType -> -- type of elements, and num of dimensions
+                 Int ->  -- total size 
+                 AD.ArrayData e -> -- key into table 
+                 ExecState () 
+copyOutPrim st s ad = do 
+   arraymap <- S.get 
+   
+   let ptr = getArray ad -- get the key into the map
+   case M.lookup ptr arraymap of 
+        (Just v) -> do
+          m_ptr <- liftArBB$ mapToHost_ v [1 {-pitch-}] ArbbWriteOnlyRange 
+          num_elems <- liftArBB$ usize_ s 
+          liftIO$ copyBytes ptr m_ptr ((fromIntegral s) * (ArBB.size st))                   
+          return ()
+        Nothing -> error "ArBB back-end is buggy"
