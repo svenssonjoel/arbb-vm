@@ -125,8 +125,7 @@ executeArBB acc@(OpenAcc pacc) aenv = do
         (a1,a0) <- executeArBB a aenv 
         executeArBB b (aenv `Push` a1 `Push` a0)  
 
-      -- TODO: Implement Avar ix. use prj defined in AST.hs 
-      Avar ix -> error "NOT YET IMPLEMENTED: lookup let-bound array"   
+      Avar ix -> return$ prj ix aenv 
         
       Use a -> useOp a -- load array here 
 
@@ -183,7 +182,7 @@ useOp inp@(Array sh ad)  = do
 
 mapOp :: (Sugar.Elt e, Typeable aenv)
       => OpenAcc aenv (Array dim e)
-      -> Val aenv
+      -> Val aenv -- is it used ? (CLEAN UP HERE !! ) 
       -> Array dim e'
       -> ExecState (Array dim e)
 mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do  
@@ -238,8 +237,78 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do
     d = dim sh0
     (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
    
+zipWithOp :: (Sugar.Elt e, Typeable aenv)
+          => OpenAcc aenv (Array dim e)
+          -> Val aenv
+          -> Array dim e1
+          -> Array dim e2
+          -> ExecState (Array dim e)
+zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1)) --   
+          aenv -- will i use it ?  
+          (Array sh0 in0)   -- same as inp0 !!! redundant info
+          (Array sh1 in1) = do  
+  inputArray0' <- lookupArray in0 -- find the input variables
+  inputArray1' <- lookupArray in1  
+
+  ad `seq` newArray ad d  -- create array 
+  vs' <- lookupArray ad   -- find the output variables
+  
+
+  -- Compute zipWith f -----
+  -- input variables are in inputArray
+  -- outputs sould be placed in "vs"   (Improve names)          
+  let vs = fromJust vs' -- HACKITY 
+  let inputArray0 = fromJust inputArray0' -- HACKITY
+  let inputArray1 = fromJust inputArray1' -- HACKITY
+  let ot = getAccType' acc
+  let it0 = getAccType' inp0
+  let it1 = getAccType' inp1
+
+
+  --fun <- genMap ot -- output type (of elements)
+  --              it -- input type (of elemets)  
+  --              f 
+  
+  fun <- genBFun ot -- output type (of elements)
+                 it0 -- input type (of elements)  
+                 it1 -- input type (of elements) 
+                 f 
  
-zipWithOp = undefined  
+  
+  out_dense' <- defineDenseTypesNew ot  -- TODO: Mention dimensionality here ?
+  inp_dense0' <- defineDenseTypesNew it0  -- TODO: Same as above 
+  inp_dense1' <- defineDenseTypesNew it1  -- TODO: Same as above  
+  --out_vars' <- defineGlobalVarsNew out_dense'
+  --inp_vars' <- defineGlobalVarsNew inp_dense'
+  
+  --assignToVarsImm inp_vars' v
+  
+  let inp_vars = varsToList inputArray0 ++ varsToList inputArray1 
+  let out_vars = varsToList vs 
+  let inp_dense = arBBTypeToList inp_dense0' ++ arBBTypeToList inp_dense1'
+  let out_dense = arBBTypeToList out_dense' 
+
+  zipper <- liftArBB$ funDef_ "aap" out_dense inp_dense $ \ out inp -> do
+    map_ fun out inp
+
+ ----------
+  str <- liftArBB$ serializeFunction_ zipper 
+  -- liftIO$ putStrLn "mapee function" 
+  liftIO$ putStrLn (getCString str)
+ ---------    
+
+  liftArBB$ execute_ zipper out_vars inp_vars  
+
+
+
+  ----------------------
+          
+  return$ Array (sh0) ad
+  where
+    n = size sh0
+    d = dim sh0
+    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
+     
 
 
 {-
@@ -375,12 +444,12 @@ genMap out inp fun = do
     
   return fun
 
-{- 
+
 genBFun :: ArBBType ScalarType -> 
            ArBBType ScalarType ->
            ArBBType ScalarType ->  
            OpenFun env aenv t -> 
-           EmitArbb Function 
+           ExecState Function 
 genBFun out inp1 inp2 fun = do
   out' <- defineTypesNew out
   inp1' <- defineTypesNew inp1
@@ -389,19 +458,19 @@ genBFun out inp1 inp2 fun = do
   let l_inp = arBBTypeToList inp1' ++ arBBTypeToList inp2'
   let l_out = arBBTypeToList out'
   -- Start by generating the function to be mapped!
-  fun <- funDef_ "f" l_out l_inp $ \ outs inps -> do 
+  fun <- liftArBB$ funDef_ "f" l_out l_inp $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
     zipWithM_ copy_ outs vars
     --assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
 ----------
-  str <- serializeFunction_ fun 
+  str <- liftArBB$ serializeFunction_ fun 
   -- liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
 ---------  
     
   return fun
 
--} 
+ 
 ------------------------------------------------------------------------------
 -- Assign 
 assignToVars VarsUnit VarsUnit = return ()
