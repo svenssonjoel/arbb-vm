@@ -201,7 +201,6 @@ newOutputVars n (VarsPair v1 v2) = do
 -- TODO: THIS IS HACKY, find better way 
 lookupArray :: AD.ArrayElt e => 
                AD.ArrayData e ->  
-  --             GlobalBindings Variable -> 
                ExecState (Maybe Vars)
 lookupArray ad = doLookup AD.arrayElt ad {- gv -}
   where 
@@ -260,22 +259,20 @@ lookupArrayPrim _ ad = do
 newArray :: (AD.ArrayElt e) => 
                AD.ArrayData e ->  
                Int -> -- Dimensions  
-  --             GlobalBindings Variable -> 
-               ExecState () 
+               ExecState Vars
 newArray ad dims = doNew AD.arrayElt ad 
   where 
-    doNew :: ArrayEltR e -> 
-                AD.ArrayData e ->      
---                GlobalBindings Variable -> 
-                ExecState () 
-    doNew ArrayEltRunit             _  = return () -- VarsUnit
+    doNew :: ArrayEltR e 
+          -> AD.ArrayData e       
+          -> ExecState Vars
+    doNew ArrayEltRunit             _  = return VarsUnit
     doNew (ArrayEltRpair aeR1 aeR2) ad =  do 
-       {-v1 <- -} doNew aeR1 (fst' ad) 
-       {-v2 <- -} doNew aeR2 (snd' ad) 
-       -- return$ VarsPair v1 v2
+       v1 <-  doNew aeR1 (fst' ad) 
+       v2 <-  doNew aeR2 (snd' ad) 
+       return$ VarsPair v1 v2
     doNew aer                       ad = doNewPrim aer dims ad -- dims 
      where 
-      { doNewPrim :: ArrayEltR e -> Int -> AD.ArrayData e -> ExecState ()
+      { doNewPrim :: ArrayEltR e -> Int -> AD.ArrayData e -> ExecState Vars
       mkPrimDispatch(doNewPrim,newArrayPrim)
       }
 
@@ -285,7 +282,7 @@ newArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) =>
                  ScalarType -> -- type of elements, and num of dimensions
                  Int ->  -- dimensions          
                  AD.ArrayData e -> -- key into table 
-                 ExecState () 
+                 ExecState Vars 
 newArrayPrim st d ad = do 
    arraymap <- S.get 
    
@@ -302,7 +299,7 @@ newArrayPrim st d ad = do
           g <- liftArBB$ createGlobal_ dt "Optimus_Prime" bin
           v <- liftArBB$ variableFromGlobal_ g
           S.put (M.insert ptr v arraymap) 
-          return ()
+          return$ VarsPrim v
 
 
 
@@ -317,23 +314,19 @@ copyIn :: (AD.ArrayElt e)
        -> ExecState () 
 copyIn ad d = doCopyIn AD.arrayElt ad 
   where 
-    doCopyIn :: ArrayEltR e -> 
-                AD.ArrayData e ->      
---                GlobalBindings Variable -> 
-                ExecState () 
+    doCopyIn :: ArrayEltR e  
+             -> AD.ArrayData e 
+             -> ExecState () 
     doCopyIn ArrayEltRunit             _  = return () -- VarsUnit
     doCopyIn (ArrayEltRpair aeR1 aeR2) ad =  do 
-       {-v1 <- -} doCopyIn aeR1 (fst' ad) 
-       {-v2 <- -} doCopyIn aeR2 (snd' ad) 
-       -- return$ VarsPair v1 v2
+       doCopyIn aeR1 (fst' ad) 
+       doCopyIn aeR2 (snd' ad) 
     doCopyIn aer                       ad = doCopyInPrim aer d ad -- dims 
      where 
       { doCopyInPrim :: ArrayEltR e -> [Int] -> AD.ArrayData e -> ExecState ()
       mkPrimDispatch(doCopyInPrim,copyInPrim)
       }
 
-
--- TODO: Size may not be needed here, investigate. 
 copyInPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
                  ScalarType -> -- type of elements, and num of dimensions
                  --Int ->  -- total size 
@@ -345,10 +338,10 @@ copyInPrim st d ad = do
    
    let ptr = getArray ad -- get the key into the map
    case M.lookup  ptr arraymap  of 
+   
         (Just _) -> error "newArrayPrim: Implementation of ArBB backend is faulty!" 
         
-        -- The answer should be NO right ? otherwise someone already tried 
-        -- to "create" this array 
+      
         Nothing -> do 
           
           t <- liftArBB$  getScalarType_ st
@@ -358,16 +351,19 @@ copyInPrim st d ad = do
           v <- liftArBB$ variableFromGlobal_ g
           
         
--- Allocate something of size s         
-          liftIO$ putStrLn "call ArbbOpAlloc" 
-          num_elems <- liftArBB$ mapM (usize_ ) d 
-          let s = foldr (+) 0 d
+
           
+          
+          -- create ArBB description of dimensions
+          num_elems <- liftArBB$ mapM (usize_ ) d 
+          let s = foldr (*) 1 d  -- TODO: Pass size from outside
+
+          -- perform ArBB Allocation           
           liftArBB$ opDynamicImm_ ArbbOpAlloc [v] num_elems 
-          liftIO$ putStrLn "call ArbbOpAlloc DONE" 
+          
           m_ptr <- liftArBB$ mapToHost_ v [1] ArbbWriteOnlyRange --whats the one ?
           liftIO$ copyBytes m_ptr ptr ((fromIntegral s) * (ArBB.size st))                   
--- --       
+
           S.put (M.insert ptr v arraymap) 
           return ()
 
@@ -375,16 +371,15 @@ copyInPrim st d ad = do
 
 ------------------------------------------------------------------------------
 -- COPYOUT 
-copyOut :: (AD.ArrayElt e) => 
-               AD.ArrayData e ->  
-               Int -> -- Total size 
-               ExecState () 
+copyOut :: (AD.ArrayElt e)
+        => AD.ArrayData e 
+        -> Int  -- Total size 
+        -> ExecState () 
 copyOut ad s = doCopyOut AD.arrayElt ad 
   where 
-    doCopyOut :: ArrayEltR e -> 
-                AD.ArrayData e ->      
---                GlobalBindings Variable -> 
-                ExecState () 
+    doCopyOut :: ArrayEltR e  
+              -> AD.ArrayData e 
+              -> ExecState () 
     doCopyOut ArrayEltRunit             _  = return () -- VarsUnit
     doCopyOut (ArrayEltRpair aeR1 aeR2) ad =  do 
        {-v1 <- -} doCopyOut aeR1 (fst' ad) 
@@ -409,7 +404,7 @@ copyOutPrim st s ad = do
    let ptr = getArray ad -- get the key into the map
    case M.lookup ptr arraymap of 
         (Just v) -> do
-          m_ptr <- liftArBB$ mapToHost_ v [1 {-pitch-}] ArbbWriteOnlyRange 
+          m_ptr <- liftArBB$ mapToHost_ v [1 {-pitch-}] ArbbReadOnlyRange 
           num_elems <- liftArBB$ usize_ s 
           liftIO$ copyBytes ptr m_ptr ((fromIntegral s) * (ArBB.size st))                   
           return ()

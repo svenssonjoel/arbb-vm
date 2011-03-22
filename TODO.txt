@@ -1,0 +1,16 @@
+
+Short term TODO items
+---------------------
+* implement limited Fold functionality  in ArBB back-end
+* 
+
+
+
+Long term TODO items 
+--------------------
+* implement more complete Fold functionality in ArBB back-end
+* expand Accelerate ArBB back-end functionality beyond map, zipwith, fold
+* Reference counting on arrays managed in the back-end
+   - Free arrays when possible 
+* 
+ 

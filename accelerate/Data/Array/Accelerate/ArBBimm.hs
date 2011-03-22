@@ -173,6 +173,7 @@ useOp inp@(Array sh ad)  = do
        Just v -> return  inp -- This can happen if Let is used 
        Nothing -> do
           liftIO$ putStrLn "Creating new ArBB Array" 
+          liftIO$ putStrLn (show d)
           copyIn ad d -- allocates on Arbb Side 
           liftIO$ putStrLn "Creating new ArBB Array DONE" 
           return$ inp -- Array (sh) ad
@@ -192,17 +193,17 @@ mapOp :: (Sugar.Elt e, Typeable aenv)
       -> ExecState (Array dim e)
 mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do  
   inputArray' <- lookupArray in0 -- find the input variables
-  ad `seq` newArray ad d
-  vs' <- lookupArray ad -- find the output variables
+  vs <- ad `seq` newArray ad d
+  -- vs' <- lookupArray ad -- find the output variables
   
 
   -- Compute map f -----
   -- input variables are in inputArray
   -- outputs sould be placed in "vs"   (Improve names)          
-  let vs = fromJust vs' -- HACKITY 
-  let inputArray = fromJust inputArray' -- HACKITY
-  let ot = getAccType' acc
-  let it = getAccType' inp   
+  let -- vs = fromJust vs'  -- HACKITY 
+      inputArray = fromJust inputArray'  -- HACKITY
+      ot = getAccType' acc
+      it = getAccType' inp   
 
   liftIO$ putStrLn "Generating mapee" 
   fun <- genMap ot -- output type (of elements)
@@ -213,22 +214,17 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do
    
   out_dense' <- defineDenseTypesNew ot  d
   inp_dense' <- defineDenseTypesNew it  d
-  --out_vars' <- defineGlobalVarsNew out_dense'
-  --inp_vars' <- defineGlobalVarsNew inp_dense'
-  
-  --assignToVarsImm inp_vars' v
   
   let inp_vars = varsToList inputArray
-  let out_vars = varsToList vs 
-  let inp_dense = arBBTypeToList inp_dense'
-  let out_dense = arBBTypeToList out_dense' 
+      out_vars = varsToList vs 
+      inp_dense = arBBTypeToList inp_dense'
+      out_dense = arBBTypeToList out_dense' 
 
   maper <- liftArBB$ funDef_ "aap" out_dense inp_dense $ \ out inp -> do
     map_ fun out inp
 
  ----------
   str <- liftArBB$ serializeFunction_ maper 
-  -- liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
  ---------    
 
@@ -259,18 +255,18 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1)) --
   inputArray0' <- lookupArray in0 -- find the input variables
   inputArray1' <- lookupArray in1  
 
-  ad `seq` newArray ad d  -- create array 
-  vs' <- lookupArray ad   -- find the output variables
+  vs <- ad `seq` newArray ad d  -- create array 
+  -- vs' <- lookupArray ad   -- find the output variables
   
 
   -- Compute zipWith f -----
   -- outputs sould be placed in "vs"   (Improve names)          
-  let vs = fromJust vs' -- HACKITY 
+  -- let vs = fromJust vs' -- HACKITY 
   let inputArray0 = fromJust inputArray0' -- HACKITY
-  let inputArray1 = fromJust inputArray1' -- HACKITY
-  let ot = getAccType' acc
-  let it0 = getAccType' inp0
-  let it1 = getAccType' inp1
+      inputArray1 = fromJust inputArray1' -- HACKITY
+      ot = getAccType' acc
+      it0 = getAccType' inp0
+      it1 = getAccType' inp1
 
   fun <- genBFun ot -- output type (of elements)
                  it0 -- input type (of elements)  
@@ -283,9 +279,9 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1)) --
   inp_dense1' <- defineDenseTypesNew it1  d
 
   let inp_vars = varsToList inputArray0 ++ varsToList inputArray1 
-  let out_vars = varsToList vs 
-  let inp_dense = arBBTypeToList inp_dense0' ++ arBBTypeToList inp_dense1'
-  let out_dense = arBBTypeToList out_dense' 
+      out_vars = varsToList vs 
+      inp_dense = arBBTypeToList inp_dense0' ++ arBBTypeToList inp_dense1'
+      out_dense = arBBTypeToList out_dense' 
 
   zipper <- liftArBB$ funDef_ "aap" out_dense inp_dense $ \ out inp -> do
     map_ fun out inp
@@ -572,22 +568,3 @@ defineGlobalVarsNew (ArBBTypePair t1 t2) = do
   v1 <- defineGlobalVarsNew t1
   v2 <- defineGlobalVarsNew t2 
   return$ VarsPair v1 v2
-
-
-
------------------------------------------------------------------------------- 
--- 
-
---TODO: Figure out how the refcounts are used. see newArray in Execute.hs 
---      in the CUDA backend.
-{- 
-newArray :: (Sugar.Shape sh, Sugar.Elt e)
-         => sh                          -- shape
-         -> ExecState (Array sh e)
-newArray  sh = do
-  -- ad  `seq` mallocArray ad (Just rc) (1 `max` n)
-  return $ Array (Sugar.fromElt sh) ad
-  where
-    n      = Sugar.size sh
-    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
--}
