@@ -132,12 +132,12 @@ executeArBB acc@(OpenAcc pacc) aenv = do
 
       Map _ a -> do
         a0 <- executeArBB a aenv 
-        mapOp acc aenv a0 -- could pass just "f" and a0 ? 
+        mapOp acc aenv a0 
       
       ZipWith _ a b -> do 
         a0 <- executeArBB a aenv
         b0 <- executeArBB b aenv 
-        zipWithOp acc aenv a0 b0 -- could pass just "f" and a0 + b0 ?
+        zipWithOp acc aenv a0 b0 
       
       -- TODO: Implement same as Fold1
       Fold x y a  -> do -- error "Fold: Not yet implemented"
@@ -309,26 +309,22 @@ fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIB
       ot = getAccType' acc
       it = getAccType' inp   
       
-        
-  primFold op arr 
+  -- TODO: load input variables. 
+  -- TODO: load output variables.      
+  primFold op VarsUnit VarsUnit 
 
   return$ error "N/A"
-   where 
-   -- n = size sh
-   --  d = dim sh
-
-     
 fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE 
-   -- TODO: Implement using "handwritten" ArBB reductions 
-
+   -- TODO: Implement using "handwritten" ArBB reductions. 
+   --       Higher dimensional reductions here will be tricky
 
 -- TODO: Why does it need to be this ugly. 
 --       Why can I not simply have a case statement in the fold1Op function above?
 --       the complaint is "GADT pattern match with non-rigid result type"
-primFold :: PrimFun (t -> t1) -> Array sh e -> ExecState ()
-primFold (PrimAdd _) in0 =
+primFold :: PrimFun (t -> t1) -> Vars -> Vars -> ExecState ()
+primFold (PrimAdd _) vout vin  =
   liftIO$ putStrLn "GOTO ReduceAdd"
-primFold (PrimSub _) in0 =  
+primFold (PrimSub _) vout vin  =  
   liftIO$ putStrLn "GOTO ReduceSub"
 -- TODO: And so on!
   
@@ -378,10 +374,9 @@ genBFun out inp1 inp2 fun = do
   fun <- liftArBB$ funDef_ "f" l_out l_inp $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
     zipWithM_ copy_ outs vars
-    --assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
+ 
 ----------
   str <- liftArBB$ serializeFunction_ fun 
-  -- liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
 ---------  
     

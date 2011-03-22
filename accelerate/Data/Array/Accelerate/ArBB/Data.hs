@@ -395,7 +395,7 @@ copyOut ad s = doCopyOut AD.arrayElt ad
 
 -- TODO: Size may not be needed here, investigate. 
 copyOutPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
-                 ScalarType -> -- type of elements, and num of dimensions
+                 ScalarType -> -- type of elements
                  Int ->  -- total size 
                  AD.ArrayData e -> -- key into table 
                  ExecState () 
