@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs #-}
-module Data.Array.Accelerate.ArBB.Data2 where 
+module Data.Array.Accelerate.ArBB.Data where 
 
 import Foreign.Ptr
 import Data.Int

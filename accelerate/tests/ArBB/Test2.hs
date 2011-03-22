@@ -11,8 +11,8 @@ import qualified Data.Array.Accelerate.Smart as Sugar
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
 
 
-import           Data.Array.Accelerate.ArBBimm hiding (run)
-import qualified Data.Array.Accelerate.ArBBimm as ArBB 
+import           Data.Array.Accelerate.ArBB hiding (run)
+import qualified Data.Array.Accelerate.ArBB as ArBB 
 
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
