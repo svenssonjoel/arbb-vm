@@ -133,6 +133,9 @@ executeArBB acc@(OpenAcc pacc) aenv = do
       Map _ a -> do
         a0 <- executeArBB a aenv 
         mapOp acc aenv a0 -- could pass just "f" and a0 ? 
+      -- TODO: the function that is mapped onto the array 
+      --         may use arrays bound in the environment. 
+      --         That is why "aenv" must be passed to mapOp
      
       -- TODO: Implement zipWithOp 
       ZipWith _ a b -> do 
@@ -160,7 +163,7 @@ executeArBB acc@(OpenAcc pacc) aenv = do
 
 
 ------------------------------------------------------------------------------
--- 
+-- USE 
 
 useOp :: Array dim e
       -> ExecState (Array dim e) 
@@ -169,11 +172,13 @@ useOp inp@(Array sh ad)  = do
   case res of 
        Just v -> return  inp -- This can happen if Let is used 
        Nothing -> do
-          copyIn ad n d -- allocates on Arbb Side 
+          liftIO$ putStrLn "Creating new ArBB Array" 
+          copyIn ad d -- allocates on Arbb Side 
+          liftIO$ putStrLn "Creating new ArBB Array DONE" 
           return$ inp -- Array (sh) ad
         where
-           n = size sh
-           d = dim sh
+           --n = size sh
+           d = shapeToList sh
       
 ------------------------------------------------------------------------------
 -- mapOp below SEEMS to work. 
@@ -199,13 +204,15 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do
   let ot = getAccType' acc
   let it = getAccType' inp   
 
-
+  liftIO$ putStrLn "Generating mapee" 
   fun <- genMap ot -- output type (of elements)
                 it -- input type (of elemets)  
                 f 
-  
-  out_dense' <- defineDenseTypesNew ot  -- TODO: Mention dimensionality here ?
-  inp_dense' <- defineDenseTypesNew it  -- TODO: Same as above 
+  liftIO$ putStrLn "Generating mapee DONE" 
+                
+   
+  out_dense' <- defineDenseTypesNew ot  d
+  inp_dense' <- defineDenseTypesNew it  d
   --out_vars' <- defineGlobalVarsNew out_dense'
   --inp_vars' <- defineGlobalVarsNew inp_dense'
   
@@ -226,9 +233,6 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do
  ---------    
 
   liftArBB$ execute_ maper out_vars inp_vars  
-
-
-
   ----------------------
           
   return$ Array (sh0) ad
@@ -237,6 +241,11 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do
     d = dim sh0
     (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
    
+
+
+------------------------------------------------------------------------------
+--
+
 zipWithOp :: (Sugar.Elt e, Typeable aenv)
           => OpenAcc aenv (Array dim e)
           -> Val aenv
@@ -255,7 +264,6 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1)) --
   
 
   -- Compute zipWith f -----
-  -- input variables are in inputArray
   -- outputs sould be placed in "vs"   (Improve names)          
   let vs = fromJust vs' -- HACKITY 
   let inputArray0 = fromJust inputArray0' -- HACKITY
@@ -264,25 +272,16 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1)) --
   let it0 = getAccType' inp0
   let it1 = getAccType' inp1
 
-
-  --fun <- genMap ot -- output type (of elements)
-  --              it -- input type (of elemets)  
-  --              f 
-  
   fun <- genBFun ot -- output type (of elements)
                  it0 -- input type (of elements)  
                  it1 -- input type (of elements) 
                  f 
- 
-  
-  out_dense' <- defineDenseTypesNew ot  -- TODO: Mention dimensionality here ?
-  inp_dense0' <- defineDenseTypesNew it0  -- TODO: Same as above 
-  inp_dense1' <- defineDenseTypesNew it1  -- TODO: Same as above  
-  --out_vars' <- defineGlobalVarsNew out_dense'
-  --inp_vars' <- defineGlobalVarsNew inp_dense'
-  
-  --assignToVarsImm inp_vars' v
-  
+                 
+  -- all three same dimensionality
+  out_dense' <- defineDenseTypesNew ot  d
+  inp_dense0' <- defineDenseTypesNew it0 d
+  inp_dense1' <- defineDenseTypesNew it1  d
+
   let inp_vars = varsToList inputArray0 ++ varsToList inputArray1 
   let out_vars = varsToList vs 
   let inp_dense = arBBTypeToList inp_dense0' ++ arBBTypeToList inp_dense1'
@@ -498,12 +497,12 @@ defineTypes (x:xs) = do
    ts <- defineTypes xs 
    return (t:ts)
 
-defineDenseTypes :: [ScalarType] -> EmitArbb [Type] 
-defineDenseTypes [] = return []
-defineDenseTypes (x:xs) = do 
+defineDenseTypes :: [ScalarType] -> Int -> EmitArbb [Type] 
+defineDenseTypes [] _ = return []
+defineDenseTypes (x:xs) dims = do 
    t <- getScalarType_ x
-   d <- getDenseType_ t 1 -- TODO: Always one dimensional ? 
-   ds <- defineDenseTypes xs 
+   d <- getDenseType_ t dims 
+   ds <- defineDenseTypes xs dims 
    return (d:ds)
  
 
@@ -536,15 +535,15 @@ defineTypesNew (ArBBTypePair st1 st2) = do
    t2 <- defineTypesNew st2 
    return$ ArBBTypePair t1 t2
 
-defineDenseTypesNew :: ArBBType ScalarType -> ExecState (ArBBType Type) 
-defineDenseTypesNew ArBBTypeUnit = return ArBBTypeUnit
-defineDenseTypesNew (ArBBTypeSingle st) = do 
+defineDenseTypesNew :: ArBBType ScalarType -> Int -> ExecState (ArBBType Type) 
+defineDenseTypesNew ArBBTypeUnit _ = return ArBBTypeUnit
+defineDenseTypesNew (ArBBTypeSingle st) dims = do 
   t <- liftArBB$ getScalarType_ st
-  d <- liftArBB$ getDenseType_ t 1 
+  d <- liftArBB$ getDenseType_ t dims
   return (ArBBTypeSingle d) 
-defineDenseTypesNew (ArBBTypePair st1 st2) = do 
-  t1 <- defineDenseTypesNew st1 
-  t2 <- defineDenseTypesNew st2 
+defineDenseTypesNew (ArBBTypePair st1 st2) dims = do 
+  t1 <- defineDenseTypesNew st1 dims
+  t2 <- defineDenseTypesNew st2 dims
   return (ArBBTypePair t1 t2) 
 
 
@@ -566,7 +565,7 @@ defineGlobalVarsNew ArBBTypeUnit = return VarsUnit
 defineGlobalVarsNew (ArBBTypeSingle t) = do 
   let name = "name"
   b <- liftArBB$ getBindingNull_
-  gv <- liftArBB$ createGlobal_ t name b-- "name" -- name needs to be unique ? 
+  gv <- liftArBB$ createGlobal_ t name b -- "name" -- name needs to be unique ? 
   v  <- liftArBB$ variableFromGlobal_ gv
   return$ VarsPrim v
 defineGlobalVarsNew (ArBBTypePair t1 t2) = do 

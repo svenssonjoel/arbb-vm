@@ -312,10 +312,10 @@ newArrayPrim st d ad = do
 -- Create arrays on ArBB side and load the data ! 
 copyIn :: (AD.ArrayElt e) 
        => AD.ArrayData e 
-       -> Int  -- Total size 
-       -> Int -- number of dimensions
+     --  -> Int  -- Total size 
+       -> [Int] -- dimensions
        -> ExecState () 
-copyIn ad s d = doCopyIn AD.arrayElt ad 
+copyIn ad d = doCopyIn AD.arrayElt ad 
   where 
     doCopyIn :: ArrayEltR e -> 
                 AD.ArrayData e ->      
@@ -326,9 +326,9 @@ copyIn ad s d = doCopyIn AD.arrayElt ad
        {-v1 <- -} doCopyIn aeR1 (fst' ad) 
        {-v2 <- -} doCopyIn aeR2 (snd' ad) 
        -- return$ VarsPair v1 v2
-    doCopyIn aer                       ad = doCopyInPrim aer s d ad -- dims 
+    doCopyIn aer                       ad = doCopyInPrim aer d ad -- dims 
      where 
-      { doCopyInPrim :: ArrayEltR e -> Int -> Int -> AD.ArrayData e -> ExecState ()
+      { doCopyInPrim :: ArrayEltR e -> [Int] -> AD.ArrayData e -> ExecState ()
       mkPrimDispatch(doCopyInPrim,copyInPrim)
       }
 
@@ -336,11 +336,11 @@ copyIn ad s d = doCopyIn AD.arrayElt ad
 -- TODO: Size may not be needed here, investigate. 
 copyInPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) => 
                  ScalarType -> -- type of elements, and num of dimensions
-                 Int ->  -- total size 
-                 Int ->  -- dimensions          
+                 --Int ->  -- total size 
+                 [Int] ->  -- dimensions          
                  AD.ArrayData e -> -- key into table 
                  ExecState () 
-copyInPrim st s d ad = do 
+copyInPrim st d ad = do 
    arraymap <- S.get 
    
    let ptr = getArray ad -- get the key into the map
@@ -350,16 +350,21 @@ copyInPrim st s d ad = do
         -- The answer should be NO right ? otherwise someone already tried 
         -- to "create" this array 
         Nothing -> do 
+          
           t <- liftArBB$  getScalarType_ st
-          dt <- liftArBB$ getDenseType_ t d -- get n dimensional (up to three) 
+          dt <- liftArBB$ getDenseType_ t (length d) -- get n dimensional (up to three) 
           bin <- liftArBB$ getBindingNull_ 
           g <- liftArBB$ createGlobal_ dt "Optimus_Prime" bin
           v <- liftArBB$ variableFromGlobal_ g
           
         
 -- Allocate something of size s         
-          num_elems <- liftArBB$ usize_ s 
-          liftArBB$ opDynamicImm_ ArbbOpAlloc [v] [num_elems] 
+          liftIO$ putStrLn "call ArbbOpAlloc" 
+          num_elems <- liftArBB$ mapM (usize_ ) d 
+          let s = foldr (+) 0 d
+          
+          liftArBB$ opDynamicImm_ ArbbOpAlloc [v] num_elems 
+          liftIO$ putStrLn "call ArbbOpAlloc DONE" 
           m_ptr <- liftArBB$ mapToHost_ v [1] ArbbWriteOnlyRange --whats the one ?
           liftIO$ copyBytes m_ptr ptr ((fromIntegral s) * (ArBB.size st))                   
 -- --       

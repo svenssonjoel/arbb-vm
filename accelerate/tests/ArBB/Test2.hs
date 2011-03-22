@@ -69,7 +69,11 @@ cepa =
 depa = 
   let f = incr input3 -- input3 is two dimensional 
   in ArBB.run f  
- 
+
+
+depa2 = 
+   let xs' = use input3
+   in ArBB.run xs'
 
 main = do
      putStrLn$ show depa   
