@@ -206,7 +206,6 @@ lookupArray ad = doLookup AD.arrayElt ad {- gv -}
   where 
     doLookup :: ArrayEltR e -> 
                 AD.ArrayData e ->      
---                GlobalBindings Variable -> 
                 ExecState (Maybe Vars)
     doLookup ArrayEltRunit             _  = return$ Just VarsUnit
     doLookup (ArrayEltRpair aeR1 aeR2) ad =  do 
@@ -236,7 +235,7 @@ lookupArrayPrim _ ad = do
    liftIO$ putStrLn (show arraymap)
    case M.lookup  ptr arraymap  of 
         (Just v) -> return$ Just (VarsPrim v)
-        Nothing -> return Nothing -- error "LookupArrayPrim: Implementation of ArBB backend is faulty!" 
+        Nothing -> return Nothing 
 
 
 
@@ -294,7 +293,9 @@ newArrayPrim st d ad = do
         -- to "create" this array 
         Nothing -> do 
           t <- liftArBB$  getScalarType_ st
-          dt <- liftArBB$ getDenseType_ t d -- get n dimensional (up to three) 
+          dt <- liftArBB$ getDenseType_ t (if d == 0 then 1 else d) 
+                 -- get n dimensional (up to three)
+                 -- scalar is stored in 1D array 
           bin <- liftArBB$ getBindingNull_ 
           g <- liftArBB$ createGlobal_ dt "Optimus_Prime" bin
           v <- liftArBB$ variableFromGlobal_ g

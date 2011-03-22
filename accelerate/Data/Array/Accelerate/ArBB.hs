@@ -290,17 +290,34 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
 --      To create one element array.(hopefully I wont need new code 
 --      in Data.hs with this approach.) 
 
-fold1Op :: (Sugar.Elt e, Typeable aenv)
+fold1Op ::  forall sh e aenv. (Sugar.Shape sh, Typeable aenv)
         => OpenAcc aenv (Array sh e)
         -> Val aenv
-        -> Array (sh:.Int) e'
+        -> Array (sh:.Int) e
         -> ExecState (Array sh e)
-fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp0)) -- POSSIBLY SIMPLY CASE
+fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIBLY SIMPLY CASE
         aenv
-        in0  = do
-  primFold op in0  
+        arr@(Array sh in0)  = do
+  inputArray' <- lookupArray in0 -- find the input variables
+  
+  -- TODO: Figure out what is going on 
+  --       (Type magic) 
+  --       (the type annotation here is required) 
+  outputArray <- ug_newArray (Sugar.toElt sh) :: ExecState (Array (sh:.Int) e)  -- ad `seq` newArray ad d
+ 
+  let inputArray = fromJust inputArray'  -- HACKITY
+      ot = getAccType' acc
+      it = getAccType' inp   
+      
+        
+  primFold op arr 
 
   return$ error "N/A"
+   where 
+   -- n = size sh
+   --  d = dim sh
+
+     
 fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE 
    -- TODO: Implement using "handwritten" ArBB reductions 
 
@@ -308,7 +325,7 @@ fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE
 -- TODO: Why does it need to be this ugly. 
 --       Why can I not simply have a case statement in the fold1Op function above?
 --       the complaint is "GADT pattern match with non-rigid result type"
-primFold :: PrimFun (t -> t1) -> Array (sh:.Int) e -> ExecState ()
+primFold :: PrimFun (t -> t1) -> Array sh e -> ExecState ()
 primFold (PrimAdd _) in0 =
   liftIO$ putStrLn "GOTO ReduceAdd"
 primFold (PrimSub _) in0 =  
@@ -339,7 +356,6 @@ genMap out inp fun = do
    
 ----------
   str <- liftArBB$ serializeFunction_ fun 
-  -- liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
 ---------  
     
@@ -474,3 +490,17 @@ defineGlobalVarsNew (ArBBTypePair t1 t2) = do
   v1 <- defineGlobalVarsNew t1
   v2 <- defineGlobalVarsNew t2 
   return$ VarsPair v1 v2
+
+
+-- TODO: This needs to be worked into use 
+ug_newArray :: (Sugar.Shape sh, Sugar.Elt e)
+            => sh                          -- shape
+            -> ExecState (Array sh e)
+ug_newArray sh = do
+  ad `seq` newArray ad (1 `max` d)
+  return $ Array (Sugar.fromElt sh) ad
+  where
+    n      = Sugar.size sh
+    d      = Sugar.dim sh
+    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
+  
