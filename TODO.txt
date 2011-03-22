@@ -12,5 +12,8 @@ Long term TODO items
 * expand Accelerate ArBB back-end functionality beyond map, zipwith, fold
 * Reference counting on arrays managed in the back-end
    - Free arrays when possible 
-* 
- 
+* Generalize genBFun and genMap (They are the same concept, should be fused) 
+* Investigate if "uploading" data at "Use" points is a good idea.
+    Doing so imposes a restriction on dimensionality already at that point.
+    
+   

@@ -28,6 +28,7 @@ import qualified Data.Array.Accelerate.Type as Type
 
 import Data.Array.Accelerate.Array.Sugar  (Array(..), Segments, eltType)
 import qualified Data.Array.Accelerate.Array.Sugar as Sugar
+import           Data.Array.Accelerate.Array.Sugar ((:.)(..))
 import qualified Data.Array.Accelerate.Smart       as Sugar
 import qualified Data.Array.Accelerate.Array.Data as AD 
 
@@ -129,45 +130,37 @@ executeArBB acc@(OpenAcc pacc) aenv = do
         
       Use a -> useOp a -- load array here 
 
-      -- TODO: These need consider the "shape" of the input arrays also.
       Map _ a -> do
         a0 <- executeArBB a aenv 
         mapOp acc aenv a0 -- could pass just "f" and a0 ? 
-      -- TODO: the function that is mapped onto the array 
-      --         may use arrays bound in the environment. 
-      --         That is why "aenv" must be passed to mapOp
-     
-      -- TODO: Implement zipWithOp 
+      
       ZipWith _ a b -> do 
         a0 <- executeArBB a aenv
         b0 <- executeArBB b aenv 
         zipWithOp acc aenv a0 b0 -- could pass just "f" and a0 + b0 ?
-           
-     
-  
-{- 
-     m@(Map f acc) -> execMap (getAccType' (OpenAcc m))  -- output type (of elements)
-                              (getAccType'  acc)         -- input type (of elemets)  
-                              f =<< executeArBB acc aenv gv 
-     zw@(ZipWith f ac1 ac2) -> execZipWith (getAccType' (OpenAcc zw))
-                                           (getAccType' ac1)
-                                           (getAccType' ac2) 
-                                           f =<< liftM2 (,) (executeArBB ac1 aenv gv) 
-                                                            (executeArBB ac2 aenv gv)
-     fd@(Fold f e ac1) -> execFold (getAccType (OpenAcc fd)) 
-                                   (getExpType e) 
-                                   (getAccType ac1) =<< executeArBB ac1 aenv gv
-     
-    --resultToArrays =<< executeArBB' acc aenv glob_vars
--} 
-
-
+      
+      -- TODO: Implement same as Fold1
+      Fold x y a  -> do -- error "Fold: Not yet implemented"
+        a0 <- executeArBB a aenv
+        fold1Op (OpenAcc (Fold1 x a)) aenv a0  -- Major cheat 
+      -- TODO: Implement!
+      Fold1 _ a -> do 
+        a0 <- executeArBB a aenv 
+        fold1Op acc aenv a0 
+      
+      FoldSeg _ _ _ _ ->  error "FoldSeg: Not yet implemented" 
+      
+      Fold1Seg _ _ _ ->  error "Fold1Seg: Not yet implemented" 
+      
+      -- GO on with Scans, Permutes, Stencils 
+      
+        
 ------------------------------------------------------------------------------
 -- USE 
 
 useOp :: Array dim e
       -> ExecState (Array dim e) 
-useOp inp@(Array sh ad)  = do 
+useOp inp@(Array sh ad)  | dim sh <= 3 = do 
   res <- lookupArray ad
   case res of 
        Just v -> return  inp -- This can happen if Let is used 
@@ -180,43 +173,35 @@ useOp inp@(Array sh ad)  = do
         where
            --n = size sh
            d = shapeToList sh
+useOp _ = error "Use: ArBB back-end does not support arrays of dimension higher than 3"
       
 ------------------------------------------------------------------------------
--- mapOp below SEEMS to work. 
---  TODO: Clean-up crew is definitely needed! 
---  TODO: (ArBB)Typechecking fails when input array is not 1D 
+-- mapOp 
 
 mapOp :: (Sugar.Elt e, Typeable aenv)
       => OpenAcc aenv (Array dim e)
-      -> Val aenv -- is it used ? (CLEAN UP HERE !! ) 
+      -> Val aenv 
       -> Array dim e'
       -> ExecState (Array dim e)
-mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do  
+mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0) | dim sh0 <= 3 = do  
   inputArray' <- lookupArray in0 -- find the input variables
-  vs <- ad `seq` newArray ad d
-  -- vs' <- lookupArray ad -- find the output variables
   
+  outputArray <- ad `seq` newArray ad d
 
-  -- Compute map f -----
-  -- input variables are in inputArray
-  -- outputs sould be placed in "vs"   (Improve names)          
-  let -- vs = fromJust vs'  -- HACKITY 
-      inputArray = fromJust inputArray'  -- HACKITY
+  let inputArray = fromJust inputArray'  -- HACKITY
       ot = getAccType' acc
       it = getAccType' inp   
 
-  liftIO$ putStrLn "Generating mapee" 
+
   fun <- genMap ot -- output type (of elements)
                 it -- input type (of elemets)  
                 f 
-  liftIO$ putStrLn "Generating mapee DONE" 
-                
-   
+  
   out_dense' <- defineDenseTypesNew ot  d
   inp_dense' <- defineDenseTypesNew it  d
   
   let inp_vars = varsToList inputArray
-      out_vars = varsToList vs 
+      out_vars = varsToList outputArray 
       inp_dense = arBBTypeToList inp_dense'
       out_dense = arBBTypeToList out_dense' 
 
@@ -229,14 +214,16 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0)  = do
  ---------    
 
   liftArBB$ execute_ maper out_vars inp_vars  
-  ----------------------
           
   return$ Array (sh0) ad
   where
     n = size sh0
     d = dim sh0
     (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
-   
+
+mapOp _ _ _ = 
+  error "Map: ArBB back-end does not support arrays of dimension higher than 3"
+
 
 
 ------------------------------------------------------------------------------
@@ -248,38 +235,33 @@ zipWithOp :: (Sugar.Elt e, Typeable aenv)
           -> Array dim e1
           -> Array dim e2
           -> ExecState (Array dim e)
-zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1)) --   
-          aenv -- will i use it ?  
-          (Array sh0 in0)   -- same as inp0 !!! redundant info
+zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
+          aenv 
+          (Array sh0 in0)  
           (Array sh1 in1) = do  
   inputArray0' <- lookupArray in0 -- find the input variables
   inputArray1' <- lookupArray in1  
 
-  vs <- ad `seq` newArray ad d  -- create array 
-  -- vs' <- lookupArray ad   -- find the output variables
-  
-
-  -- Compute zipWith f -----
-  -- outputs sould be placed in "vs"   (Improve names)          
-  -- let vs = fromJust vs' -- HACKITY 
+  outputArray <- ad `seq` newArray ad d  -- create array 
+ 
   let inputArray0 = fromJust inputArray0' -- HACKITY
       inputArray1 = fromJust inputArray1' -- HACKITY
       ot = getAccType' acc
       it0 = getAccType' inp0
       it1 = getAccType' inp1
 
-  fun <- genBFun ot -- output type (of elements)
+  fun <- genBFun ot  -- output type (of elements)
                  it0 -- input type (of elements)  
                  it1 -- input type (of elements) 
                  f 
                  
   -- all three same dimensionality
-  out_dense' <- defineDenseTypesNew ot  d
+  out_dense'  <- defineDenseTypesNew ot  d
   inp_dense0' <- defineDenseTypesNew it0 d
-  inp_dense1' <- defineDenseTypesNew it1  d
+  inp_dense1' <- defineDenseTypesNew it1 d
 
   let inp_vars = varsToList inputArray0 ++ varsToList inputArray1 
-      out_vars = varsToList vs 
+      out_vars = varsToList outputArray 
       inp_dense = arBBTypeToList inp_dense0' ++ arBBTypeToList inp_dense1'
       out_dense = arBBTypeToList out_dense' 
 
@@ -293,127 +275,51 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1)) --
  ---------    
 
   liftArBB$ execute_ zipper out_vars inp_vars  
-
-
-
-  ----------------------
           
-  return$ Array (sh0) ad
+  return$ Array sh0 ad
   where
     n = size sh0
     d = dim sh0
     (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
      
 
-
-{-
-              
 ------------------------------------------------------------------------------
---
---executeArBB' :: (Typeable aenv, Arrays a) => 
---                OpenAcc aenv a -> 
---                Val aenv -> 
---                GlobalBindings Variable -> 
---                EmitArbb (Result a)  
---executeArBB' acc@(OpenAcc pacc) aenv gv = 
---  case pacc of
-                                                                          
+-- Fold1Op 
+
+--TODO: in the one to zero dimensions case, use ArbbOpConstVector 
+--      To create one element array.(hopefully I wont need new code 
+--      in Data.hs with this approach.) 
+
+fold1Op :: (Sugar.Elt e, Typeable aenv)
+        => OpenAcc aenv (Array sh e)
+        -> Val aenv
+        -> Array (sh:.Int) e'
+        -> ExecState (Array sh e)
+fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp0)) -- POSSIBLY SIMPLY CASE
+        aenv
+        in0  = do
+  primFold op in0  
+
+  return$ error "N/A"
+fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE 
+   -- TODO: Implement using "handwritten" ArBB reductions 
 
 
-------------------------------------------------------------------------------
---  execMap (CLEAN UP) 
-execMap :: (Sugar.Elt t') => ArBBType ScalarType -> ArBBType ScalarType -> 
-           OpenFun env aenv (t -> t')  -> 
-           Result (Array sh t) -> -- input (should be a single array) 
-           EmitArbb (Result (Array sh t'))   -- output 
-            
-execMap ot it f (ResultArray (InternalArray sh v))  = do 
-  fun <- genMap ot -- output type (of elements)
-                it -- input type (of elemets)  
-                f 
+-- TODO: Why does it need to be this ugly. 
+--       Why can I not simply have a case statement in the fold1Op function above?
+--       the complaint is "GADT pattern match with non-rigid result type"
+primFold :: PrimFun (t -> t1) -> Array (sh:.Int) e -> ExecState ()
+primFold (PrimAdd _) in0 =
+  liftIO$ putStrLn "GOTO ReduceAdd"
+primFold (PrimSub _) in0 =  
+  liftIO$ putStrLn "GOTO ReduceSub"
+-- TODO: And so on!
   
-  out_dense' <- defineDenseTypesNew ot
-  inp_dense' <- defineDenseTypesNew it
-  out_vars' <- defineGlobalVarsNew out_dense'
-  inp_vars' <- defineGlobalVarsNew inp_dense'
-  
-  assignToVarsImm inp_vars' v
-  
-  let inp_vars = varsToList inp_vars'
-  let out_vars = varsToList out_vars' 
-  let inp_dense = arBBTypeToList inp_dense'
-  let out_dense = arBBTypeToList out_dense' 
 
-  maper <- funDef_ "aap" out_dense inp_dense $ \ out inp -> do
-    map_ fun out inp
 
- ----------
-  str <- serializeFunction_ maper 
-  -- liftIO$ putStrLn "mapee function" 
-  liftIO$ putStrLn (getCString str)
- ---------    
 
-  execute_ maper out_vars inp_vars  
-
-  let outs =  listToVars v out_vars -- out_vars 
-  return (ResultArray (InternalArray sh outs)) -- result of Map is single array 
-
-------------------------------------------------------------------------------
---
-
-execZipWith :: (Sugar.Elt t3) => 
-               ArBBType ScalarType -> -- outType
-               ArBBType ScalarType -> -- Elements type in array 1
-               ArBBType ScalarType -> -- Elements type in array 2
-               OpenFun env aenv (t1 -> t2 -> t3)  -> 
-               (Result (Array sh t1), Result (Array sh t2)) -> -- input (should be a pair of arrays) 
-               EmitArbb (Result (Array sh t3))   -- output 
-execZipWith ot it1 it2  f (ResultArray (InternalArray sh1 v1), 
-                           ResultArray (InternalArray sh2 v2))  = do 
-  fun <- genBFun ot -- output type (of elements)
-                 it1 -- input type (of elements)  
-                 it2 -- input type (of elements) 
-                 f 
-  
-  out_dense' <- defineDenseTypesNew ot
-  inp_dense1' <- defineDenseTypesNew it1
-  inp_dense2' <- defineDenseTypesNew it2    
-  out_vars' <- defineGlobalVarsNew out_dense'
-  inp_vars1' <- defineGlobalVarsNew inp_dense1'
-  inp_vars2' <- defineGlobalVarsNew inp_dense2'    
-  
-  -- TODO: figure out what is correct to do here 
-  assignToVarsImm inp_vars1' v1 
-  assignToVarsImm inp_vars2' v2 
-
-  
-  let inp_vars = varsToList inp_vars1' ++ varsToList inp_vars2'
-  let out_vars = varsToList out_vars' 
-  let inp_dense = arBBTypeToList inp_dense1' ++ arBBTypeToList inp_dense2' 
-  let out_dense = arBBTypeToList out_dense' 
-
-  zipper <- funDef_ "aap" out_dense inp_dense $ \ out inp -> do
-    map_ fun out inp
-
- ----------
-  str <- serializeFunction_ zipper
-  liftIO$ putStrLn (getCString str)
- ---------    
-
-  execute_ zipper out_vars inp_vars  
-
-  -- Using v1 here in the output states that the 
-  -- output has same "shape" as v1 does 
-  let outs =  listToVars v1  out_vars -- out_vars 
-  return (ResultArray (InternalArray sh1 outs)) 
-
-------------------------------------------------------------------------------
--- 
-execFold = error "Fold not implemented" 
--}
 ------------------------------------------------------------------------------
 -- This is function definition.. genMap is bad name !! 
-
 -- TODO: Generalise function generation.
 
 genMap :: ArBBType ScalarType -> 
@@ -430,7 +336,7 @@ genMap out inp fun = do
   fun <- liftArBB$ funDef_ "f" l_out l_inp $ \ outs inps -> do 
     vars <- genFun fun inps -- inputs as the "environment"  
     zipWithM_ copy_ outs vars
-    --assignTo outs vars -- Working with lists here ! (keep track of where to do what!) 
+   
 ----------
   str <- liftArBB$ serializeFunction_ fun 
   -- liftIO$ putStrLn "mapee function" 

@@ -47,6 +47,9 @@ input2 = fromList  (Sugar.listToShape [1024]) (Prelude.replicate 1024 1024 :: [I
 input3 :: Data.Array.Accelerate.Array Sugar.DIM2 Int
 input3 = fromList  (Sugar.listToShape [2,512]) [1..1024 :: Int]
 
+input4 :: Data.Array.Accelerate.Array Sugar.DIM4 Int
+input4 = fromList  (Sugar.listToShape [2,2,2,128]) [1..1024 :: Int]
+
 
 
 apa = -- arbbSession$ do 
@@ -74,6 +77,25 @@ depa =
 depa2 = 
    let xs' = use input3
    in ArBB.run xs'
+
+depa3 = 
+   let xs = use input4
+   in ArBB.run xs
+
+
+-- TODO: Turn float
+-- TODO: Look at def of Vector and Scalar
+dotpAcc :: Vector Int -> Vector Int -> Sugar.Acc (Scalar Int)
+dotpAcc xs ys
+  = let
+      xs' = use xs
+      ys' = use ys
+    in
+    fold (+) 0 (zipWith (*) xs' ys')
+
+runDotP = do 
+   ArBB.run$ dotpAcc input input
+
 
 main = do
      putStrLn$ show depa   
