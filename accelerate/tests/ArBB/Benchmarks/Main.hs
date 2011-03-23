@@ -31,13 +31,13 @@ import Validate --
 
 
 main = withSystemRandom $ \gen -> do
-  v1    <- randomUArrayR (-1,1) gen 100000
-  v2    <- randomUArrayR (-1,1) gen 100000
+  v1    <- randomUArrayR (-1,1) gen 1024
+  v2    <- randomUArrayR (-1,1) gen 1024
   v1'   <- convertUArray v1
   v2'   <- convertUArray v2
-  alpha <- return 1.0 -- uniform gen
+  alpha <- uniform gen
     
-  -- TODO: How can I time just the exection of these !   
+  -- TODO: How can I time just the exection of these ! (toList not included)  
   let r1 = Sugar.toList$ ArBB.run (saxpyAcc alpha  v1' v2')
       r2 = Sugar.toList$ Interp.run (saxpyAcc alpha v1' v2') 
       -- r3 = Sugar.toList$ CUDA.run (saxpyAcc alpha v1' v2') 
@@ -51,7 +51,7 @@ main = withSystemRandom $ \gen -> do
 
 
 checkResult [] [] = [] 
-checkResult (x:xs) (y:ys) | 0.1 < abs (x - y) = (x,y) : checkResult xs ys 
+checkResult (x:xs) (y:ys) | 0.00001 < abs (x - y) = (x,y) : checkResult xs ys 
                           | otherwise = checkResult xs ys 
 
-notTooDifferent f1 f2 = 0.01 < abs (f1 - f2) 
+notTooDifferent f1 f2 = 0.1 < abs (f1 - f2) 

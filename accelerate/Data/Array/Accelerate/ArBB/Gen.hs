@@ -37,6 +37,7 @@ genFun (Body body) = genExp body
 -- TODO: Some Expressions contain arrays (IndexScalar) 
 --       The Accelerate guys uses the "liftAcc" machinery
 --       in the Execute module to address this issue. 
+-- TODO: Notice the REVERSE in genExp on the environment !( FIX THIS !!) 
 
 genExp :: forall env aenv t. 
           OpenExp env aenv t -> ArBBEnv -> EmitArbb [Variable]
@@ -45,7 +46,7 @@ genExp app@(PrimApp f arg) env = do
    res <- genPrimApp f arg (head (getExpType app)) env
    return [res] 
 genExp (Tuple t) env = genTuple t env
-genExp (Var idx) env = return [env !! idxToInt idx] 
+genExp (Var idx) env = return [(reverse env) !! idxToInt idx] 
                        -- use  Debruijn to index into env 
 
 
