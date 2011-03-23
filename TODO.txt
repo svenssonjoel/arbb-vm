@@ -5,7 +5,8 @@ Short term TODO items
      - Fix strange behaviour in corner case of reduce 1D to 0D 
 * Code cleanup 
 * Bug hunting (some are starting to surface) 
-    - reverse of env in genExp (a hack) 
+    - reverse of env in genExp (a hack)
+* Make debug output easy to toggle on or off  
 * Run some simple benchmarks
     - SAXPY
     - DotProd 
