@@ -381,11 +381,11 @@ copyOut ad s = doCopyOut AD.arrayElt ad
     doCopyOut :: ArrayEltR e  
               -> AD.ArrayData e 
               -> ExecState () 
-    doCopyOut ArrayEltRunit             _  = return () -- VarsUnit
+    doCopyOut ArrayEltRunit             _  = return () 
     doCopyOut (ArrayEltRpair aeR1 aeR2) ad =  do 
-       {-v1 <- -} doCopyOut aeR1 (fst' ad) 
-       {-v2 <- -} doCopyOut aeR2 (snd' ad) 
-       -- return$ VarsPair v1 v2
+       doCopyOut aeR1 (fst' ad) 
+       doCopyOut aeR2 (snd' ad) 
+       
     doCopyOut aer                       ad = doCopyOutPrim aer s ad -- dims 
      where 
       { doCopyOutPrim :: ArrayEltR e -> Int -> AD.ArrayData e -> ExecState ()

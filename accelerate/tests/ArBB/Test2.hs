@@ -45,10 +45,15 @@ input2 :: Data.Array.Accelerate.Array Sugar.DIM1 Int
 input2 = fromList  (Sugar.listToShape [1024]) (Prelude.replicate 1024 1024 :: [Int]) 
 
 input3 :: Data.Array.Accelerate.Array Sugar.DIM2 Int
-input3 = fromList  (Sugar.listToShape [2,512]) [1..1024 :: Int]
+input3 = fromList  (Sugar.listToShape [512,2]) (Prelude.replicate 1024 1 :: [Int])
 
-input4 :: Data.Array.Accelerate.Array Sugar.DIM4 Int
-input4 = fromList  (Sugar.listToShape [2,2,2,128]) [1..1024 :: Int]
+input4 :: Data.Array.Accelerate.Array Sugar.DIM2 Int
+input4 = fromList  (Sugar.listToShape [512,2]) (Prelude.replicate 1024 2 :: [Int])
+
+input5 :: Data.Array.Accelerate.Array Sugar.DIM2 Int
+input5 = fromList  (Sugar.listToShape [512,2]) ([0..1023 :: Int])
+
+
 
 
 
@@ -95,6 +100,18 @@ dotpAcc xs ys
 
 runDotP = do 
    ArBB.run$ dotpAcc input input
+
+fold_plus = do 
+   ArBB.run$ fold (+) 0 (use input)
+
+fold_plus1 = do 
+   ArBB.run$ fold (+) 0 (use input3)
+
+fold_plus2 = do 
+   ArBB.run$ fold (+) 0 (use input4)
+
+fold_plus3 = do 
+   ArBB.run$ fold (+) 0 (use input5)
 
 
 main = do

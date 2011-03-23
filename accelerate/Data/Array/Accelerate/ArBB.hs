@@ -57,7 +57,7 @@ import System.IO.Unsafe
 import qualified  Control.Monad.State.Strict as S 
 import Control.Monad
 import Control.Applicative
-#define L S.lift$
+
 
 {- 
 
@@ -69,10 +69,7 @@ import Control.Applicative
        - This is of course very wasteful! 
        + So far, it works.. 
 
-    
-     GLOBAL_TODO_LIST:
-       # Add reference counting to the arrays (look at what CUDA back-end does) 
-   
+  
 
 
      I think people often say that the functional programming paradigm
@@ -270,7 +267,6 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
 
  ----------
   str <- liftArBB$ serializeFunction_ zipper 
-  -- liftIO$ putStrLn "mapee function" 
   liftIO$ putStrLn (getCString str)
  ---------    
 
@@ -298,34 +294,69 @@ fold1Op ::  forall sh e aenv. (Sugar.Shape sh, Typeable aenv)
 fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIBLY SIMPLY CASE
         aenv
         arr@(Array sh in0)  = do
+  liftIO$ putStrLn "Entering: Fold1Op"
   inputArray' <- lookupArray in0 -- find the input variables
   
-  -- TODO: Figure out what is going on 
-  --       (Type magic) 
-  --       (the type annotation here is required) 
-  outputArray <- ug_newArray (Sugar.toElt sh) :: ExecState (Array (sh:.Int) e)  -- ad `seq` newArray ad d
+  -- TODO: Figure out what is going on here 
+  res@(Array sh_r ad_r) <- ug_newArray (Sugar.toElt (fst sh)) :: ExecState (Array sh e)  -- ad `seq` newArray ad d
+
+  
+  -- DEBUG AREA --
+  let sh1 = fst sh
+      d1  = dim sh1 
+      s1  = size sh1 
+      sh2 = sh 
+      d2  = dim sh2
+      s2  = size sh2
+--  liftIO$ putStrLn$ show (Sugar.toElt sh1) 
+  liftIO$ putStrLn$ "Dimensions: " ++ show d1 
+  liftIO$ putStrLn$ "Size: " ++ show s1 
+--  liftIO$ putStrLn$ show (Sugar.toElt sh2) 
+  liftIO$ putStrLn$ "Dimensions: " ++ show d2   
+  liftIO$ putStrLn$ "Size: " ++ show s2 
  
-  let inputArray = fromJust inputArray'  -- HACKITY
+
+  ----------------
+   
+  outputArray' <- lookupArray ad_r
+ 
+  let inputArray  = fromJust inputArray'  -- HACKITY
+      outputArray = fromJust outputArray' -- HACKITY
       ot = getAccType' acc
       it = getAccType' inp   
-      
-  -- TODO: load input variables. 
-  -- TODO: load output variables.      
-  primFold op VarsUnit VarsUnit 
+   
+  -- I'm trying to store "Scalar" in a 1D ArBB array.
+  --  Thats where the (max 1 d1) comes from 
+  out_dense'  <- defineDenseTypesNew ot  (max 1 d1) -- 1
+  inp_dense0' <- defineDenseTypesNew it  d2 -- 1
+  let inp_dense = arBBTypeToList inp_dense0' 
+      out_dense = arBBTypeToList out_dense'
 
-  return$ error "N/A"
+  fun <- liftArBB$ funDef_ "folder" out_dense inp_dense $ \ out inp -> do  
+     level <- usize_ d1
+     primFold op out inp level     
+     -- For some odd reason this does not fail with an error 
+     -- in the 1D reduction case. I thought that the output 
+     -- type of ArbbOpXReduce was a Scalar. The code here 
+     -- uses an array as result type always. 
+     
+ 
+  
+  liftArBB$ execute_ fun (varsToList outputArray) (varsToList inputArray)
+  
+  liftIO$ putStrLn "Leaving: Fold1Op"
+  return$ res -- error "N/A" --  result
+  
 fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE 
    -- TODO: Implement using "handwritten" ArBB reductions. 
    --       Higher dimensional reductions here will be tricky
 
--- TODO: Why does it need to be this ugly. 
---       Why can I not simply have a case statement in the fold1Op function above?
---       the complaint is "GADT pattern match with non-rigid result type"
-primFold :: PrimFun (t -> t1) -> Vars -> Vars -> ExecState ()
-primFold (PrimAdd _) vout vin  =
-  liftIO$ putStrLn "GOTO ReduceAdd"
-primFold (PrimSub _) vout vin  =  
-  liftIO$ putStrLn "GOTO ReduceSub"
+primFold :: PrimFun (t -> t1) -> [Variable] -> [Variable] -> Variable -> EmitArbb ()
+primFold (PrimAdd _) vout vin level = do 
+  opDynamic_ ArbbOpAddReduce vout (vin ++ [level])
+  ArBB.liftIO$ putStrLn "GOTO ReduceAdd"
+primFold (PrimSub _) vout vin _  =  
+  ArBB.liftIO$ putStrLn "GOTO ReduceSub"
 -- TODO: And so on!
   
 
@@ -492,7 +523,10 @@ ug_newArray :: (Sugar.Shape sh, Sugar.Elt e)
             => sh                          -- shape
             -> ExecState (Array sh e)
 ug_newArray sh = do
+  -- The 1 `max` d means that 0D Accelerate arrays will be represented 
+  -- by 1D ArBB Arrays.          
   ad `seq` newArray ad (1 `max` d)
+  
   return $ Array (Sugar.fromElt sh) ad
   where
     n      = Sugar.size sh
