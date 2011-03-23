@@ -57,28 +57,6 @@ import System.IO.Unsafe
 import qualified  Control.Monad.State.Strict as S 
 import Control.Monad
 import Control.Applicative
-
-
-{- 
-
-   Attempt no 3 (or 4) at an ArBB back-end for Accelerate. 
-    This time we are much more "copying" the approach of the 
-    CUDA backend. 
-    Each "real" arrays has a "shadow" array in Haskell world.
-     The "real" arrays are managed by ArBB 
-       - This is of course very wasteful! 
-       + So far, it works.. 
-
-  
-
-
-     I think people often say that the functional programming paradigm
-       makes it easier to write correct programs (or some-such ?) 
-       
-     For me I think FP makes it harder to write bad programs. 
-           (And often what I want to write, are bad programs!) 
-          
--}
     
 ------------------------------------------------------------------------------
 -- run (The entry point) 
@@ -315,7 +293,6 @@ fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIB
   liftIO$ putStrLn$ "Dimensions: " ++ show d2   
   liftIO$ putStrLn$ "Size: " ++ show s2 
  
-
   ----------------
    
   outputArray' <- lookupArray ad_r
@@ -326,8 +303,8 @@ fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIB
       it = getAccType' inp   
    
   -- I'm trying to store "Scalar" in a 1D ArBB array.
-  --  Thats where the (max 1 d1) comes from 
-  out_dense'  <- defineDenseTypesNew ot  (max 1 d1) -- 1
+  --  Thats where the (1 `max` d1) comes from 
+  out_dense'  <- defineDenseTypesNew ot  (1 `max` d1) -- 1
   inp_dense0' <- defineDenseTypesNew it  d2 -- 1
   let inp_dense = arBBTypeToList inp_dense0' 
       out_dense = arBBTypeToList out_dense'

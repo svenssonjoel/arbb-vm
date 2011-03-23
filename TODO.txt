@@ -1,19 +1,35 @@
 
 Short term TODO items
 ---------------------
-* implement limited Fold functionality  in ArBB back-end
-* 
+* DONE: implement limited Fold functionality  in ArBB back-end
+* Code cleanup 
+* Run some simple benchmarks
+    - SAXPY
+    - DotProd 
+    - Matrix Add (Should also be possible) 
+
+
 
 
 
 Long term TODO items 
 --------------------
-* implement more complete Fold functionality in ArBB back-end
-* expand Accelerate ArBB back-end functionality beyond map, zipwith, fold
+* The "Partner" arrays allocated on Haskell side should be allocated 
+  of minimum size!
+
+* Implement more complete Fold functionality in ArBB back-end
+    - Fold using function f 
+
+* Expand Accelerate ArBB back-end functionality beyond map, zipwith, fold
+  - Permutations 
+  - scans 
+ 
 * Reference counting on arrays managed in the back-end
    - Free arrays when possible 
 * Generalize genBFun and genMap (They are the same concept, should be fused) 
 * Investigate if "uploading" data at "Use" points is a good idea.
     Doing so imposes a restriction on dimensionality already at that point.
-    
+* Work on a "non-immediate" mode ArBB back-end 
+    - generate larger functions and give the ArBB optimization passes more 
+      to work on.  
    
