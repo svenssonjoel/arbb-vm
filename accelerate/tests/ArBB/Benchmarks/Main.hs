@@ -35,7 +35,7 @@ main = withSystemRandom $ \gen -> do
   v2    <- randomUArrayR (-1,1) gen 100000
   v1'   <- convertUArray v1
   v2'   <- convertUArray v2
-  alpha <- uniform gen
+  alpha <- return 1.0 -- uniform gen
     
   -- TODO: How can I time just the exection of these !   
   let r1 = Sugar.toList$ ArBB.run (saxpyAcc alpha  v1' v2')
@@ -51,7 +51,7 @@ main = withSystemRandom $ \gen -> do
 
 
 checkResult [] [] = [] 
-checkResult (x:xs) (y:ys) | 0.1 > abs (x - y) = (x,y) : checkResult xs ys 
+checkResult (x:xs) (y:ys) | 0.1 < abs (x - y) = (x,y) : checkResult xs ys 
                           | otherwise = checkResult xs ys 
 
-notTooDifferent f1 f2 = 0.01 > abs (f1 - f2) 
+notTooDifferent f1 f2 = 0.01 < abs (f1 - f2) 
