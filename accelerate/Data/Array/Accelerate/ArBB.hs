@@ -333,8 +333,7 @@ fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIB
       out_dense = arBBTypeToList out_dense'
 
   fun <- liftArBB$ funDef_ "folder" out_dense inp_dense $ \ out inp -> do  
-     level <- usize_ d1
-     primFold op out inp level     
+     primFold op out inp 
      -- For some odd reason this does not fail with an error 
      -- in the 1D reduction case. I thought that the output 
      -- type of ArbbOpXReduce was a Scalar. The code here 
@@ -351,11 +350,12 @@ fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE
    -- TODO: Implement using "handwritten" ArBB reductions. 
    --       Higher dimensional reductions here will be tricky
 
-primFold :: PrimFun (t -> t1) -> [Variable] -> [Variable] -> Variable -> EmitArbb ()
-primFold (PrimAdd _) vout vin level = do 
+primFold :: PrimFun (t -> t1) -> [Variable] -> [Variable] -> EmitArbb ()
+primFold (PrimAdd _) vout vin = do
+  level <- usize_ 0 -- always along 0  
   opDynamic_ ArbbOpAddReduce vout (vin ++ [level])
   ArBB.liftIO$ putStrLn "GOTO ReduceAdd"
-primFold (PrimSub _) vout vin _  =  
+primFold (PrimSub _) vout vin  =  
   ArBB.liftIO$ putStrLn "GOTO ReduceSub"
 -- TODO: And so on!
   

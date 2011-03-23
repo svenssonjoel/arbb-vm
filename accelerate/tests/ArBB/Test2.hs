@@ -113,6 +113,9 @@ fold_plus2 = do
 fold_plus3 = do 
    ArBB.run$ fold (+) 0 (use input5)
 
+fold_plus_Interp = do 
+   run$ fold (+) 0 (use input5)
+
 
 main = do
      putStrLn$ show depa   

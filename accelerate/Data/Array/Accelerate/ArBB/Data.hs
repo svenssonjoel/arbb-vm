@@ -360,7 +360,7 @@ copyInPrim st d ad = do
           let s = foldr (*) 1 d  -- TODO: Pass size from outside
 
           -- perform ArBB Allocation           
-          liftArBB$ opDynamicImm_ ArbbOpAlloc [v] num_elems 
+          liftArBB$ opDynamicImm_ ArbbOpAlloc [v] (reverse num_elems) 
           
           m_ptr <- liftArBB$ mapToHost_ v [1] ArbbWriteOnlyRange --whats the one ?
           liftIO$ copyBytes m_ptr ptr ((fromIntegral s) * (ArBB.size st))                   
