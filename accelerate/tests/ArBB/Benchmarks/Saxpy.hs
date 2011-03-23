@@ -11,3 +11,5 @@ saxpyAcc alpha xs ys
       ys' = use ys
     in
     Acc.zipWith (\x y -> constant alpha * x + y) xs' ys'
+
+

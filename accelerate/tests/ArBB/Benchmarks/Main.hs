@@ -1,10 +1,19 @@
 {-# Language FlexibleContexts #-}
+
+
+-- Compile instructions: (should GHC optimizations be used ?) 
 -- ghc --make -i.. -itests/ArBB/Benchmarks -Iinclude tests/ArBB/Benchmarks/Main.hs -ltbb -larbb_dev
+
+-- Run instructions: (also try other opt levels) 
+-- ARBB_OPT_LEVEL=o2 tests/ArBB/Benchmarks/Main
 
 module Main where 
 
-import Saxpy 
 
+-- BENCHMARKS 
+import Saxpy 
+import DotP
+import Matrix 
 
 
 --- Accelerate stuff 
@@ -42,11 +51,14 @@ main = withSystemRandom $ \gen -> do
       r2 = Sugar.toList$ Interp.run (saxpyAcc alpha v1' v2') 
       -- r3 = Sugar.toList$ CUDA.run (saxpyAcc alpha v1' v2') 
   
-  --putStrLn$ show $ and $ zipWith  notTooDifferent r1 r2
- 
-  -- The results are "very" different. I don't really know 
-  -- how to evaluate that.. 
-  putStrLn$ show $ take 10 $ checkResult r1 r2
+
+  putStrLn$ "Saxpy: " ++ if checkResult r1 r2 == [] then "Passed" else "failed" 
+  -- putStrLn$ show $ take 10 $ checkResult r1 r2
+
+  let r4 = Sugar.toList$ ArBB.run (dotpAcc v1' v2') 
+      r5 = Sugar.toList$ Interp.run (dotpAcc v1' v2')   
+  
+  putStrLn$ "DotProduct: " ++ if checkResult r4 r5 == [] then "Passed" else "failed" 
   return ()
 
 
