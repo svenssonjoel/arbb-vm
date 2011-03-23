@@ -351,13 +351,22 @@ fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE
    --       Higher dimensional reductions here will be tricky
 
 primFold :: PrimFun (t -> t1) -> [Variable] -> [Variable] -> EmitArbb ()
-primFold (PrimAdd _) vout vin = do
-  level <- usize_ 0 -- always along 0  
-  opDynamic_ ArbbOpAddReduce vout (vin ++ [level])
-  ArBB.liftIO$ putStrLn "GOTO ReduceAdd"
-primFold (PrimSub _) vout vin  =  
-  ArBB.liftIO$ putStrLn "GOTO ReduceSub"
--- TODO: And so on!
+primFold f vout vin = do 
+    level <- usize_ 0 
+    doPrimFold f vout (vin ++ [level]) 
+ where 
+  doPrimFold :: PrimFun (t -> t1) -> [Variable] -> [Variable] -> EmitArbb ()
+  doPrimFold (PrimAdd _) vout vin = 
+    opDynamic_ ArbbOpAddReduce vout vin
+  doPrimFold (PrimMul _) vout vin = 
+    opDynamic_ ArbbOpMulReduce vout vin 
+  doPrimFold (PrimMax _) vout vin = 
+    opDynamic_ ArbbOpMaxReduce vout vin 
+  doPrimFold (PrimMin _) vout vin = 
+    opDynamic_ ArbbOpMinReduce vout vin 
+  
+             
+
   
 
 
