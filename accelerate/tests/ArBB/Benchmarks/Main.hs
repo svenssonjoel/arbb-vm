@@ -2,7 +2,7 @@
 
 
 -- Compile instructions: (should GHC optimizations be used ?) 
--- ghc --make -i.. -itests/ArBB/Benchmarks -Iinclude tests/ArBB/Benchmarks/Main.hs -ltbb -larbb_dev
+-- ghc --make -i.. -itests/ArBB/Benchmarks -iaccelerate-examples/src/common -Iinclude tests/ArBB/Benchmarks/Main.hs -ltbb -larbb_dev
 
 -- Run instructions: (also try other opt levels) 
 -- ARBB_OPT_LEVEL=o2 tests/ArBB/Benchmarks/Main
@@ -33,37 +33,54 @@ import qualified Data.Array.Accelerate.ArBB as ArBB
 -- import qualified Data.Array.Accelerate.CUDA  
 
 import Data.Int
+import Control.Exception
+import Data.Time
 
 import System.Random.MWC 
 import Random -- accelerate-examples/src/common/Random.hs
-import Validate --
+
 
 
 main = withSystemRandom $ \gen -> do
-  v1    <- randomUArrayR (-1,1) gen 1024
-  v2    <- randomUArrayR (-1,1) gen 1024
+  v1    <- randomUArrayR (-1,1) gen 100000
+  v2    <- randomUArrayR (-1,1) gen 100000
   v1'   <- convertUArray v1
   v2'   <- convertUArray v2
   alpha <- uniform gen
     
   -- TODO: How can I time just the exection of these ! (toList not included)  
-  let r1 = Sugar.toList$ ArBB.run (saxpyAcc alpha  v1' v2')
-      r2 = Sugar.toList$ Interp.run (saxpyAcc alpha v1' v2') 
+  t_s_1 <- getCurrentTime
+  r1' <- evaluate$ ArBB.run (saxpyAcc alpha  v1' v2')
+  t_s_2 <- getCurrentTime
+  r2' <- evaluate$ Interp.run (saxpyAcc alpha v1' v2') 
+  t_s_3  <- getCurrentTime
       -- r3 = Sugar.toList$ CUDA.run (saxpyAcc alpha v1' v2') 
-  
+  let r1 = Sugar.toList r1'
+      r2 = Sugar.toList r2'   
 
   putStrLn$ "Saxpy: " ++ if checkResult r1 r2 == [] then "Passed" else "failed" 
+  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_s_2 t_s_1) )  
+  putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_s_3 t_s_2) )  
   -- putStrLn$ show $ take 10 $ checkResult r1 r2
 
-  let r4 = Sugar.toList$ ArBB.run (dotpAcc v1' v2') 
-      r5 = Sugar.toList$ Interp.run (dotpAcc v1' v2')   
+  t_dp_1 <- getCurrentTime                          
+  r4' <- evaluate$  ArBB.run (dotpAcc v1' v2') 
+  t_dp_2 <- getCurrentTime
+  r5' <- evaluate$  Interp.run (dotpAcc v1' v2')   
+  t_dp_3 <- getCurrentTime
+
+  let r4 = Sugar.toList r4'
+      r5 = Sugar.toList r5'
   
-  putStrLn$ "DotProduct: " ++ if checkResult r4 r5 == [] then "Passed" else "failed" 
+  putStrLn$ "DotProduct: " ++ if checkResult r4 r5 == [] then "Passed" else "failed"
+  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_dp_2 t_dp_1) )  
+  putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_dp_3 t_dp_2) )  
+  
   return ()
 
 
 checkResult [] [] = [] 
-checkResult (x:xs) (y:ys) | 0.00001 < abs (x - y) = (x,y) : checkResult xs ys 
+checkResult (x:xs) (y:ys) | 0.001 < abs (x - y) = (x,y) : checkResult xs ys 
                           | otherwise = checkResult xs ys 
 
 notTooDifferent f1 f2 = 0.1 < abs (f1 - f2) 
