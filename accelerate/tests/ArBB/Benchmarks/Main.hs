@@ -42,11 +42,13 @@ import Random -- accelerate-examples/src/common/Random.hs
 
 
 main = withSystemRandom $ \gen -> do
-  v1    <- randomUArrayR (-1,1) gen 100000
-  v2    <- randomUArrayR (-1,1) gen 100000
+  putStrLn "Generating input data..." 
+  v1    <- randomUArrayR (-1,1) gen 1000000
+  v2    <- randomUArrayR (-1,1) gen 1000000
   v1'   <- convertUArray v1
   v2'   <- convertUArray v2
   alpha <- uniform gen
+  putStrLn "Done generating input data!"
     
   -- TODO: How can I time just the exection of these ! (toList not included)  
   t_s_1 <- getCurrentTime
@@ -72,7 +74,7 @@ main = withSystemRandom $ \gen -> do
   let r4 = Sugar.toList r4'
       r5 = Sugar.toList r5'
   
-  putStrLn$ "DotProduct: " ++ if checkResult r4 r5 == [] then "Passed" else "failed"
+  putStrLn$ "DotProduct: " ++ if checkResult r4 r5 == [] then "Passed" else ("failed " ++ show (head (checkResult r4 r5)) )
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_dp_2 t_dp_1) )  
   putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_dp_3 t_dp_2) )  
   
@@ -83,4 +85,3 @@ checkResult [] [] = []
 checkResult (x:xs) (y:ys) | 0.001 < abs (x - y) = (x,y) : checkResult xs ys 
                           | otherwise = checkResult xs ys 
 
-notTooDifferent f1 f2 = 0.1 < abs (f1 - f2) 

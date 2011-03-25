@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE ForeignFunctionInterface#-}
 {-# OPTIONS  -XDeriveDataTypeable #-}
 
 module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable, 
@@ -158,28 +158,34 @@ dbg :: (Show c) =>
        [(String,String)] -> 
        (String, b -> c) -> 
        (Error, b, ErrorDetails) -> IO (Error, b, ErrorDetails)
--- {- 
+{- 
+
 dbg msg inputs (nom,accf) (ec, rv, ed) = 
   do 
    appendFile dbgfile $ msg ++ 
                         concatMap printInfo inputs ++ 
                         "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
                         "\n"   
-   return (ec, rv, ed) 
--- -}
--- dbg s ss sf x = return x --use this if not interested in dbg info
+   return (ec, rv, ed)
+-}
+dbg s ss sf x = return x --use this if not interested in dbg info
 
+{-
 dbg0 msg inputs (ec,ed) = 
  do
   (a,b,c) <- dbg msg inputs ("unit", id) (ec,(),ed) 
   return (a,c)
- 
---newDBGFile x = return x 
+-} 
+dbg0 msg inputs x = return x  
+
+newDBGFile x = return x 
+{-
 newDBGFile x =
   do 
    b <- doesFileExist dbgfile 
    if b then removeFile dbgfile else return ()
    return x  
+-} 
 
 printInfo ::(String, String) -> String
 printInfo (nom,val) = 

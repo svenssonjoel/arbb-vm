@@ -4,8 +4,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TypeFamilies #-} 
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TupleSections #-}
 
 
 ------------------------------------------------------------------------------
@@ -57,6 +57,8 @@ import System.IO.Unsafe
 import qualified  Control.Monad.State.Strict as S 
 import Control.Monad
 import Control.Applicative
+
+debug = False
     
 ------------------------------------------------------------------------------
 -- run (The entry point) 
@@ -114,11 +116,12 @@ executeArBB acc@(OpenAcc pacc) aenv = do
         b0 <- executeArBB b aenv 
         zipWithOp acc aenv a0 b0 
       
-      -- TODO: Implement same as Fold1
+      -- TODO: Fold is right now Cheating and not applying the 
+      --       "base" element
       Fold x y a  -> do -- error "Fold: Not yet implemented"
         a0 <- executeArBB a aenv
         fold1Op (OpenAcc (Fold1 x a)) aenv a0  -- Major cheat 
-      -- TODO: Implement!
+     
       Fold1 _ a -> do 
         a0 <- executeArBB a aenv 
         fold1Op acc aenv a0 
@@ -140,10 +143,10 @@ useOp inp@(Array sh ad)  | dim sh <= 3 = do
   case res of 
        Just v -> return  inp -- This can happen if Let is used 
        Nothing -> do
-          liftIO$ putStrLn "Creating new ArBB Array" 
-          liftIO$ putStrLn (show d)
+          -- liftIO$ putStrLn "Creating new ArBB Array" 
+          -- liftIO$ putStrLn (show d)
           copyIn ad d -- allocates on Arbb Side 
-          liftIO$ putStrLn "Creating new ArBB Array DONE" 
+          -- liftIO$ putStrLn "Creating new ArBB Array DONE" 
           return$ inp -- Array (sh) ad
         where
            --n = size sh
@@ -161,7 +164,7 @@ mapOp :: (Sugar.Elt e, Typeable aenv)
 mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0) | dim sh0 <= 3 = do  
   inputArray' <- lookupArray in0 -- find the input variables
   
-  outputArray <- ad `seq` newArray ad d
+  outputArray <- ad `seq` newArBBArray ad d
 
   let inputArray = fromJust inputArray'  -- HACKITY
       ot = getAccType' acc
@@ -184,13 +187,14 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0) | dim sh0 <= 3 = do
     map_ fun out inp
 
  ----------
-  str <- liftArBB$ serializeFunction_ maper 
-  liftIO$ putStrLn (getCString str)
+  when debug$ do
+    str <- liftArBB$ serializeFunction_ maper 
+    liftIO$ putStrLn (getCString str)
  ---------    
 
   liftArBB$ execute_ maper out_vars inp_vars  
           
-  return$ Array (sh0) ad
+  return$ Array sh0 ad
   where
     n = size sh0
     d = dim sh0
@@ -217,7 +221,7 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
   inputArray0' <- lookupArray in0 -- find the input variables
   inputArray1' <- lookupArray in1  
 
-  outputArray <- ad `seq` newArray ad d  -- create array 
+  outputArray <- ad `seq` newArBBArray ad d  -- create array 
  
   let inputArray0 = fromJust inputArray0' -- HACKITY
       inputArray1 = fromJust inputArray1' -- HACKITY
@@ -244,8 +248,9 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
     map_ fun out inp
 
  ----------
-  str <- liftArBB$ serializeFunction_ zipper 
-  liftIO$ putStrLn (getCString str)
+  when debug$ do
+    str <- liftArBB$ serializeFunction_ zipper 
+    liftIO$ putStrLn (getCString str)
  ---------    
 
   liftArBB$ execute_ zipper out_vars inp_vars  
@@ -272,11 +277,11 @@ fold1Op ::  forall sh e aenv. (Sugar.Shape sh, Typeable aenv)
 fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIBLY SIMPLY CASE
         aenv
         arr@(Array sh in0)  = do
-  liftIO$ putStrLn "Entering: Fold1Op"
+ 
   inputArray' <- lookupArray in0 -- find the input variables
   
   -- TODO: Figure out what is going on here 
-  res@(Array sh_r ad_r) <- ug_newArray (Sugar.toElt (fst sh)) :: ExecState (Array sh e)  -- ad `seq` newArray ad d
+  res@(Array sh_r ad_r) <- newArray (Sugar.toElt (fst sh)) :: ExecState (Array sh e)  -- ad `seq` newArray ad d
 
   
   -- DEBUG AREA --
@@ -286,12 +291,13 @@ fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIB
       sh2 = sh 
       d2  = dim sh2
       s2  = size sh2
---  liftIO$ putStrLn$ show (Sugar.toElt sh1) 
-  liftIO$ putStrLn$ "Dimensions: " ++ show d1 
-  liftIO$ putStrLn$ "Size: " ++ show s1 
---  liftIO$ putStrLn$ show (Sugar.toElt sh2) 
-  liftIO$ putStrLn$ "Dimensions: " ++ show d2   
-  liftIO$ putStrLn$ "Size: " ++ show s2 
+  when debug$ do     
+
+    liftIO$ putStrLn$ "Dimensions: " ++ show d1 
+    liftIO$ putStrLn$ "Size: " ++ show s1 
+
+    liftIO$ putStrLn$ "Dimensions: " ++ show d2   
+    liftIO$ putStrLn$ "Size: " ++ show s2 
  
   ----------------
    
@@ -319,8 +325,6 @@ fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIB
  
   
   liftArBB$ execute_ fun (varsToList outputArray) (varsToList inputArray)
-  
-  liftIO$ putStrLn "Leaving: Fold1Op"
   return$ res -- error "N/A" --  result
   
 fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE 
@@ -343,11 +347,6 @@ primFold f vout vin = do
     opDynamic_ ArbbOpMinReduce vout vin 
   
              
-
-  
-
-
-
 ------------------------------------------------------------------------------
 -- This is function definition.. genMap is bad name !! 
 -- TODO: Generalise function generation.
@@ -368,8 +367,9 @@ genMap out inp fun = do
     zipWithM_ copy_ outs vars
    
 ----------
-  str <- liftArBB$ serializeFunction_ fun 
-  liftIO$ putStrLn (getCString str)
+  when debug$ do
+    str <- liftArBB$ serializeFunction_ fun 
+    liftIO$ putStrLn (getCString str)
 ---------  
     
   return fun
@@ -393,8 +393,9 @@ genBFun out inp1 inp2 fun = do
     zipWithM_ copy_ outs vars
  
 ----------
-  str <- liftArBB$ serializeFunction_ fun 
-  liftIO$ putStrLn (getCString str)
+  when debug$ do
+    str <- liftArBB$ serializeFunction_ fun 
+    liftIO$ putStrLn (getCString str)
 ---------  
     
   return fun
@@ -504,18 +505,4 @@ defineGlobalVarsNew (ArBBTypePair t1 t2) = do
   return$ VarsPair v1 v2
 
 
--- TODO: This needs to be worked into use 
-ug_newArray :: (Sugar.Shape sh, Sugar.Elt e)
-            => sh                          -- shape
-            -> ExecState (Array sh e)
-ug_newArray sh = do
-  -- The 1 `max` d means that 0D Accelerate arrays will be represented 
-  -- by 1D ArBB Arrays.          
-  ad `seq` newArray ad (1 `max` d)
-  
-  return $ Array (Sugar.fromElt sh) ad
-  where
-    n      = Sugar.size sh
-    d      = Sugar.dim sh
-    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
-  
+

@@ -189,7 +189,7 @@ readScalar_ v =
 
 type FunBody = [Variable] -> [Variable] -> EmitArbb ()
 
-debug_fundef = True
+debug_fundef = False
 
 funDef_ :: String -> [Type] -> [Type] -> FunBody  -> EmitArbb Function
 funDef_ name outty inty userbody = 

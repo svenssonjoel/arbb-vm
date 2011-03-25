@@ -2,6 +2,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TupleSections #-}
+
 module Data.Array.Accelerate.ArBB.Data where 
 
 import Foreign.Ptr
@@ -231,8 +233,8 @@ lookupArrayPrim _ ad = do
    arraymap <- S.get 
    
    let ptr = getArray ad -- get the key into the map
-   liftIO$ putStrLn (show ptr)
-   liftIO$ putStrLn (show arraymap)
+   -- liftIO$ putStrLn (show ptr)
+   -- liftIO$ putStrLn (show arraymap)
    case M.lookup  ptr arraymap  of 
         (Just v) -> return$ Just (VarsPrim v)
         Nothing -> return Nothing 
@@ -241,25 +243,54 @@ lookupArrayPrim _ ad = do
 
 ------------------------------------------------------------------------------
 --
+
+-- TODO: See if Something like newArray' is useful
+newArray' :: (Sugar.Shape sh, Sugar.Elt e)
+            => sh                          -- shape
+            -> ExecState (Vars,Array sh e)
+newArray' sh = do
+  -- The 1 `max` d means that 0D Accelerate arrays will be represented 
+  -- by 1D ArBB Arrays.          
+  vars <- ad `seq` newArBBArray ad (1 `max` d)
+  
+  return $ (vars, Array (Sugar.fromElt sh) ad)
+  where
+    n      = Sugar.size sh
+    d      = Sugar.dim sh
+    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
+  
+
+
+newArray :: (Sugar.Shape sh, Sugar.Elt e)
+            => sh                          -- shape
+            -> ExecState (Array sh e)
+newArray sh = do
+  -- The 1 `max` d means that 0D Accelerate arrays will be represented 
+  -- by 1D ArBB Arrays.          
+  ad `seq` newArBBArray ad (1 `max` d)
+  
+  return $ Array (Sugar.fromElt sh) ad
+  where
+    n      = Sugar.size sh
+    d      = Sugar.dim sh
+    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
+  
+
 {- 
    Not sure how to do this but.. 
    Intermediate arrays are just "variables" in ArBB. 
    I dont actually need to manually allocate them, rather ArBB does that 
    for me!. 
    
-   newArray is the ArBB part of the operation. 
-   this should, when used, be paired up with th creation 
-   of a new haskell (the one passed as key into this newArray function)
-
 -} 
 
 
 -- What do you really need for a new array, Type and Size! 
-newArray :: (AD.ArrayElt e) => 
+newArBBArray :: (AD.ArrayElt e) => 
                AD.ArrayData e ->  
                Int -> -- Dimensions  
                ExecState Vars
-newArray ad dims = doNew AD.arrayElt ad 
+newArBBArray ad dims = doNew AD.arrayElt ad 
   where 
     doNew :: ArrayEltR e 
           -> AD.ArrayData e       
