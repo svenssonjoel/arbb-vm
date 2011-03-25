@@ -36,4 +36,5 @@ Long term TODO items
 * Work on a "non-immediate" mode ArBB back-end 
     - generate larger functions and give the ArBB optimization passes more 
       to work on.  
-   
+* Different ArBB Kernels can be used depending on runtime knowledge, such as 
+  size, shape.    
