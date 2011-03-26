@@ -24,6 +24,7 @@ import Data.Time
     - execute_ is asynchronous may enable me to do what I want 
       (but spread out over many calls into ArBB) 
 
+  
 -}
 
 newGlobalVar t nom = do 
@@ -73,7 +74,7 @@ genRed reducer out inp n = do
    liftIO$ putStrLn "D"
    -- When it is Dynamic or not, makes no sense to me !!! 
    opImm_ ArbbOpApplyNesting [nested] [inp,indices,vs]
-               -- NOT SUPPORTED YET BY ARBB !!!! 
+              
    liftIO$ putStrLn "E"      
    
    -- extracts a segment (a dense from a nested)    
