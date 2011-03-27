@@ -126,8 +126,10 @@ executeArBB acc@(OpenAcc pacc) aenv = do
         a0 <- executeArBB a aenv 
         fold1Op acc aenv a0 
       
+      -- TODO: Implement. launch in parallel a number of sequential folds
       FoldSeg _ _ _ _ ->  error "FoldSeg: Not yet implemented" 
       
+      -- TODO: implement same as above. 
       Fold1Seg _ _ _ ->  error "Fold1Seg: Not yet implemented" 
       
       -- GO on with Scans, Permutes, Stencils 

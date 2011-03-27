@@ -33,6 +33,17 @@ newGlobalVar t nom = do
   variableFromGlobal_ g     
 
 
+zipWith3M_ f (a:as) (b:bs) (c:cs) = do
+  f a b c 
+  zipWith3M_ f as bs cs            
+zipWith3M_ _ _ _ _ = return () 
+
+zipWith4M_ f (a:as) (b:bs) (c:cs) (d:ds) = do
+  f a b c d
+  zipWith4M_ f as bs cs ds           
+zipWith4M_ _ _ _ _ _ = return () 
+
+
 genRed reducer out inp n = do         
    sty <- getScalarType_ ArbbI32
    size_t  <- getScalarType_ ArbbUsize
@@ -44,97 +55,48 @@ genRed reducer out inp n = do
    indices <- newGlobalVar dsize_t "indices" 
    chunk   <- newGlobalVar size_t "chunk_size" 
    nested  <- newGlobalVar nty "chunk"         
+   results <- newGlobalVar dty "partial_results"
    
    one_chunk <- newGlobalVar dty "achunk" 
    
-   chunks <- mapM (newGlobalVar dty) ["c" ++ show n | n <- [0..9]]  
+   chunks <- mapM (newGlobalVar dty) ["c" ++ show n | n <- [0..9]]
+   lens   <- mapM (newGlobalVar size_t) ["s" ++ show n | n <- [0..9]]  
+   ixs    <- mapM usize_ [0..9] 
    tmp    <- mapM (newGlobalVar sty) ["t" ++ show n | n <- [0..9]]  
-
-   liftIO$ putStrLn "A"
+    
    ten <- usize_ 10
    zero <- usize_ 0
    one <- usize_ 1
-   two <- usize_ 2
-   three <- usize_ 3
-   four <- usize_ 4
-   five <- usize_ 5
-   six <- usize_ 6
-   seven <- usize_ 7
-   eight <- usize_ 8 
-   nine  <- usize_ 9
-   
+
    vs <- usize_ 2  -- This is a Enum VS_OFFSET
         
-   liftIO$ putStrLn "B"
+-- COMPUTE BEGINS 
    opImm_ ArbbOpDiv [chunk] [n,ten] 
                
-   liftIO$ putStrLn "C"
+-- Create chunk descriptor
    opDynamicImm_ ArbbOpIndex [indices] [zero,ten,chunk] -- ten chunks! 
 
-   liftIO$ putStrLn "D"
+-- Split input data up into N(=10) chunks
    -- When it is Dynamic or not, makes no sense to me !!! 
    opImm_ ArbbOpApplyNesting [nested] [inp,indices,vs]
-              
-   liftIO$ putStrLn "E"      
-   
-   -- extracts a segment (a dense from a nested)    
-   opImm_ ArbbOpSegment [chunks !! 0] [nested,zero] 
 
-   --liftIO$ putStrLn "F"
-   execute_ reducer [tmp !! 0] [chunks !! 0,chunk]          
-          
-   opImm_ ArbbOpSegment [chunks !! 1] [nested,one] 
+-- allocate space for intermediate results   
+   opDynamicImm_ ArbbOpAlloc [results] [ten]
 
-   --liftIO$ putStrLn "F1"
-   execute_ reducer [tmp !! 1] [chunks !! 1,chunk]          
-   
-   opImm_ ArbbOpSegment [chunks !! 2] [nested,two] 
+-- Launch 10 sequential reducions (potentially in parallel) 
+   zipWith3M_
+    (\chunk ix len -> do 
+       opImm_ ArbbOpSegment [chunk] [nested,ix] 
+       opImm_ ArbbOpLength  [len] [chunk]
+       tmp <- newGlobalVar sty "tmp"
+       execute_ reducer [tmp] [chunk,len]
+       opDynamicImm_ ArbbOpReplaceElement [results] [results,ix,tmp])
+    chunks ixs lens 
 
-   --liftIO$ putStrLn "F2"
-   execute_ reducer [tmp !! 2] [chunks !! 2,chunk]          
-
-   opImm_ ArbbOpSegment [chunks !! 3] [nested,three] 
-
-   --liftIO$ putStrLn "F3"
-   execute_ reducer [tmp !! 3] [chunks !! 3,chunk]          
-
-   opImm_ ArbbOpSegment [chunks !! 4] [nested,four] 
-   --liftIO$ putStrLn "F4"
-   execute_ reducer [tmp !! 4] [chunks !! 4,chunk]          
-
-   opImm_ ArbbOpSegment [chunks !! 5] [nested,five] 
-   --liftIO$ putStrLn "F5"
-   execute_ reducer [tmp !! 5] [chunks !! 5,chunk]          
-
-   opImm_ ArbbOpSegment [chunks !! 6] [nested,six] 
-   --liftIO$ putStrLn "F6"
-   execute_ reducer [tmp !! 6] [chunks !! 6,chunk]          
-   
-   opImm_ ArbbOpSegment [chunks !! 7] [nested,seven] 
-   --liftIO$ putStrLn "F7"
-   execute_ reducer [tmp !! 7] [chunks !! 7,chunk]          
-   
-   opImm_ ArbbOpSegment [chunks !! 8] [nested,eight] 
-   --liftIO$ putStrLn "F8"
-   execute_ reducer [tmp !! 8] [chunks !! 8,chunk]          
-  
-   opImm_ ArbbOpSegment [chunks !! 9] [nested,nine] 
-   opImm_ ArbbOpLength  [chunk] [chunks !! 9]
-   --liftIO$ putStrLn "F9"
-   execute_ reducer [tmp !! 9] [chunks !! 9,chunk]          
-
-
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 1]
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 2] 
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 3]
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 4]
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 5] 
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 6]
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 7]
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 8] 
-   opImm_ ArbbOpAdd [tmp !! 0] [tmp !! 0, tmp !! 9]
-   
-   opImm_ ArbbOpCopy [out] [tmp !! 0]
+   finish_ -- SYNCHRONIZATION !
+-- Sum up partials into final result 
+   execute_ reducer [out] [results,ten]
+ 
 
 main = arbbSession$ do 
      sty <- getScalarType_ ArbbI32
@@ -274,3 +236,15 @@ main = arbbSession$ do
          
         
      
+
+
+
+   {- 
+   zipWith4M_
+    (\chunk ix len tmp -> do 
+       opImm_ ArbbOpSegment [chunk] [nested,ix] 
+       opImm_ ArbbOpLength  [len] [chunk]
+       liftIO$ putStrLn "X"
+       execute_ reducer [tmp] [chunk,len]) 
+    chunks ixs lens tmp
+    -}
