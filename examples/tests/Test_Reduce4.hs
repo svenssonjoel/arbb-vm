@@ -141,80 +141,30 @@ main = arbbSession$ do
            op_ ArbbOpAdd [currs] [currs,one] 
          ) 
         op_ ArbbOpCopy [out] [res]
-        
-     reduceStep <- funDef_ "rS" [dty] [dty,size_t] $ \ [out] [inp,n] -> do 
-        
-        parts    <- createLocal_ dty2 "halves"
-        h1       <- createLocal_ dty "h1"
-        h2       <- createLocal_ dty "h2" 
-        newArr   <- createLocal_ dty "new!"           
-        midpoint <- createLocal_ size_t "middle"         
-
-        zero <- usize_ 0 
-        one  <- usize_ 1
-        two  <- usize_ 2
-                      
-        op_ ArbbOpDiv [midpoint] [n,two]
-        
-        opDynamic_ ArbbOpSetRegularNesting [parts] [inp,two, midpoint]
-        op_ ArbbOpExtractRow [h1] [parts,zero] 
-        op_ ArbbOpExtractRow [h2] [parts,one]
-        
-        -- elementwise application of fun (zipWith) 
-        map_ add [newArr] [h1,h2]   
-
-        op_ ArbbOpCopy [out] [newArr] 
-             
-     reduce <- funDef_ "red" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
-       c   <- createLocal_ bt "cond" 
-       one <- usize_ 1
-       zero <- usize_ 0 
-       two  <- usize_ 2
-      
-       currs <- createLocal_ size_t "currs"
-       arr   <- createLocal_ dty "data"
-      
-       op_ ArbbOpCopy [currs] [n]     
-       op_ ArbbOpCopy [arr] [inp]    
-       while_ 
-         (do
-           op_ ArbbOpGreater [c] [currs,one]   
-           return c
-         ) 
-         (do 
-            call_ reduceStep [arr] [arr,currs] 
-            op_ ArbbOpDiv [currs] [currs,two] 
-         ) 
-       opDynamic_ ArbbOpExtract [out] [arr,zero] 
-        
-     liftIO$ putStrLn "Done compiling function, now executing..."
- 
-   
---     withArray_  (replicate (2^10) 2 ::[ Word32]) $ \ inp -> 
-     withArray_  ([0..1023 ::  Word32]) $ \ inp -> 
+           
+     withArray_  (replicate (2^24) 1 ::[ Word32]) $ \ inp -> 
+    -- withArray_  ([0..1023 ::  Word32]) $ \ inp -> 
      -- withArray_ (replicate 8 0 :: [Word32]) $ \ out -> 
        do
 
-        inb <- createDenseBinding_ (castPtr inp) 1 [2^10] [4]
-       -- outb <- createDenseBinding_ (castPtr out) 1 [8] [4]
+        inb <- createDenseBinding_ (castPtr inp) 1 [2^24] [4]
+        -- outb <- createDenseBinding_ (castPtr out) 1 [8] [4]
        
         gin <- createGlobal_ dty "input" inb
-       -- gout <- createGlobal_ dty "output" outb
+        -- gout <- createGlobal_ dty "output" outb
        
         vin <- variableFromGlobal_ gin
-       -- vout <- variableFromGlobal_ gout
+        -- vout <- variableFromGlobal_ gout
        
-        n <- usize_ (2^10)
+        n <- usize_ (2^24)
         binding <- getBindingNull_
         g       <- createGlobal_ sty "res" binding
         y       <- variableFromGlobal_ g
         --execute_ reduceStep [vout] [vin,n]     
     
         t1 <- liftIO getCurrentTime                          
-        -- execute_ reduce [y] [vin,n]
-        -- execute_ seqRed [y] [vin,n]
-        --execute_ genRed [y] [vin,n]
-        genRed seqRed y vin n
+        execute_ seqRed [y] [vin,n]
+        --genRed seqRed y vin n
         finish_
         t2 <- liftIO getCurrentTime 
 
