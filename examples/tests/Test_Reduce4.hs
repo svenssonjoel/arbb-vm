@@ -44,6 +44,7 @@ zipWith4M_ f (a:as) (b:bs) (c:cs) (d:ds) = do
 zipWith4M_ _ _ _ _ _ = return () 
 
 
+
 genRed reducer out inp n = do         
    sty <- getScalarType_ ArbbI32
    size_t  <- getScalarType_ ArbbUsize
@@ -77,7 +78,7 @@ genRed reducer out inp n = do
    opDynamicImm_ ArbbOpIndex [indices] [zero,ten,chunk] -- ten chunks! 
 
 -- Split input data up into N(=10) chunks
-   -- When it is Dynamic or not, makes no sense to me !!! 
+   -- When is it Dynamic or not, makes no sense to me !!! 
    opImm_ ArbbOpApplyNesting [nested] [inp,indices,vs]
 
 -- allocate space for intermediate results   
@@ -189,11 +190,12 @@ main = arbbSession$ do
      liftIO$ putStrLn "Done compiling function, now executing..."
  
    
-     withArray_  (replicate (2^24) 1 ::[ Word32]) $ \ inp -> 
+--     withArray_  (replicate (2^10) 2 ::[ Word32]) $ \ inp -> 
+     withArray_  ([0..1023 ::  Word32]) $ \ inp -> 
      -- withArray_ (replicate 8 0 :: [Word32]) $ \ out -> 
        do
 
-        inb <- createDenseBinding_ (castPtr inp) 1 [2^24] [4]
+        inb <- createDenseBinding_ (castPtr inp) 1 [2^10] [4]
        -- outb <- createDenseBinding_ (castPtr out) 1 [8] [4]
        
         gin <- createGlobal_ dty "input" inb
@@ -202,7 +204,7 @@ main = arbbSession$ do
         vin <- variableFromGlobal_ gin
        -- vout <- variableFromGlobal_ gout
        
-        n <- usize_ (2^24)
+        n <- usize_ (2^10)
         binding <- getBindingNull_
         g       <- createGlobal_ sty "res" binding
         y       <- variableFromGlobal_ g

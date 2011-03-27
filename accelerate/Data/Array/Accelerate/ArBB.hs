@@ -195,6 +195,7 @@ mapOp acc@(OpenAcc (Map f inp))  aenv (Array sh0 in0) | dim sh0 <= 3 = do
  ---------    
 
   liftArBB$ execute_ maper out_vars inp_vars  
+  liftArBB$ finish_ 
           
   return$ Array sh0 ad
   where
@@ -256,6 +257,7 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
  ---------    
 
   liftArBB$ execute_ zipper out_vars inp_vars  
+  liftArBB$ finish_        
           
   return$ Array sh0 ad
   where
@@ -327,6 +329,8 @@ fold1Op acc@(OpenAcc (Fold1 f@(Lam (Lam (Body (PrimApp op _))))  inp)) -- POSSIB
  
   
   liftArBB$ execute_ fun (varsToList outputArray) (varsToList inputArray)
+  liftArBB$ finish_
+  
   return$ res -- error "N/A" --  result
   
 fold1Op _ _ _ = error "Fold1Op: N/A" -- THE TRICKY CASE 
