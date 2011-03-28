@@ -92,4 +92,4 @@ checkResult [] [] = []
 checkResult (x:xs) (y:ys) | 0.001 < abs (x - y) = (x,y) : checkResult xs ys 
                           | otherwise = checkResult xs ys 
 
->>>>>>> 3f1a4b9aa7a405b5ff0740f52923003308b43b11
+
