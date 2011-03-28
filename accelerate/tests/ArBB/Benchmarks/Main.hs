@@ -44,7 +44,7 @@ import Random -- accelerate-examples/src/common/Random.hs
 main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
   t_g_1 <- getCurrentTime
-#if 1
+#if 0
   v1    <- randomUArrayR (-1,1) gen 1000000
   v2    <- randomUArrayR (-1,1) gen 1000000
   v1'   <- convertUArray v1
