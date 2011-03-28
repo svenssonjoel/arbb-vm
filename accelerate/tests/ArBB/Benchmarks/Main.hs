@@ -51,17 +51,20 @@ main = withSystemRandom $ \gen -> do
   putStrLn "Done generating input data!"
     
   -- TODO: How can I time just the exection of these ! (toList not included)  
+  
   t_s_1 <- getCurrentTime
   r1' <- evaluate$ ArBB.run (saxpyAcc alpha  v1' v2')
-  t_s_2 <- getCurrentTime
+  t_s_2 <- getCurrentTime 
   r2' <- evaluate$ Interp.run (saxpyAcc alpha v1' v2') 
   t_s_3  <- getCurrentTime
-      -- r3 = Sugar.toList$ CUDA.run (saxpyAcc alpha v1' v2') 
+ 
+  
+ 
   let r1 = Sugar.toList r1'
       r2 = Sugar.toList r2'   
 
   putStrLn$ "Saxpy: " ++ if checkResult r1 r2 == [] then "Passed" else "failed" 
-  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_s_2 t_s_1) )  
+  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_s_2 t_s_1) )   
   putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_s_3 t_s_2) )  
   -- putStrLn$ show $ take 10 $ checkResult r1 r2
 
