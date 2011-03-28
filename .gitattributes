@@ -1,0 +1,6 @@
+
+# FORCE LF... CRLF is too annoying.
+
+*.hs            text
+*.hs            eol=lf
+*.txt           text

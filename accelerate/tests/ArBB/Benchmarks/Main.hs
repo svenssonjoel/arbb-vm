@@ -44,7 +44,7 @@ import Random -- accelerate-examples/src/common/Random.hs
 main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
   t_g_1 <- getCurrentTime
-#if 0
+#if 1
   v1    <- randomUArrayR (-1,1) gen 1000000
   v2    <- randomUArrayR (-1,1) gen 1000000
   v1'   <- convertUArray v1
@@ -92,3 +92,4 @@ checkResult [] [] = []
 checkResult (x:xs) (y:ys) | 0.001 < abs (x - y) = (x,y) : checkResult xs ys 
                           | otherwise = checkResult xs ys 
 
+>>>>>>> 3f1a4b9aa7a405b5ff0740f52923003308b43b11
