@@ -1,4 +1,4 @@
-{-# Language FlexibleContexts #-}
+{-# Language FlexibleContexts, CPP #-}
 
 
 -- Compile instructions: (should GHC optimizations be used ?) 
@@ -43,12 +43,19 @@ import Random -- accelerate-examples/src/common/Random.hs
 
 main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
+  t_g_1 <- getCurrentTime
+#if 1
   v1    <- randomUArrayR (-1,1) gen 1000000
   v2    <- randomUArrayR (-1,1) gen 1000000
   v1'   <- convertUArray v1
   v2'   <- convertUArray v2
+#else
+  let v1' = Acc.fromList (Sugar.listToShape [1000000]) [1..1000000]
+      v2' = Acc.fromList (Sugar.listToShape [1000000]) [1..1000000]
+#endif
   alpha <- uniform gen
-  putStrLn "Done generating input data!"
+  t_g_2 <- getCurrentTime
+  putStrLn$ "Done generating input data: " ++ ( show (diffUTCTime t_g_2 t_g_1) )  
     
   -- TODO: How can I time just the exection of these ! (toList not included)  
   t_s_1 <- getCurrentTime
