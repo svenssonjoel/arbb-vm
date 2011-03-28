@@ -14,16 +14,10 @@ import Data.Time
 
 
 {- 
-   Experiment on more general reductions. 
-    - not limited to pow2 size 
-    - should work for 1,2,3D arrays (in the way expected by Accelerate) 
-    - In future for for N-Dimensional Arrays.  
-
-   
-   TODO: 
-    - execute_ is asynchronous may enable me to do what I want 
-      (but spread out over many calls into ArBB) 
-
+  Experiment with Segmented fold. 
+   Try to match the behaviour of Accelerate Segmented fold. 
+   First, figure out what kind of segment descriptor accelerate uses. 
+   (offsets,indices,lengths) and hope it is one ArBB supports. 
   
 -}
 
