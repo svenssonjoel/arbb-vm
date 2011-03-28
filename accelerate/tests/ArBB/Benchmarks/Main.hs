@@ -1,4 +1,4 @@
-{-# Language FlexibleContexts #-}
+{-# Language FlexibleContexts, CPP #-}
 
 
 -- Compile instructions: (should GHC optimizations be used ?) 
@@ -43,28 +43,32 @@ import Random -- accelerate-examples/src/common/Random.hs
 
 main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
+  t_g_1 <- getCurrentTime
+#if 1
   v1    <- randomUArrayR (-1,1) gen 1000000
   v2    <- randomUArrayR (-1,1) gen 1000000
   v1'   <- convertUArray v1
   v2'   <- convertUArray v2
+#else
+  let v1' = Acc.fromList (Sugar.listToShape [1000000]) [1..1000000]
+      v2' = Acc.fromList (Sugar.listToShape [1000000]) [1..1000000]
+#endif
   alpha <- uniform gen
-  putStrLn "Done generating input data!"
+  t_g_2 <- getCurrentTime
+  putStrLn$ "Done generating input data: " ++ ( show (diffUTCTime t_g_2 t_g_1) )  
     
   -- TODO: How can I time just the exection of these ! (toList not included)  
-  
   t_s_1 <- getCurrentTime
   r1' <- evaluate$ ArBB.run (saxpyAcc alpha  v1' v2')
-  t_s_2 <- getCurrentTime 
+  t_s_2 <- getCurrentTime
   r2' <- evaluate$ Interp.run (saxpyAcc alpha v1' v2') 
   t_s_3  <- getCurrentTime
- 
-  
- 
+      -- r3 = Sugar.toList$ CUDA.run (saxpyAcc alpha v1' v2') 
   let r1 = Sugar.toList r1'
       r2 = Sugar.toList r2'   
 
   putStrLn$ "Saxpy: " ++ if checkResult r1 r2 == [] then "Passed" else "failed" 
-  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_s_2 t_s_1) )   
+  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_s_2 t_s_1) )  
   putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_s_3 t_s_2) )  
   -- putStrLn$ show $ take 10 $ checkResult r1 r2
 
