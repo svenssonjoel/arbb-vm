@@ -1,0 +1,24 @@
+
+
+16 million elements (2^24) 
+----------- vs-lin-9 
+SUM:    0.067989s
+SAXPY:  0.28313s
+DOTP:   0.33711s 
+
+
+8 million elements (2^23) 
+----------- vs-lin-9 
+SUM:   
+SAXPY:  
+DOTP:   
+
+
+4 million elements (2^22) 
+----------- vs-lin-9 
+SUM:   
+SAXPY:  
+DOTP:   
+
+
+

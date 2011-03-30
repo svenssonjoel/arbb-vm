@@ -46,8 +46,8 @@ main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
   t_g_1 <- getCurrentTime
 #if 1
-  v1    <- randomUArrayR (-1,1) gen (2^24)
-  v2    <- randomUArrayR (-1,1) gen (2^24)
+  v1    <- randomUArrayR (-1,1) gen (2^23)
+  v2    <- randomUArrayR (-1,1) gen (2^23)
   v1'   <- convertUArray v1
   v2'   <- convertUArray v2
 #else
