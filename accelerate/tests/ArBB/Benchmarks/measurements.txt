@@ -1,24 +1,44 @@
 
 
 16 million elements (2^24) 
------------ vs-lin-9 
+----------- vs-lin-9  (8 CORES) 
 SUM:    0.067989s
 SAXPY:  0.28313s
 DOTP:   0.33711s 
 
 
 8 million elements (2^23) 
------------ vs-lin-9 
-SUM:   
-SAXPY:  
-DOTP:   
+----------- vs-lin-9 (8 CORES) 
+SUM:    0.053945s
+SAXPY:  0.150459s
+DOTP:   0.173113s
 
 
 4 million elements (2^22) 
------------ vs-lin-9 
-SUM:   
-SAXPY:  
-DOTP:   
+----------- vs-lin-9 (8 CORES)
+SUM:    0.044967s
+SAXPY:  0.093265s
+DOTP:   0.101872s
+
+2 million elements (2^21) 
+----------- vs-lin-9 (8 CORES) 
+SUM:    0.041857s
+SAXPY:  0.079533s
+DOTP:   0.094067s
 
 
+1 million elements (2^20) 
+----------- vs-lin-9 (8 CORES) 
+SUM:    0.038625s
+SAXPY:  0.068344s
+DOTP:   0.083078s
 
+------------------------------------------------------------------------------
+Notes: No parallel speedup could be observed in the above experiments.
+       Tried with ARBB_NUM_CORES=1 and ARBB_NUM_CORES=8 
+       ARBB_OPT_LEVEL=o3 
+       ARBB_OPT_LEVEL=O3 
+       
+
+
+------------------------------------------------------------------------------
