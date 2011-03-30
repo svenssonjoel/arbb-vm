@@ -13,6 +13,10 @@ Short term TODO items
     - SAXPY
     - DotProd 
     - Matrix Add (Should also be possible) 
+* is_remote: 
+    The meaning of this argument to begin_function is supposed to be
+      - True -> This function can be called by execute 
+      - False -> This functiona cal be called using call (from within a function)
 
 
 

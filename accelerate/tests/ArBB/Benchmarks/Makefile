@@ -9,7 +9,7 @@ INCLUDES= -i../../../../ -i../../../ -i. -i../../../accelerate-examples/src/comm
 LIBS= -ltbb -larbb
 
 all:
-	ghc --make $(INCLUDES) Main.hs $(LIBS) -rtsopts
+	ghc --make $(INCLUDES) Main.hs $(LIBS) -O3 -rtsopts
 #	ghc --make $(INCLUDES) tests/ArBB/Benchmarks/Main.hs $(LIBS)
 
 c:

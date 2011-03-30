@@ -33,6 +33,8 @@ import qualified Control.Monad.State.Strict as S
 import Data.Array.Accelerate.ArBB.State
 
 import qualified Data.Map as M 
+import Data.Time
+import Control.Exception
 ------------------------------------------------------------------------------
 -- 
 
@@ -244,21 +246,7 @@ lookupArrayPrim _ ad = do
 ------------------------------------------------------------------------------
 --
 
--- TODO: See if Something like newArray' is useful
-newArray' :: (Sugar.Shape sh, Sugar.Elt e)
-            => sh                          -- shape
-            -> ExecState (Vars,Array sh e)
-newArray' sh = do
-  -- The 1 `max` d means that 0D Accelerate arrays will be represented 
-  -- by 1D ArBB Arrays.          
-  vars <- ad `seq` newArBBArray ad (1 `max` d)
-  
-  return $ (vars, Array (Sugar.fromElt sh) ad)
-  where
-    n      = Sugar.size sh
-    d      = Sugar.dim sh
-    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
-  
+
 
 
 newArray :: (Sugar.Shape sh, Sugar.Elt e)
@@ -290,7 +278,12 @@ newArBBArray :: (AD.ArrayElt e) =>
                AD.ArrayData e ->  
                Int -> -- Dimensions  
                ExecState Vars
-newArBBArray ad dims = doNew AD.arrayElt ad 
+newArBBArray ad dims = do
+ -- t1 <- liftIO$ getCurrentTime 
+  v <- doNew AD.arrayElt ad 
+  --t2 <- liftIO$ getCurrentTime 
+  --liftIO$ putStrLn$ "total newArBBArray: " ++ show (diffUTCTime t2 t1)   
+  return v
   where 
     doNew :: ArrayEltR e 
           -> AD.ArrayData e       
@@ -314,15 +307,29 @@ newArrayPrim :: forall a e. (AD.ArrayElt e, AD.ArrayPtrs e ~ Ptr a) =>
                  AD.ArrayData e -> -- key into table 
                  ExecState Vars 
 newArrayPrim st d ad = do 
+  -- t0 <- liftIO$ getCurrentTime 
    arraymap <- S.get 
+  -- t1 <- liftIO$ getCurrentTime 
+  -- liftIO$ putStrLn$ "t1 t0 " ++ show (diffUTCTime t1 t0)
    
-   let ptr = getArray ad -- get the key into the map
-   case M.lookup  ptr arraymap  of 
+   -- let ptr = getArray ad -- get the key into the map
+  -- t <- liftIO$ getCurrentTime 
+   ptr <-liftIO$ evaluate$ getArray ad -- get the key into the map
+  -- t' <- liftIO$ getCurrentTime 
+  -- liftIO$ putStrLn$ "t t' " ++ show (diffUTCTime t' t)
+
+  -- tx <- liftIO$ getCurrentTime 
+   stuff <- liftIO$ evaluate$ M.lookup  ptr arraymap
+  -- ty <- liftIO$ getCurrentTime
+   
+  -- liftIO$ putStrLn$ "ty tx " ++ show (diffUTCTime ty tx)
+   case stuff {- M.lookup  ptr arraymap -}  of 
         (Just _) -> error "newArrayPrim: Implementation of ArBB backend is faulty!" 
         
         -- The answer should be NO right ? otherwise someone already tried 
         -- to "create" this array 
         Nothing -> do 
+    --      t2 <- liftIO$ getCurrentTime
           t <- liftArBB$  getScalarType_ st
           dt <- liftArBB$ getDenseType_ t (if d == 0 then 1 else d) 
                  -- get n dimensional (up to three)
@@ -330,7 +337,14 @@ newArrayPrim st d ad = do
           bin <- liftArBB$ getBindingNull_ 
           g <- liftArBB$ createGlobal_ dt "Optimus_Prime" bin
           v <- liftArBB$ variableFromGlobal_ g
-          S.put (M.insert ptr v arraymap) 
+      --    t3 <- liftIO$ getCurrentTime 
+          
+        --  liftIO$ putStrLn$ "t3 t2 " ++ show (diffUTCTime t3 t2)
+          
+       --   t4 <- liftIO$ getCurrentTime 
+          S.put (M.insert ptr v arraymap)
+       --   t5 <- liftIO$ getCurrentTime  
+       --   liftIO$ putStrLn$ "t5 t4 " ++ show (diffUTCTime t5 t4)
           return$ VarsPrim v
 
 
