@@ -25,7 +25,12 @@ Short term TODO items
        + Memory allocated as result of createDenseBinding ?  (Yes) 
        + Memory for intermediate results ? 
    - Right now memory surely leaks! 
-
+* Make BlackScholes run
+   - Implement Cond 
+   - allow for some "general reductions" 
+       (Blackscholes does a multiply add in the reducer function) 
+   - Fix the data generation problem here (Going via lists is horribly slow) 
+   
 
 
 

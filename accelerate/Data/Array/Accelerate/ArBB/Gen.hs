@@ -46,8 +46,17 @@ genExp app@(PrimApp f arg) env = do
    res <- genPrimApp f arg (head (getExpType app)) env
    return [res] 
 genExp (Tuple t) env = genTuple t env
-genExp (Var idx) env = return [(reverse env) !! idxToInt idx] 
-                       -- use  Debruijn to index into env 
+genExp (Var idx) env = return [(reverse env) !! idxToInt idx] -- use de Bruijn index into environment
+genExp (Prj idx tup)      env = error "genExp: Prj not implemented" 
+genExp IndexNil           env = error "genExp: IndexNil not implemented" 
+genExp (IndexCons sh i)   env = error "genExp: IndexCons not implemented"
+genExp (IndexTail sh)     env = error "genExp: IndexTail not implemented" 
+genExp (Cond b t1 t2)     env = error "genExp: Cond not implemented"
+genExp (PrimConst c)      env = error "genExp: PrimConst not implemented" 
+genExp (IndexScalar a d)  env = error "genExp: IndexScalar not implemented" 
+genExp (Shape a)          env = error "genExp: Shape not implemented" 
+genExp (Size a)           env = error "genExp: Size not implemented" 
+               
 
 
 genConst :: Type.TupleType a -> a -> EmitArbb [Variable]
