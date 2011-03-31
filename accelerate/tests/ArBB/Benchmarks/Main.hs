@@ -46,15 +46,15 @@ main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
   t_g_1 <- getCurrentTime
 #if 1
-  v1    <- randomUArrayR (-1,1) gen (2^23)
-  v2    <- randomUArrayR (-1,1) gen (2^23)
+  v1    <- randomUArrayR (-1,1) gen ( 1000000)
+ -- v2    <- randomUArrayR (-1,1) gen (2^23)
   v1'   <- convertUArray v1
-  v2'   <- convertUArray v2
+ -- v2'   <- convertUArray v2
 #else
   v1' <- evaluate$ Acc.fromList (Sugar.listToShape [100000]) (replicate 100000 1.0)
   let v2' = v1' --  <- evaluate$ Acc.fromList (Sugar.listToShape [1000000]) (replicate 1000000 1.0)
 #endif
-  alpha <- uniform gen
+ -- alpha <- uniform gen
   t_g_2 <- getCurrentTime
   putStrLn$ "Done generating input data: " ++ ( show (diffUTCTime t_g_2 t_g_1) )  
 
@@ -63,17 +63,17 @@ main = withSystemRandom $ \gen -> do
   r' <- evaluate$ ArBB.run (sumAcc v1')
   t_p_2 <- getCurrentTime
 --  r0' <- evaluate$ Interp.run (sumAcc v1') 
- -- t_p_3 <- getCurrentTime 
+--  t_p_3 <- getCurrentTime 
     
   let r = Sugar.toList r'
-   --   r0 = Sugar.toList r0'   
+ -- let r0 = Sugar.toList r0'   
 
- -- putStrLn$ "Sum: " ++ if checkResult r r0 == [] then "Passed" else ("failed " ++ show (head (checkResult r r0)) )
+--  putStrLn$ "Sum: " ++ if checkResult r r0 == [] then "Passed" else ("failed " ++ show (head (checkResult r r0)) ) 
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
 --  putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
-  
+  return ()
 
-
+{- 
   t_s_1 <- getCurrentTime
   r1' <- evaluate$ ArBB.run (saxpyAcc alpha  v1' v2')
   t_s_2 <- getCurrentTime
@@ -104,7 +104,7 @@ main = withSystemRandom $ \gen -> do
   
 
   return ()
-
+-}
 
 checkResult [] [] = [] 
 checkResult (x:xs) (y:ys) | 0.001 < abs (x - y) = (x,y) : checkResult xs ys 
