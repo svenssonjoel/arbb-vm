@@ -14,10 +14,12 @@ volatility = 0.30
 -- Black-Scholes option pricing
 -------------------------------
 
+
 horner :: Num a => [a] -> a -> a
-horner coeff x = foldr1 madd coeff
+horner coeff x = foldr1 madd coeff -- Haskell foldr1!
   where
     madd a b = b*x + a
+
 
 cnd' :: Floating a => a -> a
 cnd' d =

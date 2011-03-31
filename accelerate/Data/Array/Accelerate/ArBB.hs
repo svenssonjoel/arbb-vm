@@ -43,7 +43,7 @@ import Foreign.Marshal.Array hiding (newArray)
 -- WHEN Data2 works change name to Data
 import Data.Array.Accelerate.ArBB.Data
 import Data.Array.Accelerate.ArBB.Type
-import Data.Array.Accelerate.ArBB.Gen
+import Data.Array.Accelerate.ArBB.Gen   hiding (defineTypes, defineLocalVars)
 import Data.Array.Accelerate.ArBB.State
 
 import Data.Typeable
