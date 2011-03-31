@@ -13,11 +13,12 @@ import qualified Foreign.Storable as F
 import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
-data ArBBArrType s 
-     = ArBBArrTypeUnit 
-     | ArBBArrTypeSingle s 
-     | ArBBArrTypePair (ArBBArrType s) (ArBBArrType s) 
- -- identical ? use same.. but hmm confusing ? 
+--data ArBBArrType s 
+--     = ArBBArrTypeUnit 
+--     | ArBBArrTypeSingle s 
+--     | ArBBArrTypePair (ArBBArrType s) (ArBBArrType s) 
+-- identical ? use same.. but hmm confusing ? 
+
 data ArBBType s 
    = ArBBTypeUnit 
    | ArBBTypeSingle s

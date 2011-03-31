@@ -47,14 +47,24 @@ genFun (Body body) = genExp body
 genExp :: forall env aenv t. 
           OpenExp env aenv t -> ArBBEnv -> EmitArbb [Variable]
 genExp (Const c) _ = genConst (eltType (undefined::t)) c 
-genExp app@(PrimApp f arg) env = do 
+genExp app@(PrimApp f arg) env = do
    res <- genPrimApp f arg (head (getExpType app)) env
    return [res] 
-genExp (Tuple t) env = genTuple t env
-genExp (Var idx) env = return [(reverse env) !! idxToInt idx] -- use de Bruijn index into environment
 
--- TODO: Implement! 
--- genExp (Prj idx tup)       env = error "genExp: Prj not implemented" 
+-- TODO: MAKE SURE THIS IS CORRECT !!! 
+--       Reverse down there may be misplaced! 
+genExp (Tuple t) env = genTuple t env
+genExp (Var idx) env = 
+    let n = idxToInt idx
+        num = length$ tupleType (eltType (undefined::t))
+    in return [(reverse env) !! (n+i) | i <- [0..num-1]]   
+--     let n = idxToInt idx 
+ --    in case tupleType (eltType (undefined::t)) of 
+  --      [_] -> return [(reverse env) !! n] 
+    --    cps -> 
+
+--return [(reverse env) !! idxToInt idx] -- use de Bruijn index into environment
+
 genExp p@(Prj idx e)       env = genPrj p env
 genExp IndexNil            env = error "genExp: IndexNil not implemented" 
 genExp (IndexCons sh i)    env = error "genExp: IndexCons not implemented"
@@ -100,7 +110,7 @@ genPrimApp op args st env = do
    liftIO$ putStrLn ("number of inputs: " ++show (length inputs))
    sty <- getScalarType_ st 
    let resname = "res" -- needs a unique name? 
-   liftIO$ putStrLn ("Creating a result variable: " ++resname)
+   -- liftIO$ putStrLn ("Creating a result variable: " ++resname)
    res <- createLocal_ sty resname
    genPrim op res inputs
    return res    
@@ -160,11 +170,12 @@ genPrim (PrimEq _) out inp = error "genPrim EQ not implemented"
 -- TODO: Are the results output in "correct" order? 
 genTuple :: Tuple (OpenExp env aenv) t -> ArBBEnv -> EmitArbb [Variable] 
 genTuple NilTup _ = return [] 
-genTuple (SnocTup tup e) env = do 
+genTuple (SnocTup tup e) env = (++) <$> genTuple tup env <*> genExp e env
+{-do 
    vars <- genExp e env 
    rest <- genTuple tup env 
-   return (rest ++ vars)
-
+   return (vars ++ rest)  -- Switched order here 31mars
+-}
 
 
 ------------------------------------------------------------------------------
@@ -228,6 +239,7 @@ arbbConst t@(Type.NumScalarType (Type.FloatingNumType (Type.TypeDouble _))) val
 -- genPrj
 
 -- The approach might work!( look at codeGenExp) 
+
 genPrj p@(Prj idx e)  env
   = reverse 
   . take (length $ tupleType (expType p)) 
@@ -235,17 +247,20 @@ genPrj p@(Prj idx e)  env
   . reverse 
   <$> do 
         liftIO$ putStrLn$ "Entering uncharted waters (genPrj)"
+        liftIO$ putStrLn$ show (length $ tupleType (expType p)) 
+        liftIO$ putStrLn$ show (prjToInt idx (expType e))
         vars <- genExp e env
         return vars
 
 ------------------------------------------------------------------------------
 -- prjToInt 
 -- 98% stolen from CUDA backend! 
+
 prjToInt :: TupleIdx t e -> Type.TupleType a -> Int
 prjToInt ZeroTupIdx     _                 = 0
 prjToInt (SuccTupIdx i) (b `Type.PairTuple` a) = length (tupleType a) + prjToInt i b
 prjToInt _ _ =
-  error "prjToInt" "inconsistent valuation"
+  error "prjToInt: inconsistent valuation"
 ------------------------------------------------------------------------------
 -- idxToInt -- This is defined in one of the CUDA backend files 
 idxToInt :: Idx env t -> Int

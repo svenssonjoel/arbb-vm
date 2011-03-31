@@ -379,8 +379,10 @@ genMap out inp fun = do
 
   let l_inp = arBBTypeToList inp' 
   let l_out = arBBTypeToList out'
+  liftIO$ putStrLn$ "inputs, map fun " ++ show (length l_inp) 
   -- Start by generating the function to be mapped!
   fun <- liftArBB$ funDef_ "f" l_out l_inp $ \ outs inps -> do 
+    ArBB.liftIO$ putStrLn$ "inputs, map fun inside " ++ show (length inps) 
     vars <- genFun fun inps -- inputs as the "environment"  
     zipWithM_ copy_ outs vars
    
