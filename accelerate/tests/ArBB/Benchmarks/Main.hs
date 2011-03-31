@@ -10,7 +10,8 @@
 module Main where 
 
 
--- BENCHMARKS 
+-- BENCHMARKS
+import Incr 
 import Saxpy 
 import DotP
 import Sum
@@ -60,7 +61,8 @@ main = withSystemRandom $ \gen -> do
 
      
   t_p_1 <- getCurrentTime
-  r' <- evaluate$ ArBB.run (sumAcc v1')
+  --r' <- evaluate$ ArBB.run (sumAcc v1')
+  r' <- evaluate$ ArBB.run (incrAcc v1')
   t_p_2 <- getCurrentTime
 --  r0' <- evaluate$ Interp.run (sumAcc v1') 
 --  t_p_3 <- getCurrentTime 
