@@ -36,6 +36,7 @@ import qualified Data.Array.Accelerate.ArBB as ArBB
 
 import Data.Int
 import Control.Exception
+import Control.Monad
 import Data.Time
 
 import System.Random.MWC 
@@ -47,10 +48,10 @@ main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
   t_g_1 <- getCurrentTime
 #if 1
-  v1    <- randomUArrayR (-1,1) gen ( 1000000)
- -- v2    <- randomUArrayR (-1,1) gen (2^23)
+  v1    <- randomUArrayR (-1,1) gen 1000000 
+ -- v2    <- randomUArrayR (-1,1) gen 1000000 
   v1'   <- convertUArray v1
- -- v2'   <- convertUArray v2
+--  v2'   <- convertUArray v2
 #else
   v1' <- evaluate$ Acc.fromList (Sugar.listToShape [100000]) (replicate 100000 1.0)
   let v2' = v1' --  <- evaluate$ Acc.fromList (Sugar.listToShape [1000000]) (replicate 1000000 1.0)
@@ -61,13 +62,12 @@ main = withSystemRandom $ \gen -> do
 
      
   t_p_1 <- getCurrentTime
-  --r' <- evaluate$ ArBB.run (sumAcc v1')
-  r' <- evaluate$ ArBB.run (incrAcc v1')
+  r' <-  replicateM 100$ evaluate$ ArBB.run (sumAcc v1')
   t_p_2 <- getCurrentTime
 --  r0' <- evaluate$ Interp.run (sumAcc v1') 
 --  t_p_3 <- getCurrentTime 
     
-  let r = Sugar.toList r'
+  let r = map Sugar.toList r'
  -- let r0 = Sugar.toList r0'   
 
 --  putStrLn$ "Sum: " ++ if checkResult r r0 == [] then "Passed" else ("failed " ++ show (head (checkResult r r0)) ) 
