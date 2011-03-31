@@ -231,18 +231,12 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
           aenv 
           (Array sh0 in0)  
           (Array sh1 in1) = do  
-  --st1 <- liftIO$ getCurrentTime 
+
   inputArray0' <- lookupArray in0 -- find the input variables
   inputArray1' <- lookupArray in1  
 
-  --sst1 <- liftIO$ getCurrentTime 
-  (ad,_) <- liftIO$ evaluate$  AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
-  --sst2 <- liftIO$ getCurrentTime 
-  --liftIO$ putStrLn$ "sst1 sst2 " ++ show (diffUTCTime sst2 sst1)
-
-  --st2 <- liftIO$ getCurrentTime 
   outputArray <-  ad `seq`  newArBBArray ad d  -- create array 
-  --st3 <- liftIO$ getCurrentTime 
+ 
 
   let inputArray0 = fromJust inputArray0' -- HACKITY
       inputArray1 = fromJust inputArray1' -- HACKITY
@@ -254,8 +248,7 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
                  it0 -- input type (of elements)  
                  it1 -- input type (of elements) 
                  f 
-  --st4 <- liftIO$ getCurrentTime                                
-  -- all three same dimensionality
+ 
   out_dense'  <- defineDenseTypesNew ot  d
   inp_dense0' <- defineDenseTypesNew it0 d
   inp_dense1' <- defineDenseTypesNew it1 d
@@ -265,35 +258,24 @@ zipWithOp acc@(OpenAcc (ZipWith f inp0 inp1))
       inp_dense = arBBTypeToList inp_dense0' ++ arBBTypeToList inp_dense1'
       out_dense = arBBTypeToList out_dense' 
 
-  --st5 <- liftIO$ getCurrentTime 
+ 
   zipper <- liftArBB$ funDef_ "zipper" out_dense inp_dense $ \ out inp -> do
     map_ fun out inp
- -- st6 <- liftIO$ getCurrentTime
+ 
  ----------
   when debug$ do
     str <- liftArBB$ serializeFunction_ zipper 
     liftIO$ putStrLn (getCString str)
  ---------    
-  --st7 <- liftIO$ getCurrentTime 
-  --liftIO$ putStrLn$ "st1 st2 " ++ show (diffUTCTime st2 st1)
-  --liftIO$ putStrLn$ "st3 st2 " ++ show (diffUTCTime st3 st2)
-  --liftIO$ putStrLn$ "st4 st3 " ++ show (diffUTCTime st4 st3)
-  --liftIO$ putStrLn$ "st5 st4 " ++ show (diffUTCTime st5 st4)
-  --liftIO$ putStrLn$ "st6 st5 " ++ show (diffUTCTime st6 st5)
-  --liftIO$ putStrLn$ "st7 st6 " ++ show (diffUTCTime st7 st6)
-
-  --t1 <-  liftIO$ getCurrentTime
   liftArBB$ execute_ zipper out_vars inp_vars    
   liftArBB$ finish_        
-  --t2 <-  liftIO$ getCurrentTime 
-  --liftIO$ putStrLn$ "time of execute alone " ++ show (diffUTCTime t2 t1)
  
           
   return$ Array sh0 ad
   where
     n = size sh0
     d = dim sh0
-    -- (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
+    (ad,_) = AD.runArrayData $ (,undefined) `fmap` AD.newArrayData (1024 `max` n)
      
 
 ------------------------------------------------------------------------------
