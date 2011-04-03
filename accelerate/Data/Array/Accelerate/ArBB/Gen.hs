@@ -57,7 +57,7 @@ genExp (Tuple t) env = genTuple t env
 genExp (Var idx) env = 
     let n = idxToInt idx
         num = length$ tupleType (eltType (undefined::t))
-    in return [(reverse env) !! (n+i) | i <- [0..num-1]]   
+    in return$ reverse [(reverse env) !! (n+i) | i <- [0..num-1]]   
 --     let n = idxToInt idx 
  --    in case tupleType (eltType (undefined::t)) of 
   --      [_] -> return [(reverse env) !! n] 
@@ -107,7 +107,7 @@ genPrimApp :: PrimFun c ->
               EmitArbb Variable
 genPrimApp op args st env = do 
    inputs <- genExp args env
-   liftIO$ putStrLn ("number of inputs: " ++show (length inputs))
+ --  liftIO$ putStrLn ("number of inputs: " ++show (length inputs))
    sty <- getScalarType_ st 
    let resname = "res" -- needs a unique name? 
    -- liftIO$ putStrLn ("Creating a result variable: " ++resname)
@@ -150,8 +150,13 @@ genPrim (PrimSig _) out inp = error "genPrim: SIGNUM not implemented"
 genPrim (PrimSqrt _) out inp = do 
    op_ ArbbOpSqrt [out] inp
    return out
-genPrim (PrimExpFloating _) out inp = error "genPrim: EXP not implemented" 
-genPrim (PrimLog _) out inp = error "genPrim: LOG not implemented" 
+genPrim (PrimExpFloating _) out inp = do 
+   op_ ArbbOpExp [out] inp
+   return out
+
+genPrim (PrimLog _) out inp = do 
+   op_ ArbbOpLn [out] inp  -- log - ln ?? 
+   return out
 
 -- BOOLEAN RESULTS 
 genPrim (PrimLt _) out inp = do 
@@ -189,7 +194,7 @@ genCond :: OpenExp env aenv Bool ->
            ArBBEnv -> 
            EmitArbb [Variable] 
 genCond b t1 t2 st env = do 
-   liftIO$ putStrLn$ "Entering uncharted waters! (Conditional)"
+   -- liftIO$ putStrLn$ "Entering uncharted waters! (Conditional)"
    [condition] <- genExp b env  -- should be length one, otherwise error!
    t <- defineTypes st
    result <- defineLocalVars t
@@ -203,7 +208,7 @@ genCond b t1 t2 st env = do
        zipWithM_ copy_ result r2 
     ) 
    return result
-   error "not implemented"  
+   -- error "not implemented"  
 
 -- TODO: CODE DUPLICATION !!!  PUT IN MODULE 
 defineLocalVars :: [Type] -> EmitArbb [Variable]
@@ -246,9 +251,9 @@ genPrj p@(Prj idx e)  env
   . drop (prjToInt idx (expType e))
   . reverse 
   <$> do 
-        liftIO$ putStrLn$ "Entering uncharted waters (genPrj)"
-        liftIO$ putStrLn$ show (length $ tupleType (expType p)) 
-        liftIO$ putStrLn$ show (prjToInt idx (expType e))
+      --  liftIO$ putStrLn$ "Entering uncharted waters (genPrj)"
+      --  liftIO$ putStrLn$ show (length $ tupleType (expType p)) 
+      --  liftIO$ putStrLn$ show (prjToInt idx (expType e))
         vars <- genExp e env
         return vars
 

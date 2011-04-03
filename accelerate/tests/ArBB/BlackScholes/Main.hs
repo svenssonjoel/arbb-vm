@@ -50,10 +50,14 @@ main = withSystemRandom $ \gen -> do
   t_p_1 <- getCurrentTime
   r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)
   t_p_2 <- getCurrentTime
---  r0' <- evaluate$ Interp.run (blackScholes apsy) 
+  r0' <- evaluate$ Interp.run (blackscholesAcc a_psy) 
   t_p_3 <- getCurrentTime 
 
 --  putStrLn$ "BlackScholes: " ++ if checkResult r r0 == [] then "Passed" else "failed "
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
---  putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
+  putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
+
+  putStrLn$ show$ Prelude.zip (toList r') (toList r0')
+--   putStrLn$ show$ toList r0'
+  
   return ()
