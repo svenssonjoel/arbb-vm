@@ -34,7 +34,7 @@ import System.Random.MWC
 import Random -- accelerate-examples/src/common/Random.hs
 
 
-n = 100000
+n = 1000000
 
 main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
@@ -57,7 +57,7 @@ main = withSystemRandom $ \gen -> do
 
 --  putStrLn$ "BlackScholes: " ++ if checkResult r r0 == [] then "Passed" else "failed "
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
-  putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
+  putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
 
   putStrLn$ show$ take 5$ Prelude.zip (toList r') (toList r0')
 --   putStrLn$ show$ toList r0'
