@@ -36,6 +36,7 @@ library
 
   exposed-modules: Intel.ArbbVM
                  , Intel.ArbbVM.Convenience
+                 , Intel.ArbbVM.Type
   GHC-Options: -O2 
   extra-libraries: tbb, arbb, pthread
   include-dirs: /opt/intel/arbb/latest/include

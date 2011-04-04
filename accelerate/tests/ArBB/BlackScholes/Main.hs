@@ -23,7 +23,7 @@ import qualified Data.Array.Accelerate.ArBB as ArBB
 
 
 -- CUDA back-end 
--- import qualified Data.Array.Accelerate.CUDA  
+import qualified Data.Array.Accelerate.CUDA as CUDA
 
 import Data.Int
 import Control.Exception
@@ -52,7 +52,7 @@ main = withSystemRandom $ \gen -> do
   t_p_1 <- getCurrentTime
   r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)
   t_p_2 <- getCurrentTime
-  r0' <- evaluate$ Interp.run (blackscholesAcc a_psy) 
+  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
   t_p_3 <- getCurrentTime 
 
 --  putStrLn$ "BlackScholes: " ++ if checkResult r r0 == [] then "Passed" else "failed "
