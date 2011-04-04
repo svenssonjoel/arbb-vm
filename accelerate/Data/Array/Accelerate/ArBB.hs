@@ -60,7 +60,7 @@ import Control.Monad
 import Control.Applicative
 import Control.Exception
 
-debug = True
+debug = False -- True
     
 ------------------------------------------------------------------------------
 -- run (The entry point) 

@@ -34,7 +34,7 @@ import System.Random.MWC
 import Random -- accelerate-examples/src/common/Random.hs
 
 
-n = 1000
+n = 100000
 
 main = withSystemRandom $ \gen -> do
   putStrLn "Generating input data..." 
@@ -42,11 +42,13 @@ main = withSystemRandom $ \gen -> do
   v_sp <- randomUArrayR (3,30)     gen n
   v_os <- randomUArrayR (1,100)    gen n
   v_oy <- randomUArrayR (0.25, 10) gen n 
-  a_psy <- evaluate$  Acc.fromList (Sugar.listToShape [n]) $ zip3 (elems v_sp) (elems v_os) (elems v_oy)
   t_g_2 <- getCurrentTime
-
+  a_psy <- evaluate$  Acc.fromList (Sugar.listToShape [n]) $ zip3 (elems v_sp) (elems v_os) (elems v_oy)
+  t_g_3 <- getCurrentTime
+  
   putStrLn$ "Done generating input data: " ++ ( show (diffUTCTime t_g_2 t_g_1) )  
- 
+  putStrLn$ "Zip stage took: " ++ show (diffUTCTime t_g_3 t_g_2) 
+
   t_p_1 <- getCurrentTime
   r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)
   t_p_2 <- getCurrentTime
@@ -57,7 +59,7 @@ main = withSystemRandom $ \gen -> do
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
   putStrLn$ "Time InterP : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
 
-  putStrLn$ show$ Prelude.zip (toList r') (toList r0')
+  putStrLn$ show$ take 5$ Prelude.zip (toList r') (toList r0')
 --   putStrLn$ show$ toList r0'
   
   return ()
