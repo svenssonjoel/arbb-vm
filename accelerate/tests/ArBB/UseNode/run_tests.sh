@@ -3,6 +3,7 @@
 echo --- Date of experiment  ------------------------------------------------------
 date
 echo --- Machine Information ------------------------------------------------------
+uname -a 
 cat /proc/cpuinfo 
 
 echo RUNNING TESTS 
