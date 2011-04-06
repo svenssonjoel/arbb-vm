@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo #### RUNNING TEST CUDA BACK-END WARMED UP ####
+echo **** RUNNING TEST CUDA BACK-END WARMED UP ****
 
 ./Main 100000 y 
 ./Main 250000 y 
@@ -13,7 +13,7 @@ echo #### RUNNING TEST CUDA BACK-END WARMED UP ####
 ./Main 10000000 y
 ./Main 20000000 y 
 
-echo #### RUNNING TEST WITHOUT WARMING UP CUDA ####
+echo **** RUNNING TEST WITHOUT WARMING UP CUDA ****
 
 ./Main 100000 n 
 ./Main 250000 n 
