@@ -69,17 +69,17 @@ run n w = withSystemRandom $ \gen -> do
 
   if w 
    then do 
-    --n_sp <- randomUArrayR (3,30)     gen 2048
-    --n_os <- randomUArrayR (1,100)    gen 2048
-    --n_oy <- randomUArrayR (0.25, 10) gen 2048
-    --n_g_2 <- getCurrentTime
-    --n_psy :: IArray.Array Int (Float,Float,Float) <- evaluate$ listArray (0,2047) $ zip3 (elems n_sp) (elems n_os) (elems n_oy)
-    --na_psy <- evaluate$ Acc.fromIArray n_psy
+    n_sp <- randomUArrayR (3,30)     gen 2048
+    n_os <- randomUArrayR (1,100)    gen 2048
+    n_oy <- randomUArrayR (0.25, 10) gen 2048
+    n_g_2 <- getCurrentTime
+    n_psy :: IArray.Array Int (Float,Float,Float) <- evaluate$ listArray (0,2047) $ zip3 (elems n_sp) (elems n_os) (elems n_oy)
+    na_psy <- evaluate$ Acc.fromIArray n_psy
 
-    --r <-  evaluate$ Interp.run (blackscholesAcc a_psy)
-    putStrLn$ "sent array through interpreter: "
-    --r <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
-    --putStrLn$ "warmed up CUDA: " ++ show (head (toList r)) 
+    r <-  evaluate$ Interp.run (blackscholesAcc na_psy)
+    putStrLn$ "warmed up ArBB " ++ show (head (toList r)) 
+    r <- evaluate$ CUDA.run (blackscholesAcc na_psy) 
+    putStrLn$ "warmed up CUDA: " ++ show (head (toList r)) 
    else return () 
 
   putStrLn$ show (head (toList a_psy))   
