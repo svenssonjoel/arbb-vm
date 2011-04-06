@@ -71,10 +71,10 @@ run n w = withSystemRandom $ \gen -> do
     --n_psy :: IArray.Array Int (Float,Float,Float) <- evaluate$ listArray (0,2047) $ zip3 (elems n_sp) (elems n_os) (elems n_oy)
     --na_psy <- evaluate$ Acc.fromIArray n_psy
 
-    r <-  evaluate$ ArBB.run (blackscholesAcc a_psy)
-    putStrLn$ "warmed up ArBB: " ++ show (head (toList r))
-    r <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
-    putStrLn$ "warmed up CUDA: " ++ show (head (toList r)) 
+    r <-  evaluate$ Interp.run (blackscholesAcc a_psy)
+    --putStrLn$ "warmed up ArBB: " ++ show (head (toList r))
+    --r <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
+    --putStrLn$ "warmed up CUDA: " ++ show (head (toList r)) 
    else return () 
 
   putStrLn$ show (head (toList a_psy))   
