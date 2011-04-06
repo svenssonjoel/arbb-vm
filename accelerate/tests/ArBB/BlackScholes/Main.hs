@@ -77,14 +77,13 @@ run n w = withSystemRandom $ \gen -> do
     putStrLn$ "warmed up CUDA: " ++ show (head (toList r)) 
    else return () 
 
-  
+  putStrLn$ show (head (toList a_psy))   
 
   -- The timing run 
   t_p_1 <- getCurrentTime
-  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)   
-  t_p_2 <- getCurrentTime
   r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)  
-
+  t_p_2 <- getCurrentTime
+  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)   
   t_p_3 <- getCurrentTime 
 
   putStrLn$ "BlackScholes: " ++ if checkResult (toList r') (toList r0') then "Passed" else "failed "
