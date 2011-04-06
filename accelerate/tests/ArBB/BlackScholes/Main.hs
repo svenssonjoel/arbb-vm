@@ -94,8 +94,8 @@ run n w = withSystemRandom $ \gen -> do
   t3 <- getCurrentTime 
 
 --  putStrLn$ "BlackScholes: " ++ if checkResult (toList r') (toList r0') then "Passed" else "failed "
-  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t3 t2) )  
-  putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t1 t0) )  
+  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t1 t0) )  
+  putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t3 t2) )  
 
   return ()
 
