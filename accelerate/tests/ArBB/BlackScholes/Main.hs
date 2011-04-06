@@ -23,7 +23,7 @@ import qualified Data.Array.Accelerate.ArBB as ArBB
 
 
 -- CUDA back-end 
-import qualified Data.Array.Accelerate.CUDA as CUDA
+-- import qualified Data.Array.Accelerate.CUDA as CUDA
 
 import Data.Int
 import Control.Exception
@@ -38,7 +38,9 @@ import System.Exit
 import System.Directory
 import System.Environment
 
--- import Control.DeepSeq
+--import Control.DeepSeq
+
+
 
 main :: IO ()
 main = do
@@ -62,6 +64,9 @@ run n w = withSystemRandom $ \gen -> do
   putStrLn$ "Done generating input data: " ++ ( show (diffUTCTime t_g_2 t_g_1) )  
   putStrLn$ "Zip stage took: " ++ show (diffUTCTime t_g_3 t_g_2) 
 
+  b <- evaluate$ toList a_psy
+  putStrLn$ show (last b) 
+
   if w 
    then do 
     --n_sp <- randomUArrayR (3,30)     gen 2048
@@ -71,8 +76,8 @@ run n w = withSystemRandom $ \gen -> do
     --n_psy :: IArray.Array Int (Float,Float,Float) <- evaluate$ listArray (0,2047) $ zip3 (elems n_sp) (elems n_os) (elems n_oy)
     --na_psy <- evaluate$ Acc.fromIArray n_psy
 
-    r <-  evaluate$ Interp.run (blackscholesAcc a_psy)
-    putStrLn$ "sent array through interpreter: " ++ show (head (toList r))
+    --r <-  evaluate$ Interp.run (blackscholesAcc a_psy)
+    putStrLn$ "sent array through interpreter: "
     --r <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
     --putStrLn$ "warmed up CUDA: " ++ show (head (toList r)) 
    else return () 
@@ -83,12 +88,12 @@ run n w = withSystemRandom $ \gen -> do
   t_p_1 <- getCurrentTime
   r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)  
   t_p_2 <- getCurrentTime
-  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)   
+ -- r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)   
   t_p_3 <- getCurrentTime 
 
-  putStrLn$ "BlackScholes: " ++ if checkResult (toList r') (toList r0') then "Passed" else "failed "
+--  putStrLn$ "BlackScholes: " ++ if checkResult (toList r') (toList r0') then "Passed" else "failed "
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
-  putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
+--  putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
 
   return ()
 
