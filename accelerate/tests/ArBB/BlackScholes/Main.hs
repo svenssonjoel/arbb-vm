@@ -23,7 +23,7 @@ import qualified Data.Array.Accelerate.ArBB as ArBB
 
 
 -- CUDA back-end 
- import qualified Data.Array.Accelerate.CUDA as CUDA
+-- import qualified Data.Array.Accelerate.CUDA as CUDA
 
 import Data.Int
 import Control.Exception
@@ -43,11 +43,12 @@ main = withSystemRandom $ \gen -> do
   v_os <- randomUArrayR (1,100)    gen n
   v_oy <- randomUArrayR (0.25, 10) gen n 
   t_g_2 <- getCurrentTime
-  -- a_psy <- evaluate$  Acc.fromList (Sugar.listToShape [n]) $ zip3 (elems v_sp) (elems v_os) (elems v_oy)
+
+  v_psy :: IArray.Array Int (Float,Float,Float) <- evaluate$ listArray (0,n-1) $ zip3 (elems v_sp) (elems v_os) (elems v_oy)
+  a_psy <- evaluate$ Acc.fromIArray v_psy
+
   t_g_3 <- getCurrentTime
   
-  let v_psy :: IArray.Array Int (Float,Float,Float) = listArray (0,n-1) $ zip3 (elems v_sp) (elems v_os) (elems v_oy)
-      a_psy = Acc.fromIArray v_psy
   
   
   putStrLn$ "Done generating input data: " ++ ( show (diffUTCTime t_g_2 t_g_1) )  
@@ -56,14 +57,14 @@ main = withSystemRandom $ \gen -> do
   t_p_1 <- getCurrentTime
   r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)
   t_p_2 <- getCurrentTime
-  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
+--   r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
   t_p_3 <- getCurrentTime 
 
 --  putStrLn$ "BlackScholes: " ++ if checkResult r r0 == [] then "Passed" else "failed "
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
   putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
 
-  putStrLn$ show$ take 1$ Prelude.zip (toList r') (toList r0')
+--   putStrLn$ show$ take 1$ Prelude.zip (toList r') (toList r0')
 --   putStrLn$ show$ toList r0'
   
   return ()
