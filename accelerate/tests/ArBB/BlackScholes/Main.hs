@@ -23,7 +23,7 @@ import qualified Data.Array.Accelerate.ArBB as ArBB
 
 
 -- CUDA back-end 
--- import qualified Data.Array.Accelerate.CUDA as CUDA
+import qualified Data.Array.Accelerate.CUDA as CUDA
 
 import Data.Int
 import Control.Exception
@@ -85,15 +85,17 @@ run n w = withSystemRandom $ \gen -> do
   putStrLn$ show (head (toList a_psy))   
 
   -- The timing run 
-  t_p_1 <- getCurrentTime
+  t0 <- getCurrentTime
+  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)       
+  t1 <- getCurrentTime
+
+  t2 <- getCurrentTime
   r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)  
-  t_p_2 <- getCurrentTime
- -- r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)   
-  t_p_3 <- getCurrentTime 
+  t3 <- getCurrentTime 
 
 --  putStrLn$ "BlackScholes: " ++ if checkResult (toList r') (toList r0') then "Passed" else "failed "
-  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
---  putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
+  putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t3 t2) )  
+  putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t1 t0) )  
 
   return ()
 
