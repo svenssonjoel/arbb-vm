@@ -11,9 +11,9 @@ LIBS= -ltbb -larbb_dev
 #LIBS= -ltbb -larbb
 
 all:
-	ghc --make $(INCLUDES) Main.hs $(LIBS) -O3 
-#	ghc --make -package accelerate $(INCLUDES) Main.hs $(LIBS) -O3 
-#	ghc --make $(INCLUDES) Main.hs $(LIBS) -O3 -rtsopts
+	ghc --make $(INCLUDES) Main.hs $(LIBS) -O2
+#	ghc --make -package accelerate $(INCLUDES) Main.hs $(LIBS) -O2
+#	ghc --make $(INCLUDES) Main.hs $(LIBS) -O2 -rtsopts
 #	ghc --make $(INCLUDES) tests/ArBB/Benchmarks/Main.hs $(LIBS)
 
 c:
