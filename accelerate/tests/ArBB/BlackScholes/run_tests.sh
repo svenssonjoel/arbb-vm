@@ -1,5 +1,9 @@
 #!/bin/sh
 
+echo --- Date of experiment  ------------------------------------------------------
+date
+echo --- Machine Information ------------------------------------------------------
+cat /proc/cpuinfo 
 
 echo RUNNING TEST WITH CUDA BACK-END WARMED UP
 echo ------------------------------------------------------------------------------
