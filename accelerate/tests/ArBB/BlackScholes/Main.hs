@@ -86,7 +86,7 @@ run n w = withSystemRandom $ \gen -> do
   r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
   t_p_3 <- getCurrentTime 
 
-  putStrLn$ "BlackScholes: " ++ if checkResult r r0 then "Passed" else "failed "
+  putStrLn$ "BlackScholes: " ++ if checkResult (toList r') (toList r0') then "Passed" else "failed "
   putStrLn$ "Time ArBB : " ++ ( show (diffUTCTime t_p_2 t_p_1) )  
   putStrLn$ "Time CUDA : " ++ ( show (diffUTCTime t_p_3 t_p_2) )  
 
