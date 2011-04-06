@@ -86,11 +86,11 @@ run n w = withSystemRandom $ \gen -> do
 
   -- The timing run 
   t0 <- getCurrentTime
-  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)       
+  r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)   
   t1 <- getCurrentTime
 
   t2 <- getCurrentTime
-  r' <-  evaluate$ ArBB.run (blackscholesAcc a_psy)  
+  r0' <- evaluate$ CUDA.run (blackscholesAcc a_psy)        
   t3 <- getCurrentTime 
 
 --  putStrLn$ "BlackScholes: " ++ if checkResult (toList r') (toList r0') then "Passed" else "failed "
