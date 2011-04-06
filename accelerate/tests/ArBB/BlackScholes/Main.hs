@@ -72,7 +72,7 @@ run n w = withSystemRandom $ \gen -> do
     --na_psy <- evaluate$ Acc.fromIArray n_psy
 
     r <-  evaluate$ Interp.run (blackscholesAcc a_psy)
-    --putStrLn$ "warmed up ArBB: " ++ show (head (toList r))
+    putStrLn$ "sent array through interpreter: " ++ show (head (toList r))
     --r <- evaluate$ CUDA.run (blackscholesAcc a_psy) 
     --putStrLn$ "warmed up CUDA: " ++ show (head (toList r)) 
    else return () 
