@@ -48,3 +48,25 @@ blackscholesAcc xs = Acc.map go (Acc.use xs)
     in
     Acc.lift ( price * cndD1 - strike * expRT * cndD2
              , strike * expRT * (1.0 - cndD2) - price * (1.0 - cndD1))
+
+
+-- TEMPORARY: Here is a hacked version that 
+blackscholesAcc_hack :: Vector (Float, Float, Float) -> Acc (Vector (Float, Float))
+blackscholesAcc_hack xs = Acc.map go (Acc.use xs)
+  where
+  go x =
+    let (price, strike, years) = Acc.unlift x
+        r     = Acc.constant riskfree
+        v     = Acc.constant volatility
+        sqrtT = sqrt years
+        d1    = (log (price / strike) + (r + 0.5 * v * v) * years) / (v * sqrtT)
+        d2    = d1 - v * sqrtT
+        cnd d = d >* 0 ? (1.0 - cnd' d, 0.0)
+        cndD1 = cnd d1
+--        cndD2 = cnd d2
+        expRT = exp (-r * years)
+    in
+    Acc.lift ( price * cndD1 - strike * expRT * 1.0 -- cndD2
+--             , strike * expRT * (1.0 - cndD2) - price * (1.0 - cndD1))
+             , strike * expRT * (1.0 - 0.0) - price * (1.0 - 0.0))
+

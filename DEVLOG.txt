@@ -56,3 +56,85 @@ With the simple add function in comparison to arbb_add_reduce
 OUR OWN:    0.263479s
 BUILT IN:   0.015299s
 (2^24 elements summed up)
+
+
+[2011.04.07] {Weird behavior from blackscholes test today}
+
+Strange rebuilding effect.  Joel & I just ran blackscholes of 1M and
+found it to take 15 seconds on vs-lin64-9 (no ARBB_* variables set).
+Then doing a full rebuild brought it to 0.24 seconsd.
+
+Increasing to 12.8 million for comparison.  That caused us to observe
+the power-of-two effect where generating/zipping data (on vs 9) jumped
+from 4s/1s to 54s/14s.
+
+Here we are timing a hack that cuts down the Blackscholes kernel to
+not get the 8X code duplication:
+
+     [rrnewton@vs-lin64-9 ~/arbb-vm/accelerate/tests/ArBB/BlackScholes] $ ./Main 12800000
+     Generating input data...
+     Done generating input data: 54.792426s
+     Zip stage took: 14.216404s
+     (18.226551,74.53485,1.8865415)
+     (8.828712,24.428644,0.5641718)
+     Running hacked version
+	Recording AST for hacked version...
+     Running normal version
+       Recording AST for normal version...
+     Time ArBB (hacked): 0.44888s
+     Time ArBB : 0.96046s
+
+4 cores:
+   Time ArBB (hacked): 0.328082s
+   Time ArBB : 0.562035s
+
+8 cores, e.g. "ARBB_OPT_LEVEL=o3 ARBB_NUM_CORES=8 ./Main 12800000" :
+   Time ArBB (hacked): 0.24934s
+   Time ArBB : 0.515408s
+   
+
+
+For comparison, the ArBB/C++:
+
+    $ ARBB_OPT_LEVEL=o3 ARBB_NUM_CORES=  ./black-scholes 
+    Num of Runs: 1
+    Num of Options: 12800000
+    Errors: 0/12800000
+    Errors: 0/12800000
+    ----------------------------------------
+       Version      Time(s)  Speed Up
+	     C     1.447279  1.000           
+	 ArBB1     0.095563  15.145          
+	 ArBB2     0.052681  27.473          
+    ----------------------------------------
+    Test finished
+
+
+
+
+
+When we try to get the ArBB/C++ version working:
+
+  * We find that both the dbg_ and opt_ versions (libarbb_dev and
+    libarbb) obey the combination of ARBB_OPT_LEVEL=o3 and  ARBB_NUM_CORES
+
+
+
+
+
+--------------------------------------------------------------------------------
+List of problems encountered with ArBB:
+
+  * "O3" is mentioned in documentation
+
+
+List of problems encountered with Haskell / Accelerate:
+
+  * We had some unexplained problems where rebuilding would create a
+    large performance effect.
+  * Accelerate's fromList is broken (quadratic)
+  * 
+
+
+  * Power of two effect in GHC.Prim.newPinnedByteArray 
+    Sometimes non-powers-of two take enormously more time.
