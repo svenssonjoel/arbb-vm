@@ -44,7 +44,7 @@ Library
                    C2HS
 
   GHC-Options: -O2 
-  extra-libraries: tbb, arbb, pthread
+--extra-libraries: tbb, arbb, pthread
   include-dirs: /opt/intel/arbb/latest/include
 
   -- FIXME: How do we read an environment variable?
