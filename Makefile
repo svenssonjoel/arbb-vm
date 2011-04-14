@@ -11,6 +11,7 @@ TESTS= \
    examples/tests/Test_SegFold.hs \
    examples/tests/Test_Scan1.hs \
    examples/tests/Test_DotProd.hs \
+   examples/tests/Test_DotProdConv.hs \
    examples/tests/Test_Conditional1.hs \
    examples/tests/Test_Loop1.hs \
    examples/tests/Test_Constants.hs \
