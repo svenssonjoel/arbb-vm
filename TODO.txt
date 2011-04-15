@@ -6,7 +6,7 @@ Short term TODO items
    - figure out why ArBB allows output of reduction to be a Dense when 
      it should be a Scalar (1D -> 0D case) 
 * Bug hunting (some are starting to surface) 
-    - reverse of env in genExp (a hack)
+    - reverse of env in genExp (a hack?)
 * Make debug output easy to toggle on or off (it is now off) 
 * Run some simple benchmarks
     - DONE Increment
