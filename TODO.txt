@@ -1,58 +1,82 @@
 
+
+
+Ryan's priorities:
+
+ * Determine what Ryan should do.  Command him.
+ * Retained mode for everything
+ * Debug performance for blackscholes
+ * document covered functionality and release
+ * do limited + slow general fold
+ * do awesome fold
+ * Write paper -> Victory
+
+
+MYSTERIES:
+  * 1D/0D thing below
+  * difference between the two blackscholes
+  * Rebuild problem -- destroys performance, fixed by rebuild.
+  * newPinnedArray -- sometimes obliterates performance
+
 Short term TODO items
 ---------------------
-* DONE Implement limited Fold functionality  in ArBB back-end
-* Fix strange behaviour in corner case of reduce 1D to 0D 
-   - figure out why ArBB allows output of reduction to be a Dense when 
-     it should be a Scalar (1D -> 0D case) 
-* Bug hunting (some are starting to surface) 
-    - reverse of env in genExp (a hack?)
-* Make debug output easy to toggle on or off (it is now off) 
-* Run some simple benchmarks
-    - DONE Increment
-    - DONE Sum 
-    - DONE SAXPY
-    - DONE DotProd 
-    - Matrix Add (Should also be possible) 
-* is_remote: 
-    The meaning of this argument to begin_function is supposed to be
-      - True -> This function can be called by execute 
-      - False -> This functiona cal be called using call (from within a function)
-* Figure out how to handle the ArBB memory
-   - what is handled by their GC ? 
-   - What do I need to handle ? 
-       + Memory allocated into global vars using arbb_op_alloc ? ( I think so ) 
-       + Memory allocated as result of createDenseBinding ?  (Yes) 
-       + Memory for intermediate results ? 
-   - Right now memory surely leaks! 
-* Make BlackScholes run
-   - Implement Cond 
-   - allow for some "general reductions" 
-       (Blackscholes does a multiply add in the reducer function) 
-   - Fix the data generation problem here (Going via lists is horribly slow) 
-   
+ * Fix strange behaviour in corner case of reduce 1D to 0D 
+    - figure out why ArBB allows output of reduction to be a Dense when 
+      it should be a Scalar (1D -> 0D case)* 
+ * Bug hunting (some are starting to surface) 
+     - reverse of env in genExp (a hack?)
+ * Make debug output easy to toggle on or off (it is now off) 
+ * Run some simple benchmarks
+     - DONE Increment
+     - DONE Sum 
+     - DONE SAXPY
+     - DONE DotProd 
+     - Matrix Add (Should also be possible) 
+ * is_remote: 
+     The meaning of this argument to begin_function is supposed to be
+       - True -> This function can be called by execute 
+       - False -> This function call can ONLY be called using call (from within a function)
+ * Figure out how to handle the ArBB memory
+    - what is handled by their GC ? 
+    - What do I need to handle ? 
+	+ Memory allocated into global vars using arbb_op_alloc ? ( I think so ) 
+	+ Memory allocated as result of createDenseBinding ?  (Yes) 
+	+ Memory for intermediate results ? 
+    - Right now memory surely leaks! 
+    - Need to use ForeignPtr + finalizers??? 
+
+ * DONE Implement limited Fold functionality  in ArBB back-end
+ * DONE Make BlackScholes run
+    - DONE Implement Cond 
+    - allow for some "general reductions" 
+	(Blackscholes does a multiply add in the reducer function) 
+    - Fix the data generation problem here (Going via lists is horribly slow) 
+      - Look into Data.A.IO?    
 
 
 
 Long term TODO items 
 --------------------
-* The "Partner" arrays allocated on Haskell side should be allocated 
-  of minimum size!
+ * The "Partner" arrays allocated on Haskell side should be allocated 
+   of minimum size!
 
-* Implement more complete Fold functionality in ArBB back-end
-    - Fold using function f 
+ * Implement more complete Fold functionality in ArBB back-end
+     - Fold using general associative function f 
+     - Extend general fold to higher dimensions?  
+     - Non power-of-2 length?
 
-* Expand Accelerate ArBB back-end functionality beyond map, zipwith, fold
-  - Permutations 
-  - scans 
+ * Reference counting on arrays managed in the back-end
+    - Free arrays when possible 
+ * Generalize genBFun and genMap (They are the same concept, should be fused) 
+ * Investigate if "uploading" data at "Use" points is a good idea.
+     Doing so imposes a restriction on dimensionality already at that point.
+ * Work on a "non-immediate" mode ArBB back-end 
+     - generate larger functions and give the ArBB optimization passes more 
+       to work on.  
+ * Different ArBB Kernels can be used depending on runtime knowledge, such as 
+   size, shape.    
+
+ * Expand Accelerate ArBB back-end functionality beyond map, zipwith, fold
+   - Permutations 
+   - scans 
  
-* Reference counting on arrays managed in the back-end
-   - Free arrays when possible 
-* Generalize genBFun and genMap (They are the same concept, should be fused) 
-* Investigate if "uploading" data at "Use" points is a good idea.
-    Doing so imposes a restriction on dimensionality already at that point.
-* Work on a "non-immediate" mode ArBB back-end 
-    - generate larger functions and give the ArBB optimization passes more 
-      to work on.  
-* Different ArBB Kernels can be used depending on runtime knowledge, such as 
-  size, shape.    
