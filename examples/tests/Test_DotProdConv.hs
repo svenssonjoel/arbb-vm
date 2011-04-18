@@ -25,10 +25,10 @@ gen_DotProd sty = do
    return fun   
 
 main = arbbSession$ do 
-     sty <- getScalarType_ ArbbF32
-     dty <- getDenseType_ sty 1  
+    sty <- getScalarType_ ArbbF32
+    dty <- getDenseType_ sty 1  
           
-     dotprod <- funDef_ "dotProd" [sty] [dty,dty] $ \[out] [in1,in2] -> do 
+    dotprod <- funDef_ "dotProd" [sty] [dty,dty] $ \[out] [in1,in2] -> do 
        tmp <- createLocal_ dty "tmp"  
        op_ ArbbOpMul [tmp] [in1,in2]     
        opDynamic_ ArbbOpAddReduce [out] [tmp] 
