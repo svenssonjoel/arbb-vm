@@ -25,14 +25,15 @@ gen_DotProd sty = do
    return fun   
 
 main = arbbSession$ do 
-     sty <- getScalarType_ ArbbF32
-     dty <- getDenseType_ sty 1  
-          
-     dotprod <- funDef_ "dotProd" [sty] [dty,dty] $ \[out] [in1,in2] -> do 
+    sty <- getScalarType_ ArbbF32
+    dty <- getDenseType_ sty 1  
+     
+    dotprod <- funDef_ "dotProd" [sty] [dty,dty] $ \ [out] [in1,in2] -> do 
        tmp <- createLocal_ dty "tmp"  
        op_ ArbbOpMul [tmp] [in1,in2]     
        opDynamic_ ArbbOpAddReduce [out] [tmp] 
- 
+       return ()
+         
     withArray_ (replicate (2^24) 1 :: [Float]) $ \ in1 ->
       withArray_ (replicate (2^24) 1 :: [Float]) $ \ in2 -> do
         inb1 <- createDenseBinding_ (castPtr in1) 1 [2^24] [4] 
