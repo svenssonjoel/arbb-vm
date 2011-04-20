@@ -13,7 +13,7 @@ module Intel.ArbbVM.Convenience
 
    arbbSession, EmitArbb,  
    if_, while_, readScalar_,
-   funDef_, funDefS_,
+   funDef_, funDefS_, funDefCallable_, 
    op_, opImm_,  
    opDynamic_, opDynamicImm_,
    map_,  call_, 
@@ -191,12 +191,18 @@ type FunBody = [Variable] -> [Variable] -> EmitArbb ()
 
 debug_fundef = False
 
-funDef_ :: String -> [Type] -> [Type] -> FunBody  -> EmitArbb Function
 funDef_ name outty inty userbody = 
+    funDefInternal name outty inty userbody 0
+
+funDefCallable_ name outty inty userbody = 
+    funDefInternal name outty inty userbody 1 
+
+funDefInternal :: String -> [Type] -> [Type] -> FunBody  -> Int -> EmitArbb Function
+funDefInternal name outty inty userbody remote =
   do 
      ctx <- getCtx
      fnt     <- L getFunctionType ctx outty inty
-     fun     <- L beginFunction ctx fnt name 0
+     fun     <- L beginFunction ctx fnt name remote
 
      when debug_fundef$ print_$ "["++name++"] Function begun."
      invars  <- L forM [0 .. length inty  - 1]   (getParameter fun 0)

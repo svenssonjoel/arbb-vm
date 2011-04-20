@@ -24,6 +24,7 @@ TESTS= \
    examples/tests/Test_DenseResults.hs \
    examples/tests/Test_DenseResults2.hs \
    examples/tests/Test_Execute.hs \
+   examples/tests/Bench_BlackScholes.hs \
    examples/tests/Bench_ReduceOwn.hs \
    examples/tests/Bench_ReduceArBB.hs \
 
