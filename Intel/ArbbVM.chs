@@ -171,13 +171,13 @@ dbgfile = "debugtrace_HaskellArBB.txt"
 
 -- | A running ArBBVM session creates a trace of debug messages that
 --   can be consumed immediately or accumulated in memory.
-data DbgTrace = DbgNull | DbgCons TaggedDbgEvent (MVar DbgTrace)
+data DbgTrace = DbgCons Int TaggedDbgEvent (MVar DbgTrace)
 
 -- Tagged with additional message and ThreadID:
 type TaggedDbgEvent = (ThreadId,DbgEvent)
 
 data DbgEvent = 
-   DbgStart 
+   DbgStart -- A dummy event.
  | DbgCall { operator :: String,
 	     operands :: [NamedValue],
 	     result   :: NamedValue }
@@ -186,27 +186,35 @@ data DbgEvent =
 -- A printed value together with a descriptive name:
 type NamedValue = (String,String)
 
--- Run an computation that interacts with the ArBB-VM and capture its trace:
-runWithTrace :: IO a -> IO (a,[DbgEvent])
+-- Run an computation that interacts with the ArBB-VM and capture its trace.
+-- The trace is returned as a lazy list so that it may be consumed concurrently 
+runWithTrace :: IO a ->IO (a,[DbgEvent])
+-- runWithTrace :: IO a -> ([DbgEvent], IO a)
 runWithTrace m = do
   -- Capture the starting point for this segment of trace:
+  DbgCons cntr1 ptr1 tl <- readIORef global_dbg_trace_tail
   -- Run the computation:
   x <- m
-  return (x,[])
+  -- Capture the ending point:
+  DbgCons cntr2 _ _ <- readIORef global_dbg_trace_tail
+  -- Read everything inbetween:
+  ls <- error "implement me"
+
+  return (x,ls)
+
+--traceToList :: DbgTrace -> Int -> [DbgEvent]
+--traceToList = 
 
 -- TOFIX: Presently debug traces are accumulated via a global
 -- variable.  In the future it's probably better that this go in a
 -- state monad!
 global_dbg_trace_tail :: IORef DbgTrace
-global_dbg_trace_tail = 
-   unsafePerformIO initial
+global_dbg_trace_tail = unsafePerformIO initial
   where initial = do tl <- newEmptyMVar
 		     id <- myThreadId
-	             newIORef (DbgCons (id,DbgStart) tl)
+	             newIORef (DbgCons 0 (id,DbgStart) tl)
 
-extend_if_null new DbgNull = (new, True)
-extend_if_null new old     = (old,False)
-
+-- | IO function to log an event in the debug trace.
 dbg :: (Show c) => 
        String -> 
        [(String,String)] -> 
@@ -218,41 +226,33 @@ dbg msg inputs (nom,accf) (ec, rv, ed) =
      id     <- myThreadId
      new_tl <- newEmptyMVar
      let evt = DbgCall msg inputs (nom, show (accf rv))
-	 newcell = DbgCons (id,evt) new_tl
-
          loop = do
 	   -- Now to add a new entry to the debug trace.  Things get tricky
 	   -- because we want to do TWO things, extend the linked list and
 	   -- modify the global variable to point to the new tail.  We could
 	   -- use TVars to do that atomically but the following protocol
 	   -- works as well.  Which runs better under contention?
-	   tail <- readIORef global_dbg_trace_tail
-	   case tail of 
-	     DbgNull -> do
-	       success <- atomicModifyIORef global_dbg_trace_tail (extend_if_null newcell)
-	       unless success loop
-
-	     DbgCons hd tl -> do
-	       success <- tryPutMVar tl newcell
-	       if success then 
-		-- If we succeed then we have the right to repoint the global:
-		writeIORef global_dbg_trace_tail newcell
-		-- If we fail to fill the tail then someone else beat us to it and we retry:
-		else loop
+	   DbgCons cntr hd tl <- readIORef global_dbg_trace_tail
+	   let newcell = DbgCons (cntr+1) (id,evt) new_tl
+	   success <- tryPutMVar tl newcell
+	   if success then 
+	    -- If we succeed then we have the right to repoint the global:
+	    writeIORef global_dbg_trace_tail newcell
+	    -- If we fail to fill the tail then someone else beat us to it and we retry:
+	    else loop
      loop 
-
-     -- appendFile dbgfile $ msg ++ 
-     -- 			  concatMap printInfo inputs ++ 
-     -- 			  "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
-     -- 			  "\n"   
      return (ec, rv, ed)
-
 
 dbg0 msg inputs (ec,ed) = 
  do
   (a,b,c) <- dbg msg inputs ("unit", id) (ec,(),ed) 
   return (a,c)
 
+
+-- appendFile dbgfile $ msg ++ 
+-- 			  concatMap printInfo inputs ++ 
+-- 			  "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
+-- 			  "\n"   
 
 newDBGFile x =
   do 
