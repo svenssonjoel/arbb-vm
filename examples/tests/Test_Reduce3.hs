@@ -26,10 +26,10 @@ main = arbbSession$ do
      size_t <- getScalarType_ ArbbUsize
      dsize_t <- getDenseType_ size_t 1
 
-     add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
+     add <- funDefCallable_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
         op_ ArbbOpAdd [out] [i1,i2] 
              
-     reduceStep <- funDef_ "rS" [dty] [dty,size_t] $ \ [out] [inp,n] -> do 
+     reduceStep <- funDefCallable_ "rS" [dty] [dty,size_t] $ \ [out] [inp,n] -> do 
         
         parts    <- createLocal_ dty2 "halves"
         h1       <- createLocal_ dty "h1"
@@ -52,7 +52,7 @@ main = arbbSession$ do
 
         op_ ArbbOpCopy [out] [newArr] 
              
-     reduce <- funDef_ "red" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
+     reduce' <- funDefCallable_ "red" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
        c   <- createLocal_ bt "cond" 
        one <- usize_ 1
        zero <- usize_ 0 
@@ -76,6 +76,8 @@ main = arbbSession$ do
         
      liftIO$ putStrLn "Done compiling function, now executing..."
  
+     reduce <- funDef_ "red" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
+       call_ reduce' [out] [inp,n]                      
    
      withArray_  (replicate (2^24) 1 ::[ Word32]) $ \ inp -> 
      -- withArray_ (replicate 8 0 :: [Word32]) $ \ out -> 

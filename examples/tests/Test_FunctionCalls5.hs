@@ -28,19 +28,23 @@ main = arbbSession$ do
      print_ "Begin emitting function code.."
 
      myAdd <- funDefCallable_ "myAdd" [sty] [sty,sty] $ \ [out] [i1,i2] -> do
-       a1 <- createLocal_ sty "a1" 
-       a2 <- createLocal_ sty "a2" 
-       r  <- createLocal_ sty "r"
-             
-       copy_ a1 i1
-       copy_ a2 i2
-       op_ ArbbOpAdd [r] [a1,a2]                      
-       copy_ out r
+       op_ ArbbOpAdd [out] [i1,i2]                      
      
      add <- funDefCallable_ "add" [sty] [sty] $ \ [out] [a] -> do
-       one <- int32_ 1 
-       --call_ myAdd [out] [a,one] 
-       op_ ArbbOpAdd [out] [a,one]
+       b <- createLocal_ sty "b" 
+       c <- createLocal_ sty "c" 
+       r <- createLocal_ sty "r"
+       
+       copy_ b a 
+       copy_ c a 
+
+       -- one <- int32_ 1 
+       -- Breaks is doing the call_ here 
+       --call_ myAdd [r] [b,c] -- one
+       op_ ArbbOpAdd [r] [b,c]
+       -- op_ ArbbOpAdd [out] [a,one]
+
+       copy_ out r 
 
                  
      
