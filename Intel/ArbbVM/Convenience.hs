@@ -191,11 +191,20 @@ type FunBody = [Variable] -> [Variable] -> EmitArbb ()
 
 debug_fundef = False
 
+{- 
+  BJS:  This funDef_ situation might need some improvement. 
+   - one option is create the functions both callable and not
+     a  Function would need to be a pair of the "callable" function
+     and the "executable" function 
+   - This is a part of ArBB that is very likely to change 
+  
+
+-} 
 funDef_ name outty inty userbody = 
-    funDefInternal name outty inty userbody 0
+    funDefInternal name outty inty userbody 1
 
 funDefCallable_ name outty inty userbody = 
-    funDefInternal name outty inty userbody 1 
+    funDefInternal name outty inty userbody 0 
 
 funDefInternal :: String -> [Type] -> [Type] -> FunBody  -> Int -> EmitArbb Function
 funDefInternal name outty inty userbody remote =

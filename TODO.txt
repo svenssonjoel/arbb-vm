@@ -5,6 +5,9 @@ Ryan's priorities:
 
  * Determine what Ryan should do.  Command him.
  * Retained mode for everything
+    BJS: Problem to understand fully before "Retained mode only" is possible is 
+         "is_remote". is_remote and all its implications is a big problem!
+      
  * Debug performance for blackscholes
  * document covered functionality and release
  * do limited + slow general fold

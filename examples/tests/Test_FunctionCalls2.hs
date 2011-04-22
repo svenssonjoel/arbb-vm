@@ -9,6 +9,13 @@ import Foreign.ForeignPtr
 
 import C2HS
 
+{- 
+
+  Changes:
+  BJS: Changed this test on Apr-21-2011 to correspond to 
+       new information about the ArBB is_remote parameter to functions
+
+-}  
 
 main = arbbSession$ do 
      sty <- getScalarType_  ArbbI32
@@ -16,11 +23,11 @@ main = arbbSession$ do
      one <- const_ ArbbI32 (1 ::Int32)
      x   <- const_ ArbbI32 (100::Int32) 
      
-     fun2 <- funDef_ "fun2" [sty] [sty,sty] $ \ [out] [i1,i2] -> do
+     fun2 <- funDefCallable_ "fun2" [sty] [sty,sty] $ \ [out] [i1,i2] -> do
        	op_ ArbbOpAdd  [out] [i1,i2]
 
 
-     fun1 <- funDef_ "fun1" [sty] [sty] $ \ [out] [inp] -> do
+     fun1 <- funDefCallable_ "fun1" [sty] [sty] $ \ [out] [inp] -> do
         in1 <- createLocal_ sty "in1"
         in2 <- createLocal_ sty "in2"
         res <- createLocal_ sty "res"  
@@ -31,6 +38,10 @@ main = arbbSession$ do
 	call_ fun2 [res] [in1,in2]
 	
         op_ ArbbOpCopy  [out] [res]
+
+     -- EXECUTE WRAPPER!!!! 
+     fun <- funDef_ "fun1" [sty] [sty] $ \ [out] [inp] -> do
+        call_ fun1 [out] [inp] 
 
         
 
@@ -43,7 +54,7 @@ main = arbbSession$ do
      
 
      
-     execute_ fun1 [y] [x]
+     execute_ fun [y] [x]
 
      result :: Int32 <- readScalar_ y 
      liftIO$ putStrLn$ "Result from function application: "++ show result

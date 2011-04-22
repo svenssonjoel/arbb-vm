@@ -81,7 +81,10 @@ main = arbbSession$ do
     
   -- FUNCTION cnd
   cnd <- funDefCallable_ "cnd" [sty] [sty] $ \ [o] [d] -> do 
-    copy_ o d                        
+    tmp <- createLocal_ sty "tmp" 
+    copy_ tmp d 
+    copy_ o tmp
+
     {-                       
     b <- createLocal_ bty "condition" 
                   
@@ -167,23 +170,26 @@ main = arbbSession$ do
         
     -- cndD1 
     call_ cnd [cndD1] [d1] 
-    -- copy_ cndD1 d1
+    --copy_ cndD1 d1
 
     -- cndD2 
     call_ cnd [cndD2] [d2]      
-    -- copy_ cndD2 d2
+    --copy_ cndD2 d2
 
     --CONSTRUCTION AREA    
     -- to begin with 
-    op_ ArbbOpSub [tmp1] [p,s] -- price * cndD1 - strike * expRT * cndD2
-    op_ ArbbOpSub [tmp2] [s,p] -- strike * expRT * (1.0 - cndD2) - price * (1.0 - cndD1)
+    --op_ ArbbOpSub [tmp1] [p,s] -- price * cndD1 - strike * expRT * cndD2
+    --op_ ArbbOpSub [tmp2] [s,p] -- strike * expRT * (1.0 - cndD2) - price * (1.0 - cndD1)
     ---
             
     copy_ o1 cndD1 -- tmp1
     copy_ o2 cndD2 -- tmp2
   
-  blackscholes <- funDef_ "blackscholes" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
+  blackscholes' <- funDefCallable_ "blackscholes'" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
     map_ go [o1,o2] [i1,i2,i3]                      
+
+  blackscholes <- funDef_ "blackscholes" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
+    call_ blackscholes' [o1,o2] [i1,i2,i3] 
 
   withArray_ [0..1000 :: Float] $ \ inp1 -> 
     withArray_ [0..1000 :: Float] $ \ inp2 -> 

@@ -21,9 +21,12 @@ TESTS= \
    examples/tests/Test_FunctionCalls2.hs \
    examples/tests/Test_FunctionCalls3.hs \
    examples/tests/Test_FunctionCalls4.hs \
+   examples/tests/Test_FunctionCalls5.hs \
    examples/tests/Test_DenseResults.hs \
    examples/tests/Test_DenseResults2.hs \
    examples/tests/Test_Execute.hs \
+   examples/tests/Test_DummyBlackScholes.hs \
+   examples/tests/Test_DummyBlackScholes1.hs \
    examples/tests/Bench_BlackScholes.hs \
    examples/tests/Bench_ReduceOwn.hs \
    examples/tests/Bench_ReduceArBB.hs \

@@ -10,7 +10,12 @@ import Foreign.ForeignPtr
 
 import C2HS
 
-
+{- 
+   Note: 
+    BJS April-21-2011: This test does not wrap the function 
+    to be executed. (as required !!, but still works??) 
+    
+-} 
 
 main = arbbSession$ do 
      sty    <- getScalarType_  ArbbI32
