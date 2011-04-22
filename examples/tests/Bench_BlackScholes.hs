@@ -185,7 +185,7 @@ main = arbbSession$ do
     copy_ o1 cndD1 -- tmp1
     copy_ o2 cndD2 -- tmp2
   
-  blackscholes <- funDef_ "blackscholes'" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
+  blackscholes <- funDef_ "blackscholes" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
     map_ go [o1,o2] [i1,i2,i3]                      
 
   withArray_ [0..1000 :: Float] $ \ inp1 -> 
