@@ -36,7 +36,7 @@ TESTS= \
 # This is not passing for me right now [2011.02.27]:
 #   examples/tests/Test_DenseResults3.hs
 
-SRC = Intel/ArbbVM.hs Intel/ArbbVM/Convenience.hs
+SRC = Intel/ArbbVM.hs Intel/ArbbVM/Convenience.hs Intel/ArbbVM/Debug.hs
 
 TESTEXES = $(TESTS:.hs=.exe)
 

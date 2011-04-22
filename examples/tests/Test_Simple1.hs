@@ -8,7 +8,8 @@ import Foreign.Ptr
 
 import C2HS
 
-main = do 
+main = runReproducer$
+  do 
      ctx <- getDefaultContext 
      t   <- getScalarType ctx ArbbF32
      fnt <- getFunctionType ctx [t] [t,t,t] 

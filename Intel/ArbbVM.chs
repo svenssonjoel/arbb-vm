@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface#-}
+{-# LANGUAGE ForeignFunctionInterface, BangPatterns #-}
 {-# OPTIONS  -XDeriveDataTypeable #-}
 
 module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable, 
@@ -12,6 +12,8 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       
                       ArbbVMException, 
                       
+                      module Intel.ArbbVM.Debug,
+
                       getDefaultContext, getScalarType, 
                       
                       getErrorMessage, getErrorCode, freeErrorDetails, 
@@ -43,7 +45,7 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
 -------------------------
                        ) where
 
--- import Intel.ArbbVM.Debug
+import Intel.ArbbVM.Debug
 
 import Foreign.C.Types
 import Foreign.C.String
@@ -158,95 +160,6 @@ throwIfErrorIO0 :: (Error,ErrorDetails) -> IO ()
 throwIfErrorIO0 (error_code, error_det) = 
    throwIfErrorIO1 (error_code, (), error_det)  
 
--- --------------------------------
--- Debug traces:
--- --------------------------------
-
--- | Flag to disable debugging.  For now this is set statically in the
--- code.  It should be dynamically configurable.
-debug_arbbvm = True
-
--- | Name of the debug output file, to be placed in the current directory.
-dbgfile = "debugtrace_HaskellArBB.txt"
-
--- | A running ArBBVM session creates a trace of debug messages that
---   can be consumed immediately or accumulated in memory.
-data DbgTrace = DbgCons Int TaggedDbgEvent (MVar DbgTrace)
-
--- Tagged with additional message and ThreadID:
-type TaggedDbgEvent = (ThreadId,DbgEvent)
-
-data DbgEvent = 
-   DbgStart -- A dummy event.
- | DbgCall { operator :: String,
-	     operands :: [NamedValue],
-	     result   :: NamedValue }
-   deriving Show
-
--- A printed value together with a descriptive name:
-type NamedValue = (String,String)
-
--- Run an computation that interacts with the ArBB-VM and capture its trace.
--- The trace is returned as a lazy list so that it may be consumed concurrently 
-runWithTrace :: IO a ->IO (a,[DbgEvent])
--- runWithTrace :: IO a -> ([DbgEvent], IO a)
-runWithTrace m = do
-  -- Capture the starting point for this segment of trace:
-  DbgCons cntr1 ptr1 tl <- readIORef global_dbg_trace_tail
-  -- Run the computation:
-  x <- m
-  -- Capture the ending point:
-  DbgCons cntr2 _ _ <- readIORef global_dbg_trace_tail
-  -- Read everything inbetween:
-  ls <- error "implement me"
-
-  return (x,ls)
-
---traceToList :: DbgTrace -> Int -> [DbgEvent]
---traceToList = 
-
--- TOFIX: Presently debug traces are accumulated via a global
--- variable.  In the future it's probably better that this go in a
--- state monad!
-global_dbg_trace_tail :: IORef DbgTrace
-global_dbg_trace_tail = unsafePerformIO initial
-  where initial = do tl <- newEmptyMVar
-		     id <- myThreadId
-	             newIORef (DbgCons 0 (id,DbgStart) tl)
-
--- | IO function to log an event in the debug trace.
-dbg :: (Show c) => 
-       String -> 
-       [(String,String)] -> 
-       (String, b -> c) -> 
-       (Error, b, ErrorDetails) -> IO (Error, b, ErrorDetails)
-
-dbg msg inputs (nom,accf) (ec, rv, ed) = 
-  do     
-     id     <- myThreadId
-     new_tl <- newEmptyMVar
-     let evt = DbgCall msg inputs (nom, show (accf rv))
-         loop = do
-	   -- Now to add a new entry to the debug trace.  Things get tricky
-	   -- because we want to do TWO things, extend the linked list and
-	   -- modify the global variable to point to the new tail.  We could
-	   -- use TVars to do that atomically but the following protocol
-	   -- works as well.  Which runs better under contention?
-	   DbgCons cntr hd tl <- readIORef global_dbg_trace_tail
-	   let newcell = DbgCons (cntr+1) (id,evt) new_tl
-	   success <- tryPutMVar tl newcell
-	   if success then 
-	    -- If we succeed then we have the right to repoint the global:
-	    writeIORef global_dbg_trace_tail newcell
-	    -- If we fail to fill the tail then someone else beat us to it and we retry:
-	    else loop
-     loop 
-     return (ec, rv, ed)
-
-dbg0 msg inputs (ec,ed) = 
- do
-  (a,b,c) <- dbg msg inputs ("unit", id) (ec,(),ed) 
-  return (a,c)
 
 
 -- appendFile dbgfile $ msg ++ 
