@@ -2,7 +2,7 @@
 {-# OPTIONS  -XDeriveDataTypeable #-}
 
 module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable, 
-                      GlobalVariable, Binding, Function, VMString, 
+                      GlobalVariable, Binding, Function(..), VMString, 
                       AttributeMap, 
                       
                       Error(..), ScalarType(..), Opcode(..), 

@@ -26,10 +26,10 @@ main = arbbSession$ do
      size_t <- getScalarType_ ArbbUsize
      dsize_t <- getDenseType_ size_t 1
 
-     add <- funDefCallable_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
+     add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
         op_ ArbbOpAdd [out] [i1,i2] 
              
-     reduceStep <- funDefCallable_ "rS" [dty] [dty,size_t] $ \ [out] [inp,n] -> do 
+     reduceStep <- funDef_ "rS" [dty] [dty,size_t] $ \ [out] [inp,n] -> do 
         
         parts    <- createLocal_ dty2 "halves"
         h1       <- createLocal_ dty "h1"
@@ -52,7 +52,7 @@ main = arbbSession$ do
 
         op_ ArbbOpCopy [out] [newArr] 
              
-     reduce' <- funDefCallable_ "red" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
+     reduce' <- funDef_ "red" [sty] [dty,size_t] $ \ [out] [inp,n] -> do
        c   <- createLocal_ bt "cond" 
        one <- usize_ 1
        zero <- usize_ 0 

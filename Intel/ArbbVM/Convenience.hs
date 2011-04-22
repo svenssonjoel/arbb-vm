@@ -11,9 +11,9 @@ module Intel.ArbbVM.Convenience
  (
    ifThenElse, while, readScalarOfSize, newConstant,
 
-   arbbSession, EmitArbb,  
+   arbbSession, EmitArbb, ConvFunction,
    if_, while_, readScalar_,
-   funDef_, funDefS_, funDefCallable_, 
+   funDef_, funDefS_, -- funDefCallable_,
    op_, opImm_,  
    opDynamic_, opDynamicImm_,
    map_,  call_, 
@@ -78,8 +78,13 @@ type EmitArbb = S.StateT ArbbEmissionState IO
 -- background.  Note, we need the stack of functions because we allow
 -- nested function definitions at this convenience layer.  (They will
 -- all have global scope to ArBB however.)
-type ArbbEmissionState = (Context, [Function])
+type ArbbEmissionState = (Context, [ConvFunction]) -- BJS: ConvFunction in place of Function
 -- Note: if we also include a counter in here we can do gensyms...
+
+
+-- BJS: Convenient functions are pairs of inconvenient functions 
+data ConvFunction = ConvFunction { executable :: Function,  -- just a wrapper 
+                                   callable   :: Function } -- "The" function
 
 
 #define L S.lift$
@@ -93,11 +98,19 @@ arbbSession m =
      (a,s) <- S.runStateT m (ctx,[])
      return a
 
-getFun msg = 
+-- BJS: ConvFunction (as a name)  is a bit inconvenient
+getConvFun msg = 
  do (_,ls) <- S.get
     case ls of 
       [] -> error$ msg ++" when not inside a function"
       (h:t) -> return h
+
+getFun msg = 
+ do (_,ls) <- S.get
+    case ls of 
+      [] -> error$ msg ++" when not inside a function"
+      (h:t) -> return (callable h)
+
 
 getCtx = 
  do (ctx,_) <- S.get
@@ -189,7 +202,7 @@ readScalar_ v =
 
 type FunBody = [Variable] -> [Variable] -> EmitArbb ()
 
-debug_fundef = False
+debug_fundef = True
 
 {- 
   BJS:  This funDef_ situation might need some improvement. 
@@ -200,6 +213,7 @@ debug_fundef = False
   
 
 -} 
+{- 
 funDef_ name outty inty userbody = 
     funDefInternal name outty inty userbody 1
 
@@ -234,16 +248,62 @@ funDefInternal name outty inty userbody remote =
      L compile fun
      when debug_fundef$ print_$ "["++name++"] Done compiling."
      return fun
+-} 
+
+is_callable   = 0
+is_executable = 1 
+nullfun = Function nullPtr
+
+-- BJS: New funDef  (create a pair of funs, actual fun + wrapper) 
+funDef_ :: String -> [Type] -> [Type] -> FunBody  -> EmitArbb ConvFunction
+funDef_ name outty inty userbody =
+  do 
+     ctx <- getCtx
+     
+     fnt     <- L getFunctionType ctx outty inty
+     fun     <- L beginFunction ctx fnt name is_callable 
+
+     when debug_fundef$ print_$ "["++name++"] Function begun."
+     invars  <- L forM [0 .. length inty  - 1]   (getParameter fun 0)
+     outvars <- L forM [0 .. length outty - 1]   (getParameter fun 1)
+
+     -- Push on the stack:
+     S.modify (\ (c,ls) -> (c, (ConvFunction nullfun fun):ls))
+
+     -- Now generate body:
+     when debug_fundef$ print_$ "["++name++"]  Begin body codgen..."
+     userbody outvars invars
+     when debug_fundef$ print_$ "["++name++"]  Done body codgen."
+
+     -- Pop off the stack:
+     S.modify (\ (c, h:t) -> (c, t))
+     L endFunction fun
+
+     -- EXPERIMENTAL!  Compile immediately!!
+     --when debug_fundef$ print_$ "["++name++"] Function ended. Compiling..."
+     --L compile fun
+     --when debug_fundef$ print_$ "["++name++"] Done compiling."
+
+      -- Also create an executable wrapper 
+     wrapper <- L beginFunction ctx fnt name is_executable
+     inputs  <- L forM [0 .. length inty  - 1] (getParameter wrapper 0)
+     outputs <- L forM [0 .. length outty - 1] (getParameter wrapper 1) 
+     L callOp wrapper ArbbOpCall fun outputs inputs
+     L endFunction wrapper
+    
+    
+     return$ ConvFunction wrapper fun
+
 
 -- Umm... what's a good naming convention here?
-funDefS_ :: String -> [ScalarType] -> [ScalarType] -> FunBody  -> EmitArbb Function
+funDefS_ :: String -> [ScalarType] -> [ScalarType] -> FunBody  -> EmitArbb ConvFunction
 funDefS_ name outs ins body =
   do 
      outs' <- mapM getScalarType_ outs
      ins'  <- mapM getScalarType_ ins
      funDef_ name outs' ins' body
   
-
+{-
 call_ :: Function -> [Variable] -> [Variable] -> EmitArbb ()
 call_ fun out inp = 
   do -- At the point of the call the *caller* is on the top of the stack:
@@ -251,13 +311,23 @@ call_ fun out inp =
      when debug_fundef$ print_ "Call_: got caller function, emitting call opcode..."
      L callOp caller ArbbOpCall fun out inp
      when debug_fundef$ print_ "Call_: Done emitting call opcode."
+-} 
+call_ :: ConvFunction -> [Variable] -> [Variable] -> EmitArbb ()
+call_ fun out inp = 
+  do -- At the point of the call the *caller* is on the top of the stack:
+     caller <- getFun "Convenience.call_ cannot call function"
+     when debug_fundef$ print_ "Call_: got caller function, emitting call opcode..."
+     L callOp caller ArbbOpCall (callable fun) out inp
+     when debug_fundef$ print_ "Call_: Done emitting call opcode."
 
-map_ :: Function -> [Variable] -> [Variable] -> EmitArbb ()
+
+
+map_ :: ConvFunction -> [Variable] -> [Variable] -> EmitArbb ()
 map_ fun out inp = 
   do -- At the point of the call the *caller* is on the top of the stack:
      caller <- getFun "Convenience.map_ cannot call function"
      when debug_fundef$ print_ "Map_: got caller function, emitting map opcode..."
-     L callOp caller ArbbOpMap fun out inp
+     L callOp caller ArbbOpMap (callable fun) out inp
      when debug_fundef$ print_ "Map_: Done emitting map opcode."
 
 
@@ -331,12 +401,16 @@ createDenseBinding_ = lift4 createDenseBinding
 -- These are easy ones, no Context or Function argument:
 
 compile_ fn      = liftIO$ compile fn
-execute_ a b c   = liftIO$ execute a b c
+-- execute_ a b c   = liftIO$ execute a b c
 finish_          = liftIO finish
-serializeFunction_ = liftIO . serializeFunction
+--serializeFunction_ = liftIO . serializeFunction
 getBindingNull_  = liftIO getBindingNull
 
+--BJS: execute_ nolonger quite as easy
+execute_ f o i = liftIO$ execute (executable f) o i  
 
+--BJS: should be a way to serialize the wrapper also!
+serializeFunction_ f = liftIO$ serializeFunction (callable f)  
 
 -- ... TODO ...  Keep going.
 

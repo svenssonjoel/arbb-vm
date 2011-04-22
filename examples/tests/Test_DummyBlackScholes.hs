@@ -24,16 +24,16 @@ main = arbbSession$ do
   dty <- getDenseType_ sty 1
   bty <- getScalarType_ ArbbBoolean
 
-  poly <- funDefCallable_ "poly" [sty] [sty] $ \ [o] [d] -> do 
+  poly <- funDef_ "poly" [sty] [sty] $ \ [o] [d] -> do 
     copy_ o d
     
-  cnd <- funDefCallable_ "cnd" [sty] [sty] $ \ [o] [d] -> do 
+  cnd <- funDef_ "cnd" [sty] [sty] $ \ [o] [d] -> do 
     tmp <- createLocal_ sty "tmp" 
     call_ poly [tmp] [d]
     copy_ o tmp
 
   
-  go' <- funDefCallable_ "go" [sty,sty] [sty,sty,sty] $ \ [o1,o2] [p,s,y] -> do 
+  go' <- funDef_ "go" [sty,sty] [sty,sty,sty] $ \ [o1,o2] [p,s,y] -> do 
                       
     cndD1 <- createLocal_ sty "cndD1" 
     cndD2 <- createLocal_ sty "cndD2" 
@@ -56,12 +56,10 @@ main = arbbSession$ do
   go <- funDef_ "go" [sty,sty] [sty,sty,sty] $ \ [o1,o2] [p,s,y] -> do 
     call_ go' [o1,o2] [p,s,y]
   
-  blackscholes' <- funDefCallable_ "blackscholes'" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
+  blackscholes <- funDef_ "blackscholes'" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
     map_ go' [o1,o2] [i1,i2,i3]                      
 
-  blackscholes <- funDef_ "blackscholes" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
-    call_ blackscholes' [o1,o2] [i1,i2,i3] 
-
+ 
   withArray_ [0..1000 :: Float] $ \ inp1 -> 
     withArray_ [0..1000 :: Float] $ \ inp2 -> 
       withArray_ [0..1000 :: Float] $ \ inp3 -> 

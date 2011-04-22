@@ -27,7 +27,7 @@ main = arbbSession$ do
   -- Adoptation of (poly) from Accelerate example BlackScholes 
   -- This one takes "d" as input and computes the 
   -- 1.0 / (1.0 + 0.2316419 * abs d) internally 
-  poly <- funDefCallable_ "poly" [sty] [sty] $ \ [o] [d] -> do 
+  poly <- funDef_ "poly" [sty] [sty] $ \ [o] [d] -> do 
     accm   <- createLocal_ sty "accumulator" 
     k      <- createLocal_ sty "k" 
     poly_k <- createLocal_ sty "poly_k" 
@@ -80,7 +80,7 @@ main = arbbSession$ do
     copy_ o poly_k
     
   -- FUNCTION cnd
-  cnd <- funDefCallable_ "cnd" [sty] [sty] $ \ [o] [d] -> do 
+  cnd <- funDef_ "cnd" [sty] [sty] $ \ [o] [d] -> do 
     tmp <- createLocal_ sty "tmp" 
     copy_ tmp d 
     copy_ o tmp
@@ -125,7 +125,7 @@ main = arbbSession$ do
     -}
     
   
-  go <- funDefCallable_ "go" [sty,sty] [sty,sty,sty] $ \ [o1,o2] [p,s,y] -> do 
+  go <- funDef_ "go" [sty,sty] [sty,sty,sty] $ \ [o1,o2] [p,s,y] -> do 
     tmp  <- createLocal_ sty "tmp"                      
     tmp1 <- createLocal_ sty "tmp1" 
     tmp2 <- createLocal_ sty "tmp2" 
@@ -185,11 +185,8 @@ main = arbbSession$ do
     copy_ o1 cndD1 -- tmp1
     copy_ o2 cndD2 -- tmp2
   
-  blackscholes' <- funDefCallable_ "blackscholes'" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
+  blackscholes <- funDef_ "blackscholes'" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
     map_ go [o1,o2] [i1,i2,i3]                      
-
-  blackscholes <- funDef_ "blackscholes" [dty,dty] [dty,dty,dty] $ \ [o1,o2] [i1,i2,i3] -> do
-    call_ blackscholes' [o1,o2] [i1,i2,i3] 
 
   withArray_ [0..1000 :: Float] $ \ inp1 -> 
     withArray_ [0..1000 :: Float] $ \ inp2 -> 

@@ -27,10 +27,10 @@ main = arbbSession$ do
 
      print_ "Begin emitting function code.."
 
-     add <- funDefCallable_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
+     add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
         op_ ArbbOpAdd [out] [a,b]
               
-     reduce2' <- funDefCallable_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
+     reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
         len <- createLocal_ size_t "length"     
         in1 <- createLocal_ sty "inputToCall" 
         pr  <- createLocal_ sty "partialRes"  
@@ -70,8 +70,7 @@ main = arbbSession$ do
         
         op_ ArbbOpCopy [out] [pr] 
  
-     reduce2 <- funDef_ "reduceSpcl" [sty] [dty] $ \ [out] [inp] -> do 
-       call_ reduce2' [out] [inp]                      
+         
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 

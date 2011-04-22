@@ -12,10 +12,6 @@ import C2HS
 
 {- 
 
-  Changes:
-  BJS: Changed this test on Apr-21-2011 to correspond to 
-       new information about the ArBB is_remote parameter to functions
-
 -}  
      
 
@@ -32,11 +28,11 @@ main = arbbSession$ do
     
      print_ "Begin emitting function code.."
 
-     add <- funDefCallable_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
+     add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [a,b] -> do
         op_ ArbbOpAdd [out] [a,b]
 
        
-     fun1 <- funDefCallable_ "fun" [sty] [dty] $ \ [out] [inp] -> do 
+     fun <- funDef_ "fun" [sty] [dty] $ \ [out] [inp] -> do 
         len <- createLocal_ size_t "length"     
         res <- createLocal_ sty "result"
         in1 <- createLocal_ sty "inputToCall"  
@@ -49,13 +45,7 @@ main = arbbSession$ do
         call_ add [res] [in1,in1]
         --op_ ArbbOpAdd   [res] [in1,in1]      
         op_ ArbbOpCopy  [out] [res]  
-  
-     
-     -- EXECUTABLE WRAPPER!!!
-     fun <- funDef_ "fun" [sty] [dty] $ \ [out] [inp] -> do 
-        call_ fun1 [out] [inp]                      
-
-            
+      
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 

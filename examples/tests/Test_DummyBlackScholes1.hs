@@ -27,13 +27,13 @@ main = arbbSession$ do
   --poly <- funDefCallable_ "poly" [sty] [sty] $ \ [o] [d] -> do 
   --  copy_ o d
     
-  cnd <- funDefCallable_ "cnd" [sty] [sty] $ \ [o] [d] -> do 
+  cnd <- funDef_ "cnd" [sty] [sty] $ \ [o] [d] -> do 
     --tmp <- createLocal_ sty "tmp" 
     --call_ poly [tmp] [d]
     copy_ o d -- tmp
 
   
-  go <- funDefCallable_ "go" [sty] [sty] $ \ [o1] [p] -> do 
+  go <- funDef_ "go" [sty] [sty] $ \ [o1] [p] -> do 
                       
     cndD1 <- createLocal_ sty "cndD1" 
     cndD2 <- createLocal_ sty "cndD2" 
@@ -52,13 +52,11 @@ main = arbbSession$ do
     --copy_ cndD2 b 
     
             
+
     copy_ o1 cndD1 -- tmp1
   
-  blackscholes' <- funDefCallable_ "blackscholes'" [dty] [dty] $ \ [o1] [i1] -> do
+  blackscholes <- funDef_ "blackscholes'" [dty] [dty] $ \ [o1] [i1] -> do
     map_ go [o1] [i1]                      
-
-  blackscholes <- funDef_ "blackscholes" [dty] [dty] $ \ [o1] [i1] -> do
-    call_ blackscholes' [o1] [i1] 
 
   withArray_ [0..1000 :: Float] $ \ inp1 -> 
       withArray_ (replicate 1000 0 :: [Float]) $ \ out1 ->  do

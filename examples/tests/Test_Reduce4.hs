@@ -109,11 +109,11 @@ main = arbbSession$ do
      size_t <- getScalarType_ ArbbUsize
      dsize_t <- getDenseType_ size_t 1
 
-     add <- funDefCallable_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
+     add <- funDef_ "add" [sty] [sty,sty] $ \ [out] [i1,i2] -> do 
         op_ ArbbOpAdd [out] [i1,i2]
         
      -- First 1D to 0D case.. then more involved ones! 
-     seqRed' <- funDefCallable_ "seqRed" [sty] [dty,size_t] $ \ [out] [inp,n] -> do 
+     seqRed' <- funDef_ "seqRed" [sty] [dty,size_t] $ \ [out] [inp,n] -> do 
         
      --   n <- createLocal_ size_t "length" 
         currs <- createLocal_ size_t "currs" 

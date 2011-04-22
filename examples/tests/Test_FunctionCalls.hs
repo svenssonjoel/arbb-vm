@@ -11,6 +11,9 @@ import C2HS
 {- 
 
   Changes:
+  BJS: Updated on Apr-22-2011 to fit with new Convenience.hs 
+       (This change undoes the change below) 
+
   BJS: Changed this test on Apr-21-2011 to correspond to 
        new information about the ArBB is_remote parameter to functions
     
@@ -26,9 +29,9 @@ import C2HS
 main = arbbSession$ do 
      sty   <- getScalarType_  ArbbI32
      
-     fun1 <- funDefCallable_ "fun1" [sty] [sty] $ \ [out] [inp] -> do
+     fun <- funDef_ "fun" [sty] [sty] $ \ [out] [inp] -> do
 
-        fun2 <- funDefCallable_ "fun2" [sty] [sty] $ \ [out] [inp] -> do
+        fun2 <- funDef_ "fun2" [sty] [sty] $ \ [out] [inp] -> do
 	   tmp <- doarith_ ArbbI32 (V inp + 1)
 	   copy_ out tmp
 
@@ -36,9 +39,7 @@ main = arbbSession$ do
 	call_ fun2 [out] [inp]
 	op_ ArbbOpAdd  [out] [out,ten]
 
-        
-     fun <- funDef_ "fun" [sty] [sty] $ \ [out] [inp] -> do 
-        call_ fun1 [out] [inp]                      
+    
             
      liftIO$ putStrLn "Done compiling function, now executing..."
      x       <- const_ ArbbI32 (100::Int32)

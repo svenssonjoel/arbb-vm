@@ -27,10 +27,10 @@ main = arbbSession$ do
     
      print_ "Begin emitting function code.."
 
-     myAdd <- funDefCallable_ "myAdd" [sty] [sty,sty] $ \ [out] [i1,i2] -> do
+     myAdd <- funDef_ "myAdd" [sty] [sty,sty] $ \ [out] [i1,i2] -> do
        op_ ArbbOpAdd [out] [i1,i2]                      
      
-     add <- funDefCallable_ "add" [sty] [sty] $ \ [out] [a] -> do
+     add <- funDef_ "add" [sty] [sty] $ \ [out] [a] -> do
        b <- createLocal_ sty "b" 
        c <- createLocal_ sty "c" 
        r <- createLocal_ sty "r"
@@ -48,7 +48,7 @@ main = arbbSession$ do
 
                  
      
-     fun' <- funDefCallable_ "fun" [sty] [dty] $ \ [out] [inp] -> do 
+     fun <- funDef_ "fun" [sty] [dty] $ \ [out] [inp] -> do 
         len <- createLocal_ size_t "name"     
         res <- createLocal_ sty "name"
         in1 <- createLocal_ dty "name"  
@@ -60,8 +60,6 @@ main = arbbSession$ do
 
         op_ ArbbOpCopy  [out] [res]  
   
-     fun <- funDef_ "fun" [sty] [dty] $ \ [out] [inp] -> do 
-       call_ fun' [out] [inp]            
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
