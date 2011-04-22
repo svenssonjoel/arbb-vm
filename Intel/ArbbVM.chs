@@ -43,17 +43,24 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
 -------------------------
                        ) where
 
+-- import Intel.ArbbVM.Debug
+
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
 import Foreign.Storable hiding (sizeOf)
 
 import Control.Exception
+import Control.Monad
+import Control.Concurrent
+import Control.Concurrent.MVar
 
 import Data.Typeable
 import Data.Word
+import Data.IORef
 
 import System.Directory
+import System.IO.Unsafe (unsafePerformIO)
 
 import C2HS hiding (sizeOf) 
 
@@ -126,6 +133,7 @@ withIntArray xs = withArray (fmap fromIntegral xs)
 withNullPtr :: (Ptr b -> IO a) -> IO a 
 withNullPtr f = f nullPtr
 
+
 -- ----------------------------------------------------------------------
 -- Exception
 -- ----------------------------------------------------------------------
@@ -150,8 +158,54 @@ throwIfErrorIO0 :: (Error,ErrorDetails) -> IO ()
 throwIfErrorIO0 (error_code, error_det) = 
    throwIfErrorIO1 (error_code, (), error_det)  
 
+-- --------------------------------
+-- Debug traces:
+-- --------------------------------
 
-dbgfile = "debug_HaskellArBB"
+-- | Flag to disable debugging.  For now this is set statically in the
+-- code.  It should be dynamically configurable.
+debug_arbbvm = True
+
+-- | Name of the debug output file, to be placed in the current directory.
+dbgfile = "debugtrace_HaskellArBB.txt"
+
+-- | A running ArBBVM session creates a trace of debug messages that
+--   can be consumed immediately or accumulated in memory.
+data DbgTrace = DbgNull | DbgCons TaggedDbgEvent (MVar DbgTrace)
+
+-- Tagged with additional message and ThreadID:
+type TaggedDbgEvent = (ThreadId,DbgEvent)
+
+data DbgEvent = 
+   DbgStart 
+ | DbgCall { operator :: String,
+	     operands :: [NamedValue],
+	     result   :: NamedValue }
+   deriving Show
+
+-- A printed value together with a descriptive name:
+type NamedValue = (String,String)
+
+-- Run an computation that interacts with the ArBB-VM and capture its trace:
+runWithTrace :: IO a -> IO (a,[DbgEvent])
+runWithTrace m = do
+  -- Capture the starting point for this segment of trace:
+  -- Run the computation:
+  x <- m
+  return (x,[])
+
+-- TOFIX: Presently debug traces are accumulated via a global
+-- variable.  In the future it's probably better that this go in a
+-- state monad!
+global_dbg_trace_tail :: IORef DbgTrace
+global_dbg_trace_tail = 
+   unsafePerformIO initial
+  where initial = do tl <- newEmptyMVar
+		     id <- myThreadId
+	             newIORef (DbgCons (id,DbgStart) tl)
+
+extend_if_null new DbgNull = (new, True)
+extend_if_null new old     = (old,False)
 
 dbg :: (Show c) => 
        String -> 
@@ -159,28 +213,47 @@ dbg :: (Show c) =>
        (String, b -> c) -> 
        (Error, b, ErrorDetails) -> IO (Error, b, ErrorDetails)
 
-
 dbg msg inputs (nom,accf) (ec, rv, ed) = 
-  do 
-   appendFile dbgfile $ msg ++ 
-                        concatMap printInfo inputs ++ 
-                        "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
-                        "\n"   
-   return (ec, rv, ed)
-{-
-dbg s ss sf x = return x --use this if not interested in dbg info
--}
+  do     
+     id     <- myThreadId
+     new_tl <- newEmptyMVar
+     let evt = DbgCall msg inputs (nom, show (accf rv))
+	 newcell = DbgCons (id,evt) new_tl
+
+         loop = do
+	   -- Now to add a new entry to the debug trace.  Things get tricky
+	   -- because we want to do TWO things, extend the linked list and
+	   -- modify the global variable to point to the new tail.  We could
+	   -- use TVars to do that atomically but the following protocol
+	   -- works as well.  Which runs better under contention?
+	   tail <- readIORef global_dbg_trace_tail
+	   case tail of 
+	     DbgNull -> do
+	       success <- atomicModifyIORef global_dbg_trace_tail (extend_if_null newcell)
+	       unless success loop
+
+	     DbgCons hd tl -> do
+	       success <- tryPutMVar tl newcell
+	       if success then 
+		-- If we succeed then we have the right to repoint the global:
+		writeIORef global_dbg_trace_tail newcell
+		-- If we fail to fill the tail then someone else beat us to it and we retry:
+		else loop
+     loop 
+
+     -- appendFile dbgfile $ msg ++ 
+     -- 			  concatMap printInfo inputs ++ 
+     -- 			  "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
+     -- 			  "\n"   
+     return (ec, rv, ed)
+
 
 dbg0 msg inputs (ec,ed) = 
  do
   (a,b,c) <- dbg msg inputs ("unit", id) (ec,(),ed) 
   return (a,c)
-{- 
-dbg0 msg inputs x = return x  
--}
-{-
-newDBGFile x = return x 
--}
+
+
 newDBGFile x =
   do 
    b <- doesFileExist dbgfile 
@@ -191,7 +264,9 @@ newDBGFile x =
 printInfo ::(String, String) -> String
 printInfo (nom,val) = 
           "{" ++ nom ++ " = " ++ val ++ " }"
- 
+
+
+
 
 -- ----------------------------------------------------------------------
 -- BINDINGS 
