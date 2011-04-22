@@ -31,21 +31,9 @@ main = arbbSession$ do
        op_ ArbbOpAdd [out] [i1,i2]                      
      
      add <- funDef_ "add" [sty] [sty] $ \ [out] [a] -> do
-       b <- createLocal_ sty "b" 
-       c <- createLocal_ sty "c" 
-       r <- createLocal_ sty "r"
-       
-       copy_ b a 
-       copy_ c a 
 
-       -- one <- int32_ 1 
-       -- Breaks is doing the call_ here 
-       --call_ myAdd [r] [b,c] -- one
-       op_ ArbbOpAdd [r] [b,c]
-       -- op_ ArbbOpAdd [out] [a,one]
-
-       copy_ out r 
-
+       call_ myAdd [out] [a,one]
+      
                  
      
      fun <- funDef_ "fun" [sty] [dty] $ \ [out] [inp] -> do 
