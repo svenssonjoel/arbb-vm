@@ -61,7 +61,6 @@ import Data.Typeable
 import Data.Word
 import Data.IORef
 
-import System.Directory
 import System.IO.Unsafe (unsafePerformIO)
 
 import C2HS hiding (sizeOf) 
@@ -159,25 +158,6 @@ throwIfErrorIO1 (error_code,a,error_det) =
 throwIfErrorIO0 :: (Error,ErrorDetails) -> IO ()
 throwIfErrorIO0 (error_code, error_det) = 
    throwIfErrorIO1 (error_code, (), error_det)  
-
-
-
--- appendFile dbgfile $ msg ++ 
--- 			  concatMap printInfo inputs ++ 
--- 			  "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ 
--- 			  "\n"   
-
-newDBGFile x =
-  do 
-   b <- doesFileExist dbgfile 
-   if b then removeFile dbgfile else return ()
-   return x  
- 
-
-printInfo ::(String, String) -> String
-printInfo (nom,val) = 
-          "{" ++ nom ++ " = " ++ val ++ " }"
-
 
 
 

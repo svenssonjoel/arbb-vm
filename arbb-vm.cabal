@@ -34,6 +34,7 @@ Library
                , bytestring
                , cereal
                , directory
+               , containers
                , pretty
 -- Having a problem with this [2011.02.27] :
 --               , c2hs
