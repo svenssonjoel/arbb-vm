@@ -19,5 +19,5 @@ size ArbbU64 = 8
 size ArbbF32 = 4
 size ArbbF64 = 8 
 size ArbbBoolean = 4 -- I think they are stored as 32 bit integers
-size ArbbUsize = 64  -- very insecure about the three last here
-size ArbbIsize = 64  -- What size are these really ? 
+size ArbbUsize = 4  -- very insecure about the three last here
+size ArbbIsize = 4  -- What size are these really ? 
