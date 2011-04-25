@@ -10,7 +10,7 @@ import Foreign.Ptr
 
 import C2HS
 
-main = do 
+main = runReproducer $ do 
      ctx <- getDefaultContext 
      st   <- getScalarType ctx ArbbF32
      t    <- getDenseType ctx st 1 

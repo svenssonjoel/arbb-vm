@@ -2,3 +2,14 @@
 
 See arbb-vm.cabal for more information.
 
+
+
+
+Interacting with ArbbVM from GHCI
+=================================
+
+Remember to include the dynamic libraries; as of [2011.04.23] the
+following command works:
+
+    ghci Intel/ArbbVM.hs -ltbb -larbb 
+

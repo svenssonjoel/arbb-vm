@@ -5,7 +5,7 @@ module Intel.ArbbVM.Debug
   (
     DbgEvent(..),
     dbg, dbg0, dbgfile,
-    runTrace, runReproducer,
+    runTrace, runReproducer, makeCReproducer,
 
     -- TEMP:
     newDBGFile, printInfo
@@ -47,9 +47,11 @@ data DbgEvent =
  | DbgCall { operator :: String,
 	     operands :: [NamedValue],
 	     result   :: NamedValue }
-
-  -- TODO: Need to add actual array contents to the debug trace somehow.
-   deriving Show
+ -- NOTE: This is an inefficent representation, we could at least use
+ -- binary representations for common scalar types:
+ -- Also we could use bytestrings here and Text.Show.ByteString:
+ | DbgArraySnapshot [String]
+   deriving (Show, Read)
 
 -- A printed value together with a descriptive name:
 type NamedValue = (String,String)
@@ -137,7 +139,7 @@ dbg msg inputs (nom,accf) (ec, rv, ed) =
 	    -- If we fail to fill the tail then someone else beat us to it and we retry:
 	    else loop
      loop 
-     -- putStrLn$ "Wrote DBG event: "++ show evt
+     putStrLn$ ",  "++ show evt
 
      -- TEMP: Keeping the old-style print messages for now as well:
      appendFile dbgfile $ 
@@ -174,11 +176,35 @@ makeCReproducer log = render doc
   loop mp [] = empty
   loop mp (DbgStart:tl) = loop mp tl
   loop mp (DbgCall oper rands result : tl) = 
-    let rands' = map (text . show . snd) rands in 
+    let 
+        -- rands' = map (text . show . snd) rands 
+        rands' = map (text . dorand) rands
+	dorand (_,r) = if isPtr r 
+		       then case M.lookup r mp of
+			      Nothing -> r
+			      Just name -> name
+		       else r
+	
+        (mp2,prefix) = 
+	  if isPtr (snd result)
+	  then let counter = M.size mp
+		   name = "v"++ show counter 
+	       in
+	       (M.insert (snd result) name  mp, 
+		"void* "++name++" = ")
+	  else (mp,"")
+	-- isp = isPtr (snd result)
+	-- mp2    = if isp then mp else mp
+	-- prefix = if isp then "void* name = " else ""
+    in 
+    text prefix <>
     text oper <> 
     parens (hcat$ intersperse comma rands') <> 
     text ";" $$ 
-    loop mp tl
+    loop mp2 tl
+
+-- Hackish:
+isPtr = isPrefixOf "0x"
 
 newDBGFile x =
   do 
