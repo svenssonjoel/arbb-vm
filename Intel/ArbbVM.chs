@@ -63,7 +63,7 @@ import Data.IORef
 
 import System.IO.Unsafe (unsafePerformIO)
 
-import C2HS hiding (sizeOf) 
+import C2HS hiding (sizeOf)  -- withArray
 
 import Prelude hiding (break)
 
@@ -351,16 +351,21 @@ freeBinding ctx bind =
 -- FUNCTIONS 
 
 getFunctionType :: Context -> [Type] -> [Type] -> IO Type
-getFunctionType ctx outp inp = 
+getFunctionType ctx outps inps = 
   do 
-    let outlen = length outp
-        inlen  = length inp
-    getFunctionType' ctx outlen outp inlen inp >>=  
-      dbg "arbb_get_function_type" [("ctx",show $ fromContext ctx),
-                                    ("outputs" ,show (map fromType outp)),
-                                    ("inputs", show (map fromType inp))]
-                                    ("type",fromType) >>=                               
-      throwIfErrorIO1 
+    let outlen = length outps
+        inlen  = length inps
+    x@(e,ty,ed) <- getFunctionType' ctx outlen outps inlen inps
+    dbg2 "arbb_get_function_type"
+	 [ inp  "arbb_context_t"     ctx 
+         , outp "arbb_type_t*"       ty     -- out_type
+	 , inp  "unsigned int"       outlen -- num_outputs
+         , inp  "const arbb_type_t*" outps  -- output_types
+	 , inp  "unsigned int"       inlen  -- num_inputs
+         , inp  "const arbb_type_t*" inps   -- input_types
+	 , outp "arbb_error_details_t*" ed]
+    throwIfErrorIO1 x
+
  
 {# fun unsafe arbb_get_function_type as getFunctionType' 
    { fromContext `Context'     ,

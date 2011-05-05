@@ -238,14 +238,15 @@ makeCReproducer log = render doc
     text "#include <stdio.h>" $$ 
     text "#include <arbb_vmapi.h>" $$ 
     text "int main() {" $$ 
-    nest 4 (loop M.empty log) $$
+    nest 4 (loop 0 M.empty log) $$
+    text "    printf(\"Reproducer finished.\\n\");" $$
     text "}\n" 
 
   deptr ty = case reverse ty of 
 	      '*':tl -> reverse tl
 	      _ -> error$ "expected pointer type to end in *: "++ ty
 
-  -- This is quite primitive:
+  -- This is quite primitive, and totally a HACK.
   printValue str = 
    case str of 
      -- Constants/ENUMs are replaced with their ArBB equivalent:
@@ -253,19 +254,21 @@ makeCReproducer log = render doc
      -- Numbers go right through:
      s | all isDigit s -> s
      -- Pointers should have been mapped to a previous return value...
+     s | isNullPtr s -> "NULL"
      s | isPtr s -> error$ "makeCReproducer: unrecognized pointer value: "++s
-     s           -> error$ "makeCReproducer: unrecognized printed value: "++s
+--     s           -> error$ "makeCReproducer: unrecognized printed value: "++s
+     s           -> trace ("WARNING: makeCReproducer: unrecognized printed value: "++s) $ 
+		    s
 
-  loop mp [] = empty
-  loop mp (DbgStart:tl) = loop mp tl
-  loop mp (DbgCall oper rands : tl) = 
+  loop cntr mp [] = empty
+  loop cntr mp (DbgStart:tl) = loop cntr mp tl
+  loop cntr mp (DbgCall oper rands : tl) = 
+    trace ("   Processing dbgcall, cntr "++ show cntr ++" "++ show mp) $ 
     let 
-        -- rands' = map (text . show . snd) rands 
---        rands' = map dorand (zip [99..] rands)
-        stateM :: State (M.Map String String, [String]) [String] = 
+        stateM :: State (M.Map String String, [String], Int) [String] = 
 	   sequence $ map dorand rands
 
-        (rands', (mp2,inits)) = runState stateM (mp,[]) 
+        (rands', (mp2,inits,cntr2)) = runState stateM (mp,[],cntr) 
 
         -- dorand returns the arguments text.  It also modifies a map
 	-- of seen values and a list of initialization statements that
@@ -282,25 +285,30 @@ makeCReproducer log = render doc
         -- Output parameters need to be handled differently, we must
         -- allocate space for them.  We assume they are of pointer type.
 	dorand (OutP ty r) = 
-          do (mp,inits) <- get
-	     let uid = M.size mp
+          do (mp0,inits,cntr) <- get
+	     let uid = -- trace ("outP "++ show (r) ++" Size of map "++ show (M.size mp0) ++" "++ show mp0) $ 
+		       -- M.size mp0 
+		       cntr
 		 freshname = "p" ++ show uid
 		 -- Add new map entry and initialization expression:
-		 mp'    = M.insert r freshname mp
+		 mp'    = M.insert r freshname mp0
 		 inits' = (deptr ty ++ " "++ freshname ++";") : inits
-	     put (mp',inits')
+
+	     put (mp', -- if isNullPtr r then mp' else mp0, 
+		  inits', cntr+1)
 	     return ("&" ++ freshname)
     in 
     vcat (map text inits) $$ 
     text oper <> 
       parens (hcat$ intersperse (comma<>space) (map text rands')) <> 
       text ";" $$ 
-    loop mp2 tl
+    loop cntr2 mp2 tl
 
 -- Hackish:
 isPtr = isPrefixOf "0x"
+isNullPtr ('0':'x': tl) = all (=='0') tl
+isNullPtr _             = False
  
-
 printInfo ::(String, String) -> String
 printInfo (nom,val) = 
           "{" ++ nom ++ " = " ++ val ++ " }"
