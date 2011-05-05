@@ -33,7 +33,7 @@
       constant C array.  OR another approach is to store each array in
       its binary representation in a file.
 
-    * When the whole thing works I was going to factor out your
+    * When the whole thing works I was going to factor out Joel's
       existing debugging printed messages and implement a separate
       function that consumes DbgTraces and prints those same messages.
 
@@ -41,19 +41,22 @@
 
 module Intel.ArbbVM.Debug
   (
-    DbgEvent(..),
-    dbg, dbg0, dbgfile,
+    DbgEvent(..), Param(..),
+    outp, inp,
+    dbg, dbg0, dbg2, dbgfile,
     runTrace, runReproducer, makeCReproducer,
 
     -- TEMP:
-    newDBGFile, printInfo
+    printInfo
   )
 where 
 
-import Debug.Trace
+import Control.Monad.State
 import Control.Concurrent
+import Debug.Trace
 import Data.IORef
 import Data.List
+import Data.Char
 import qualified Data.Map as M
 
 import System.IO
@@ -82,9 +85,10 @@ type TaggedDbgEvent = (ThreadId,DbgEvent)
 
 data DbgEvent = 
    DbgStart -- A dummy event.
- | DbgCall { operator :: String,
-	     operands :: [NamedValue],
-	     result   :: NamedValue }
+ | DbgCall { operator :: String
+	   , operands :: [Param]
+--	   ,  result   :: NamedValue 
+	   }
  -- NOTE: This is an inefficent representation, we could at least use
  -- binary representations for common scalar types:
  -- Also we could use bytestrings here and Text.Show.ByteString:
@@ -94,6 +98,30 @@ data DbgEvent =
 -- A printed value together with a descriptive name:
 type NamedValue = (String,String)
 
+
+data Param = OutP String String
+	   | InP  String String
+  deriving (Show, Read)
+
+-- Generic version:
+outp s x = OutP s (show x)
+inp  s x = InP  s (show x)
+
+fromParam (OutP p v) = (p,v)
+fromParam (InP  p v) = (p,v)
+
+
+-- --------------------------------------------------------------------------------
+-- Misc helper functions.
+
+caseToUnderscore :: String -> String
+caseToUnderscore lexeme =
+  result
+ where
+    result = map toLower $ 
+	     concat $
+	     intersperse "_" words
+    words = groupBy (\ _ b -> isLower b || isDigit b) lexeme
 
 -- --------------------------------------------------------------------------------
 
@@ -157,11 +185,19 @@ dbg :: (Show c) =>
 --       (Error, b, ErrorDetails) -> IO (Error, b, ErrorDetails)
        (d, b, e) -> IO (d, b, e)
 
-dbg msg inputs (nom,accf) (ec, rv, ed) = 
+dbg msg inputs (nom,accf) orig@(ec, rv, ed) = 
   do     
+-- TODO: DELETEME
+     return orig
+
+
+-- New version of logging procedure... refactoring.
+dbg2 :: String -> [Param] -> IO ()
+dbg2 msg params  = 
+ do 
      id     <- myThreadId
      new_tl <- newEmptyMVar
-     let evt = DbgCall msg inputs (nom, show (accf rv))
+     let evt = DbgCall msg params 
          loop = do
 	   -- Now to add a new entry to the debug trace.  Things get tricky
 	   -- because we want to do TWO things, extend the linked list and
@@ -177,14 +213,7 @@ dbg msg inputs (nom,accf) (ec, rv, ed) =
 	    -- If we fail to fill the tail then someone else beat us to it and we retry:
 	    else loop
      loop 
-     putStrLn$ ",  "++ show evt
 
-     -- TEMP: Keeping the old-style print messages for now as well:
-     appendFile dbgfile $ 
-        msg ++ concatMap printInfo inputs ++ 
-        "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ "\n"   
-
-     return (ec, rv, ed)
 
 -- | Log a call to  a function without a return value.
 dbg0 msg inputs (ec,ed) = 
@@ -195,10 +224,10 @@ dbg0 msg inputs (ec,ed) =
 
 -- --------------------------------------------------------------------------------
 
--- | Generate a C file that reproduces a logged interaction with the
---   ArBB VM.  This function uses some dangerous heuristics and while
---   it is useful for debugging it should not be relied upon for
---   production purposes.
+-- | Generate a C file that reproduces a logged interaction between
+--   Haskell and the ArBB VM.  This function uses some dangerous
+--   heuristics and while it is useful for debugging it should not be
+--   relied upon for production purposes.
 
 makeCReproducer :: [DbgEvent] -> String
 makeCReproducer log = render doc
@@ -207,49 +236,71 @@ makeCReproducer log = render doc
  where 
   doc = 
     text "#include <stdio.h>" $$ 
+    text "#include <arbb_vmapi.h>" $$ 
     text "int main() {" $$ 
     nest 4 (loop M.empty log) $$
     text "}\n" 
 
+  deptr ty = case reverse ty of 
+	      '*':tl -> reverse tl
+	      _ -> error$ "expected pointer type to end in *: "++ ty
+
+  -- This is quite primitive:
+  printValue str = 
+   case str of 
+     -- Constants/ENUMs are replaced with their ArBB equivalent:
+     'A':'r':'b':'b':_ -> caseToUnderscore str
+     -- Numbers go right through:
+     s | all isDigit s -> s
+     -- Pointers should have been mapped to a previous return value...
+     s | isPtr s -> error$ "makeCReproducer: unrecognized pointer value: "++s
+     s           -> error$ "makeCReproducer: unrecognized printed value: "++s
+
   loop mp [] = empty
   loop mp (DbgStart:tl) = loop mp tl
-  loop mp (DbgCall oper rands result : tl) = 
+  loop mp (DbgCall oper rands : tl) = 
     let 
         -- rands' = map (text . show . snd) rands 
-        rands' = map (text . dorand) rands
-	dorand (_,r) = if isPtr r 
-		       then case M.lookup r mp of
-			      Nothing -> r
-			      Just name -> name
-		       else r
-	
-        (mp2,prefix) = 
-	  if isPtr (snd result)
-	  then let counter = M.size mp
-		   name = "v"++ show counter 
-	       in
-	       (M.insert (snd result) name  mp, 
-		"void* "++name++" = ")
-	  else (mp,"")
+--        rands' = map dorand (zip [99..] rands)
+        stateM :: State (M.Map String String, [String]) [String] = 
+	   sequence $ map dorand rands
+
+        (rands', (mp2,inits)) = runState stateM (mp,[]) 
+
+        -- dorand returns the arguments text.  It also modifies a map
+	-- of seen values and a list of initialization statements that
+	-- it passes as state.  
+	dorand (InP ty r) = return $
+    	  -- For input parameters we check if we've already seen that
+	  -- value before.
+	  if isPtr r 
+	  then case M.lookup r mp of
+		Nothing   -> printValue r
+		Just name -> name
+	  else printValue r
+
+        -- Output parameters need to be handled differently, we must
+        -- allocate space for them.  We assume they are of pointer type.
+	dorand (OutP ty r) = 
+          do (mp,inits) <- get
+	     let uid = M.size mp
+		 freshname = "p" ++ show uid
+		 -- Add new map entry and initialization expression:
+		 mp'    = M.insert r freshname mp
+		 inits' = (deptr ty ++ " "++ freshname ++";") : inits
+	     put (mp',inits')
+	     return ("&" ++ freshname)
     in 
-    text prefix <>
+    vcat (map text inits) $$ 
     text oper <> 
-    parens (hcat$ intersperse comma rands') <> 
-    text ";" $$ 
+      parens (hcat$ intersperse (comma<>space) (map text rands')) <> 
+      text ";" $$ 
     loop mp2 tl
 
 -- Hackish:
 isPtr = isPrefixOf "0x"
-
-newDBGFile x =
-  do 
-   b <- doesFileExist dbgfile 
-   if b then removeFile dbgfile else return ()
-   return x  
  
 
 printInfo ::(String, String) -> String
 printInfo (nom,val) = 
           "{" ++ nom ++ " = " ++ val ++ " }"
-
-

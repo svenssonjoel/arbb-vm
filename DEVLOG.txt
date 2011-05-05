@@ -125,7 +125,10 @@ When we try to get the ArBB/C++ version working:
 --------------------------------------------------------------------------------
 List of problems encountered with ArBB:
 
-  * "O3" is mentioned in documentation
+  * "o3/O3" Disparity
+  * problem with is_remote==true implying that the body of the
+    function must be ONLY a single call (only a wrapper)
+  * problem with callop not being usable from function that is mapped!
 
 
 List of problems encountered with Haskell / Accelerate:

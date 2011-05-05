@@ -85,6 +85,10 @@ newtype AttributeMap = AttributeMap {fromAttributeMap :: Ptr ()}
 -- TODO: there is a struct called arbb_attribute_key_value_t 
 --       that needs to be handeld.
 
+instance Show Context      where show = show . fromContext 
+instance Show ErrorDetails where show = show . fromErrorDetails
+instance Show Type         where show = show . fromType
+
 -- ----------------------------------------------------------------------
 -- ENUMS
 -- ----------------------------------------------------------------------
@@ -172,10 +176,11 @@ throwIfErrorIO0 (error_code, error_det) =
 
 getDefaultContext :: IO Context
 getDefaultContext =
-    getDefaultContext' >>= 
-    newDBGFile >>=  
-    dbg "arbb_get_default_context" [] ("ctx",fromContext) >>= 
-    throwIfErrorIO1
+ do x@(e,c,ed) <- getDefaultContext'
+    dbg2 "arbb_get_default_context" [ OutP "arbb_context_t*" (show c)
+				    , OutP "arbb_error_details_t*" (show ed)]
+    throwIfErrorIO1 x
+
 
 {# fun unsafe arbb_get_default_context as getDefaultContext' 
    { alloca- `Context' peekContext* , 
@@ -190,10 +195,12 @@ getDefaultContext =
 
 getScalarType :: Context -> ScalarType -> IO Type
 getScalarType ctx st = 
-    getScalarType' ctx st  >>= 
-    dbg "arbb_get_scalar_type" [("ctx",show $ fromContext ctx),
-                                ("st" ,show st)]  ("type",fromType) >>= 
-    throwIfErrorIO1
+  do x@(e,ty,ed) <- getScalarType' ctx st
+     dbg2 "arbb_get_scalar_type" [ InP  "arbb_context_t"     (show ctx)
+                                 , OutP "arbb_type_t*"       (show ty) 
+				 , InP  "arbb_scalar_type_t" (show st)
+				 , OutP "arbb_error_details_t*" (show ed)]
+     throwIfErrorIO1 x
    
 {# fun unsafe arbb_get_scalar_type as getScalarType' 
    { fromContext `Context' , 
