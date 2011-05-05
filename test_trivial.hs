@@ -12,9 +12,7 @@ main = runReproducer$
   do 
      ctx <- getDefaultContext 
      t   <- getScalarType ctx ArbbF32
-
--- This doesn't quite work yet because of the lists/arrays: [2011.05.05]
---     fnt <- getFunctionType ctx [t] [t,t,t] 
+     fnt <- getFunctionType ctx [t] [t,t,t] 
 
 -- Gradually building up to be able to do Test_Simple1.hs:
 

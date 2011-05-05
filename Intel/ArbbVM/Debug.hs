@@ -56,6 +56,7 @@ import Control.Concurrent
 import Debug.Trace
 import Data.IORef
 import Data.List
+import Data.List.Split
 import Data.Char
 import qualified Data.Map as M
 
@@ -224,6 +225,8 @@ dbg0 msg inputs (ec,ed) =
 
 -- --------------------------------------------------------------------------------
 
+type MyState a = State (M.Map String String, [String], Int) a
+
 -- | Generate a C file that reproduces a logged interaction between
 --   Haskell and the ArBB VM.  This function uses some dangerous
 --   heuristics and while it is useful for debugging it should not be
@@ -246,26 +249,67 @@ makeCReproducer log = render doc
 	      '*':tl -> reverse tl
 	      _ -> error$ "expected pointer type to end in *: "++ ty
 
+  -- Modify one field of the state stored in the state monad:
+  add_init :: String -> MyState ()
+  add_init new = 
+    do (mp,inits,cntr) <- get
+       put (mp, new:inits, cntr)
+
+  incr_cntr :: MyState Int
+  incr_cntr = 
+    do (mp,inits,cntr) <- get
+       put (mp, inits, cntr+1)
+       return cntr
+
+  -- Here we take a value represented as a STRING and put it in an acceptable C++ format.
   -- This is quite primitive, and totally a HACK.
-  printValue str = 
+  printValue ty str = 
+   trace ("Printing C value from str: "++str)$ 
    case str of 
      -- Constants/ENUMs are replaced with their ArBB equivalent:
-     'A':'r':'b':'b':_ -> caseToUnderscore str
+     'A':'r':'b':'b':_ -> return$ caseToUnderscore str
+
+     -- Here's another hack for handling lists:
+     -- TODO: this only works one level deep... would need better parsing to go further:
+     -- TODO: One solution would simply be to move beyond using Strings for the value representation here!
+     '[':tl -> 
+       do cntr <- incr_cntr
+          let chopped = take (length tl - 1) tl 
+              elems   = splitOn "," chopped
+              freshname = "arr" ++ show cntr
+              elemty = deptr ty -- TOTAL HACK!
+          chunks <- mapM (printValue elemty) elems 
+          -- Here we use an array initializer:
+          add_init $    
+            elemty ++" "++ freshname ++
+            "["++ show (length elems) ++ "] = {" ++ 
+	      (concat $ intersperse ", " chunks)
+	        ++ "};" 
+          return freshname
+
      -- Numbers go right through:
-     s | all isDigit s -> s
+     s | all isDigit s -> return s
      -- Pointers should have been mapped to a previous return value...
-     s | isNullPtr s -> "NULL"
-     s | isPtr s -> error$ "makeCReproducer: unrecognized pointer value: "++s
+     s | isNullPtr s   -> return "NULL"
+
+     s | isPtr s -> 
+	-- error$ "makeCReproducer: unrecognized pointer value: "++s
+        -- Here we check if we've already seen that ptr value before:
+      do (mp,_,_) <- get
+         case M.lookup s mp of
+	  Nothing   -> return s
+	  Just name -> return name
+
 --     s           -> error$ "makeCReproducer: unrecognized printed value: "++s
      s           -> trace ("WARNING: makeCReproducer: unrecognized printed value: "++s) $ 
-		    s
+		    return s
 
   loop cntr mp [] = empty
   loop cntr mp (DbgStart:tl) = loop cntr mp tl
   loop cntr mp (DbgCall oper rands : tl) = 
     trace ("   Processing dbgcall, cntr "++ show cntr ++" "++ show mp) $ 
     let 
-        stateM :: State (M.Map String String, [String], Int) [String] = 
+        stateM :: MyState [String] = 
 	   sequence $ map dorand rands
 
         (rands', (mp2,inits,cntr2)) = runState stateM (mp,[],cntr) 
@@ -273,14 +317,7 @@ makeCReproducer log = render doc
         -- dorand returns the arguments text.  It also modifies a map
 	-- of seen values and a list of initialization statements that
 	-- it passes as state.  
-	dorand (InP ty r) = return $
-    	  -- For input parameters we check if we've already seen that
-	  -- value before.
-	  if isPtr r 
-	  then case M.lookup r mp of
-		Nothing   -> printValue r
-		Just name -> name
-	  else printValue r
+	dorand (InP ty r) = printValue ty r
 
         -- Output parameters need to be handled differently, we must
         -- allocate space for them.  We assume they are of pointer type.
