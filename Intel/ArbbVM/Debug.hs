@@ -56,6 +56,7 @@ import qualified Data.ByteString.Internal as BI
 import Foreign.Ptr
 
 import System.IO
+import System.IO.Unsafe (unsafePerformIO)
 import System.Directory
 import Text.PrettyPrint.HughesPJ
 
@@ -263,7 +264,18 @@ makeCReproducer log = render doc
  where 
   doc = 
     text "#include <stdio.h>" $$ 
+    text "#include <stdlib.h>" $$ 
     text "#include <arbb_vmapi.h>" $$ 
+
+    text "char* read_file(const char* filename, int n) { \n\
+            char* buffer = (char*)malloc(n);   \n\
+            FILE* f = fopen(filename, \"rb\"); \n\
+            if (f) {                           \n\
+               fread(buffer, n, 1, f);         \n\
+               return buffer;                  \n\
+            }                                  \n\
+            printf(\"Could not open file: %s\\n\",filename); abort(); }"   $$
+    text ""$$
     text "int main() {" $$ 
     nest 4 (loop 0 M.empty log) $$
     text "    printf(\"Reproducer finished.\\n\");" $$
@@ -331,9 +343,16 @@ makeCReproducer log = render doc
 
 -- FIXME: INEFFICIENT FOR LARGE ARRAYS!!!!
 -- TODO: A solution here is to dump out binary files and then read them in (or memory map) when running the reproducer:
+#ifdef TEXTSNAPSHOT
           add_init$ "char "++ name ++ "["++ show (B.length dat) ++"] = {"++ 
 		     concat (intersperse ", " (map show$ B.unpack dat)) ++"};"
--- FIXME: INEFFICIENT FOR LARGE ARRAYS!!!!
+#else
+          let filename = "snapshot"++show cntr++".bin"
+	  -- TEMP: DOING THIS UNSAFELY FOR NOW:
+	  seq (unsafePerformIO (B.writeFile filename dat)) $ 
+	    add_init$ "char* "++ name ++ " = read_file("++ show filename ++", "++
+		      show (B.length dat) ++ ");"
+#endif
 
           return name
 
