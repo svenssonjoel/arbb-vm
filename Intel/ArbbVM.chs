@@ -542,13 +542,14 @@ callOp caller opc callee outp inp =
 -- COMPILE AND RUN
 
 -- execute f outp inp = execute' f outp inp nullPtr >>= \x -> throwIfErrorIO (x,())
-execute f outp inp = 
-   execute' f outp inp >>= 
-    dbg0 "arbb_execute" [("fun",show $ fromFunction f),
-                         ("outputs", show (map fromVariable outp)),
-                         ("inputs" , show (map fromVariable inp))] >>=                               
-   
-   throwIfErrorIO0          
+execute f outp inp = do
+   (e,ed) <- execute' f outp inp
+   dbg2 "arbb_execute"
+	  [ InP "arbb_function_t" (mkptr f)
+	  , InP "const arbb_variable_t*" (VArr$ map mkptr outp) -- outputs
+	  , InP "const arbb_variable_t*" (VArr$ map mkptr inp)  -- inputs
+	  , OutP "arbb_error_details_t*" (mkptr ed)]   
+   throwIfErrorIO1 (e,(),ed)
  
 {# fun unsafe arbb_execute as execute' 
    { fromFunction `Function'   ,        

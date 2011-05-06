@@ -38,11 +38,11 @@ main = runReproducer$
            v3 <- variableFromGlobal ctx g3;
            r  <- createGlobal ctx t "result" binding
            v4 <- variableFromGlobal ctx r 
-     --      execute myfun [v4] [v1,v2,v3]
-     --      -- TODO: Figure out how to best access results (of various types) 
-     --      result <- readScalarOfSize 4 ctx v4 :: IO Float
-     --      putStrLn (show result) 
-	   putStrLn "withArray - done"
-      
 
-     putStrLn "Done."
+
+           execute myfun [v4] [v1,v2,v3]
+     --      -- TODO: Figure out how to best access results (of various types) 
+           result <- readScalarOfSize 4 ctx v4 :: IO Float
+           putStrLn (show result)       
+
+     putStrLn "Test Done."

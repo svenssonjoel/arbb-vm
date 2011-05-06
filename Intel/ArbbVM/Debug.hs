@@ -333,7 +333,7 @@ makeCReproducer log = render doc
      VPtr p | p == 0 && ty == "arbb_binding_t" -> return "null_binding"
 
      VPtr p | p == 0 -> 
-       error$ "Not sure what to do... null valued object passed by value with type: "++ty
+       error$ "UNIMPLEMENTED: Not sure what to do... null valued object passed by value with type: "++ty
 
      val@(VPtr ptr) -> 
      	-- error$ "makeCReproducer: unrecognized pointer value: "++s
