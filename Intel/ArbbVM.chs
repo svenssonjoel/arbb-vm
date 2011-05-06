@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, BangPatterns #-}
+{-# LANGUAGE ForeignFunctionInterface, BangPatterns, FlexibleInstances #-}
 {-# OPTIONS  -XDeriveDataTypeable #-}
 
 module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable, 
@@ -40,6 +40,10 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       endIf,
                       
                       mapToHost, 
+
+                      -- Exporting this to include debugging info with it:
+                      withArray,
+
 -- REMOVE THIS EVENTUALLY
                       fromContext 
 -------------------------
@@ -63,7 +67,8 @@ import Data.IORef
 
 import System.IO.Unsafe (unsafePerformIO)
 
-import C2HS hiding (sizeOf)  -- withArray
+import C2HS hiding (sizeOf,withArray)
+import qualified C2HS
 
 import Prelude hiding (break)
 
@@ -98,9 +103,12 @@ instance HasPtr GlobalVariable where getPtr = fromGlobalVariable
 instance HasPtr Binding        where getPtr = fromBinding
 instance HasPtr Function       where getPtr = fromFunction
 instance HasPtr VMString       where getPtr = fromVMString
+instance HasPtr (Ptr ())       where getPtr = id
 -- </boilerplate>
 
 mkptr p = VPtr$ ptrToWordPtr$ getPtr p
+
+withArray x y = C2HS.withArray x y
 
 -- ----------------------------------------------------------------------
 -- ENUMS
@@ -319,8 +327,11 @@ createGlobal ctx t name b =
 {# fun pure arbb_is_binding_null as isBindingNull
    { fromBinding `Binding' } -> `Bool'  cToBool #} 
 
+
+getBindingNull = getBindingNull'
+
 -- TODO: see if this needs to be done differently
-{# fun unsafe arbb_set_binding_null as getBindingNull 
+{# fun unsafe arbb_set_binding_null as getBindingNull' 
    { alloca- `Binding' peekBinding*  } -> `()'#} 
   
 
@@ -541,10 +552,12 @@ execute f outp inp =
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 --     alloca- `ErrorDetails' peekErrorDet*  
 
-compile f = 
-   compile' f >>= 
-    dbg0 "arbb_compile" [("fun",show $ fromFunction f)] >>=                               
-    throwIfErrorIO0
+compile f = do
+   (e,ed) <- compile' f 
+   dbg2 "arbb_compile" 
+	  [ InP "arbb_function_t" (mkptr f)
+	  , OutP "arbb_error_details_t*" (mkptr ed)]
+   throwIfErrorIO1 (e,(),ed)
 
 {# fun unsafe arbb_compile as compile' 
    { fromFunction `Function' ,
@@ -559,12 +572,16 @@ finish = finish' >>= throwIfErrorIO0
 
 
 createConstant :: Context -> Type -> Ptr () -> IO GlobalVariable
-createConstant ctx t d = 
-   createConstant' ctx t d nullPtr >>= 
-   dbg  "arbb_create_constant" [("context",show $ fromContext ctx),  
-                                ("type",show $ fromType t),
-                                ("dataPtr", show d)]  ("globalVar", fromGlobalVariable) >>=                               
-   throwIfErrorIO1
+createConstant ctx t d = do
+   x@(e,var,ed) <- createConstant' ctx t d nullPtr 
+   dbg2  "arbb_create_constant" 
+	 [ InP  "arbb_context_t"    (mkptr ctx)
+         , OutP "arbb_global_variable_t*"  (mkptr var) -- out_var 
+         , InP  "arbb_type_t"       (mkptr t)
+         , InP  "void*"             (mkptr d) -- data
+         , InP  "debug_data_description*" (VPtr 0)
+	 , OutP "arbb_error_details_t*" (mkptr ed)]
+   throwIfErrorIO1 x
   
 {# fun unsafe arbb_create_constant as createConstant' 
    { fromContext `Context'  ,

@@ -263,7 +263,6 @@ makeCReproducer log = render doc
        return cntr
 
   printVal ty val = 
-   trace ("Printing C value from val: "++ show val)$ 
    case val of 
      -- Constants/ENUMs are replaced with their ArBB equivalent:
      VEnum str -> return$ caseToUnderscore str
@@ -297,7 +296,8 @@ makeCReproducer log = render doc
       do (mp,_,_) <- get
          case M.lookup val mp of
      	  Nothing   -> return (show$ wordPtrToPtr ptr)
-     	  Just name -> return name
+     	  Just name -> trace ("WARNING: unknown pointer: "++ show name) $
+		       return name
 
      _ -> error $ "makeCReproducer: unhandled Val: "++ show val
 

@@ -3,10 +3,12 @@
 import Intel.ArbbVM 
 import Intel.ArbbVM.Convenience
 
-import Foreign.Marshal.Array
-import Foreign.Ptr 
+-- import Foreign.Marshal.Array (withArray)
+-- import Foreign.Ptr 
 
-import C2HS
+-- import C2HS
+
+-- Gradually building up to be able to do Test_Simple1.hs:
 
 main = runReproducer$
   do 
@@ -21,16 +23,15 @@ main = runReproducer$
      op myfun ArbbOpAdd [d] [a,b]
      op myfun ArbbOpMul [d] [c,d]
      endFunction myfun
+     compile myfun
+     binding <- getBindingNull 
 
--- Gradually building up to be able to do Test_Simple1.hs:
-
-     -- compile myfun
-     -- binding <- getBindingNull 
      -- -- This part gets messy! 
      -- -- TODO: Clean up! 
-     -- withArray [10.0, 20.0,30.0 :: Float] $ \ input -> 
-     --    do 
-     --      g1 <- createConstant ctx t (castPtr input)
+     withArray [10.0, 20.0,30.0 :: Float] $ \ input -> 
+        do 
+--           g1 <- createConstant ctx t (castPtr input)
+
      --      g2 <- createConstant ctx t (plusPtr (castPtr input) 4) 
      --      g3 <- createConstant ctx t (plusPtr (castPtr input) 8)
      --      v1 <- variableFromGlobal ctx g1;
@@ -42,6 +43,7 @@ main = runReproducer$
      --      -- TODO: Figure out how to best access results (of various types) 
      --      result <- readScalarOfSize 4 ctx v4 :: IO Float
      --      putStrLn (show result) 
+	   putStrLn "withArray - done"
       
 
      putStrLn "Done."
