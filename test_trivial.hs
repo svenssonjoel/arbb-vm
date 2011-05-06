@@ -13,20 +13,17 @@ main = runReproducer$
      ctx <- getDefaultContext 
      t   <- getScalarType ctx ArbbF32
      fnt <- getFunctionType ctx [t] [t,t,t] 
-
      myfun <- beginFunction ctx fnt "add" 0
-
      a     <- getParameter myfun 0 0 
      b     <- getParameter myfun 0 1
      c     <- getParameter myfun 0 2
      d     <- getParameter myfun 1 0 
+     op myfun ArbbOpAdd [d] [a,b]
+     op myfun ArbbOpMul [d] [c,d]
+     endFunction myfun
 
 -- Gradually building up to be able to do Test_Simple1.hs:
 
-     -- op myfun ArbbOpAdd [d] [a,b]
-     -- op myfun ArbbOpMul [d] [c,d]
-
-     endFunction myfun
      -- compile myfun
      -- binding <- getBindingNull 
      -- -- This part gets messy! 

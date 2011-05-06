@@ -439,13 +439,18 @@ opImm opcode outp inp =
     throwIfErrorIO0  
  
 op :: Function -> Opcode -> [Variable] -> [Variable] -> IO ()
-op f opcode outp inp = 
-    op' f opcode outp inp nullPtr nullPtr >>= 
-    dbg0 "arbb_op" [("fun",show $ fromFunction f),
-                    ("Opcode", show opcode),
-                    ("outputs", show (map fromVariable outp)),
-                    ("inputs" , show (map fromVariable inp))] >>=                               
-    throwIfErrorIO0
+op f opcode outp inp = do
+    (e,ed) <-  op' f opcode outp inp nullPtr nullPtr 
+    dbg2 "arbb_op" 
+	  [ InP "arbb_function_t" (mkptr f)
+	  , InP "arbb_opcode_t" (VEnum$ show opcode)
+	  , InP "const arbb_variable_t*" (VArr$ map mkptr outp) -- outputs
+	  , InP "const arbb_variable_t*" (VArr$ map mkptr inp)  -- inputs
+	  , InP "void*"                  (VPtr 0)  -- debug_data_ptrs
+	  , InP "arbb_attribute_map_t*"  (VPtr 0)  -- attributes
+	  , OutP "arbb_error_details_t*" (mkptr ed)]
+    throwIfErrorIO1 (e,(),ed)
+
   
 {# fun unsafe arbb_op as op'
    { fromFunction `Function' ,
