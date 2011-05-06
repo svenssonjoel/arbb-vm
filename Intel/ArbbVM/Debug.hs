@@ -335,24 +335,22 @@ makeCReproducer log = render doc
      	  Just name -> return name
 
      VCapture p dat -> 
-       trace ("VCAPTURE OF TYPE "++ show (ty,p,dat)) $
        do 
           cntr <- incr_cntr
 	  let name = "snapshot"++show cntr
---          add_init$ ty ++" "++ name ++ " = NULL;"
+	      size = B.length dat
 
--- FIXME: INEFFICIENT FOR LARGE ARRAYS!!!!
--- TODO: A solution here is to dump out binary files and then read them in (or memory map) when running the reproducer:
-#ifdef TEXTSNAPSHOT
-          add_init$ "char "++ name ++ "["++ show (B.length dat) ++"] = {"++ 
-		     concat (intersperse ", " (map show$ B.unpack dat)) ++"};"
-#else
-          let filename = "snapshot"++show cntr++".bin"
-	  -- TEMP: DOING THIS UNSAFELY FOR NOW:
-	  seq (unsafePerformIO (B.writeFile filename dat)) $ 
-	    add_init$ "char* "++ name ++ " = read_file("++ show filename ++", "++
-		      show (B.length dat) ++ ");"
-#endif
+          -- HEURISTIC!  Larger files get dumped to disk, smaller ones encoded in text:
+          if size <= 1000
+	   then add_init$ "char "++ name ++ "["++ show size ++"] = {"++ 
+		          concat (intersperse ", " (map show$ B.unpack dat)) ++"};"
+           else do
+	     let filename = "snapshot"++show cntr++".bin"
+	     -- TEMP FIXME: DOING THIS UNSAFELY FOR NOW:
+	     -- TODO: NEED TO ADD AN EXTRA ACCUMULATOR TO THE STATE
+	     seq (unsafePerformIO (B.writeFile filename dat)) $ 
+	       add_init$ "char* "++ name ++ " = read_file("++ show filename ++", "++
+			 show size ++ ");"
 
           return name
 
