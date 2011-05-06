@@ -570,15 +570,16 @@ finish = finish' >>= throwIfErrorIO0
 -- ----------------------------------------------------------------------
 -- Variables, Constants ..
 
-
 createConstant :: Context -> Type -> Ptr () -> IO GlobalVariable
-createConstant ctx t d = do
-   x@(e,var,ed) <- createConstant' ctx t d nullPtr 
-   dbg_snapshot (getPtr d,4) "arbb_create_constant" $ 
+createConstant ctx ty d = do
+   x@(e,var,ed) <- createConstant' ctx ty d nullPtr 
+   size <- sizeOf ctx ty  -- This extra call could be disabled when not in dbg mode.
+   dbg_snapshot (getPtr d, fromIntegral size) 
+		"arbb_create_constant" $ 
        \ snapshot ->             
 	    [ InP  "arbb_context_t"    (mkptr ctx)
 	    , OutP "arbb_global_variable_t*"  (mkptr var) -- out_var 
-	    , InP  "arbb_type_t"       (mkptr t)
+	    , InP  "arbb_type_t"       (mkptr ty)
 	    , InP  "void*"             (VCapture (ptrToWordPtr$ getPtr d) snapshot)
 	    , InP  "debug_data_description*" (VPtr 0)
 	    , OutP "arbb_error_details_t*" (mkptr ed)]
