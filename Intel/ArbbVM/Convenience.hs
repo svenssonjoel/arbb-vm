@@ -59,7 +59,8 @@ import Data.Word
 import Data.Int
 import Data.Serialize
 import Data.ByteString.Internal
-import Foreign.Marshal.Array
+import Foreign.Marshal.Array hiding (withArray)
+import qualified Foreign.Marshal.Array as FMA
 import Foreign.Marshal.Alloc
 import Foreign.ForeignPtr
 import Foreign.Storable as Storable
@@ -355,7 +356,7 @@ withArray_ ls body =
     let body2 ptr = do (a,s2) <- S.runStateT (body ptr) state
      		       writeIORef ref s2
      		       return a
-    res    <- L withArray ls body2
+    res    <- L FMA.withArray ls body2
     state2 <- L readIORef ref
     S.put state2
     return res
@@ -510,14 +511,14 @@ newConstant :: Storable a => Context -> Type -> a -> IO Variable
 newConstant ctx t n = 
   do           
    -- Could use withSerialized possibly...
-   tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
+   tmp <- FMA.withArray [n] $ \x -> createConstant ctx t (castPtr x)
    variableFromGlobal ctx tmp
 
 newConstantAlt :: Storable a => Context -> ScalarType -> a -> IO Variable 
 newConstantAlt ctx st n = 
   do           
    t   <- getScalarType ctx st       
-   tmp <- withArray [n] $ \x -> createConstant ctx t (castPtr x)
+   tmp <- FMA.withArray [n] $ \x -> createConstant ctx t (castPtr x)
    variableFromGlobal ctx tmp
 
 -- global/constant shortcuts
