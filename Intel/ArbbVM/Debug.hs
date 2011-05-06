@@ -234,8 +234,8 @@ dbg_snapshot (ptr,sz) str fn = do
    -- TODO FIXME: Make debugging CONDITIONAL!!  Otherwise this is needlessly inefficient.
    -- Allocate space for a snapshot:
    fptr <- BI.mallocByteString sz
-   withForeignPtr fptr$ \ptr -> 
-      BI.memcpy ptr (castPtr$ ptr) (fromIntegral sz)
+   withForeignPtr fptr$ \dest -> do 
+      BI.memcpy dest (castPtr$ ptr) (fromIntegral sz)
    let args = fn (BI.fromForeignPtr fptr 0 4)
    dbg2 str args
 
@@ -318,9 +318,9 @@ makeCReproducer log = render doc
         -- Here we check if we've already seen that ptr value before:
       do (mp,_,_) <- get
          case M.lookup val mp of
-     	  Nothing   -> return (show$ wordPtrToPtr ptr)
-     	  Just name -> trace ("WARNING: unknown pointer: "++ show name) $
-		       return name
+     	  Nothing   -> trace ("WARNING: unknown pointer: "++ show val) $
+		       return (show$ wordPtrToPtr ptr)
+     	  Just name -> return name
 
      VCapture p dat -> 
        trace ("VCAPTURE OF TYPE "++ show (ty,p,dat)) $
@@ -330,7 +330,8 @@ makeCReproducer log = render doc
 --          add_init$ ty ++" "++ name ++ " = NULL;"
 
 -- FIXME: INEFFICIENT FOR LARGE ARRAYS!!!!
-          add_init$ "char* "++ name ++ "["++ show (B.length dat) ++"] = {"++ 
+-- TODO: A solution here is to dump out binary files and then read them in (or memory map) when running the reproducer:
+          add_init$ "char "++ name ++ "["++ show (B.length dat) ++"] = {"++ 
 		     concat (intersperse ", " (map show$ B.unpack dat)) ++"};"
 -- FIXME: INEFFICIENT FOR LARGE ARRAYS!!!!
 
@@ -343,7 +344,6 @@ makeCReproducer log = render doc
   loop cntr mp [] = empty
   loop cntr mp (DbgStart:tl) = loop cntr mp tl
   loop cntr mp (DbgCall oper rands : tl) = 
-    trace ("   Processing dbgcall, cntr "++ show cntr ++" "++ show mp) $ 
     let 
         stateM :: MyState [String] = 
 	   sequence $ map dorand rands
