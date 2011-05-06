@@ -33,11 +33,11 @@ main = runReproducer$
            g1 <- createConstant ctx t (castPtr input)
            g2 <- createConstant ctx t (plusPtr (castPtr input) 4) 
            g3 <- createConstant ctx t (plusPtr (castPtr input) 8)
-     --      v1 <- variableFromGlobal ctx g1;
-     --      v2 <- variableFromGlobal ctx g2;
-     --      v3 <- variableFromGlobal ctx g3;
-     --      r  <- createGlobal ctx t "result" binding
-     --      v4 <- variableFromGlobal ctx r 
+           v1 <- variableFromGlobal ctx g1;
+           v2 <- variableFromGlobal ctx g2;
+           v3 <- variableFromGlobal ctx g3;
+           r  <- createGlobal ctx t "result" binding
+           v4 <- variableFromGlobal ctx r 
      --      execute myfun [v4] [v1,v2,v3]
      --      -- TODO: Figure out how to best access results (of various types) 
      --      result <- readScalarOfSize 4 ctx v4 :: IO Float

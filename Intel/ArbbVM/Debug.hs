@@ -277,6 +277,7 @@ makeCReproducer log = render doc
             printf(\"Could not open file: %s\\n\",filename); abort(); }"   $$
     text ""$$
     text "int main() {" $$ 
+    text "   arbb_binding_t null_binding; arbb_set_binding_null(&null_binding);" $$
     nest 4 (loop 0 M.empty log) $$
     text "    printf(\"Reproducer finished.\\n\");" $$
     text "}\n" 
@@ -284,6 +285,9 @@ makeCReproducer log = render doc
   deptr ty = case reverse ty of 
 	      '*':tl -> reverse tl
 	      _ -> error$ "expected pointer type to end in *: "++ ty
+  isPtrTy ty = case reverse ty of 
+	        '*':tl -> True
+		_      -> False
 
   -- Modify one field of the state stored in the state monad:
   add_init :: String -> MyState ()
@@ -323,7 +327,13 @@ makeCReproducer log = render doc
      VStr s -> return (show s)
 
      -- Pointers should have been mapped to a previous return value...
-     VPtr p | p == 0 -> return "NULL"
+     VPtr p | p == 0 && isPtrTy ty -> return "NULL"
+
+     -- HACK: TODO: GENERALIZE
+     VPtr p | p == 0 && ty == "arbb_binding_t" -> return "null_binding"
+
+     VPtr p | p == 0 -> 
+       error$ "Not sure what to do... null valued object passed by value with type: "++ty
 
      val@(VPtr ptr) -> 
      	-- error$ "makeCReproducer: unrecognized pointer value: "++s

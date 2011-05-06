@@ -301,13 +301,17 @@ getNestedType ctx t =
 -- createGlobal 
 
 createGlobal :: Context -> Type -> String -> Binding -> IO GlobalVariable
-createGlobal ctx t name b = 
-   createGlobal' ctx t name b nullPtr >>= 
-   dbg "arbb_create_global" [("ctx",show $ fromContext ctx),
-                             ("t" ,show $ fromType t),
-                             ("name",name),
-                             ("bind",show $ fromBinding b)]  ("GlobalVar",fromGlobalVariable) >>=                               
-   throwIfErrorIO1 
+createGlobal ctx t name b = do
+   x@(e,ty,ed) <- createGlobal' ctx t name b nullPtr 
+   dbg2 "arbb_create_global" 
+	 [ InP  "arbb_context_t"           (mkptr ctx) 
+         , OutP "arbb_global_variable_t*"  (mkptr ty)  -- out_var
+	 , InP  "arbb_type_t"              (mkptr t)
+         , InP  "const char*"              (VStr name) 
+	 , InP  "arbb_binding_t"           (mkptr b) 
+         , InP  "debug_data_description*"  (VPtr 0)
+	 , OutP "arbb_error_details_t*"    (mkptr ed)]
+   throwIfErrorIO1 x
              
 {# fun unsafe arbb_create_global as createGlobal'
    { fromContext  `Context'     ,
@@ -328,6 +332,7 @@ createGlobal ctx t name b =
    { fromBinding `Binding' } -> `Bool'  cToBool #} 
 
 
+getBindingNull :: IO Binding
 getBindingNull = getBindingNull'
 
 -- TODO: see if this needs to be done differently
@@ -609,12 +614,14 @@ createLocal fnt t name =
 
 
 variableFromGlobal :: Context -> GlobalVariable -> IO Variable
-variableFromGlobal ctx g =
-   variableFromGlobal' ctx g >>= 
-   dbg  "arbb_get_variable_from_global" [("ctx",show $ fromContext ctx),  
-                                         ("globVar",show $ fromGlobalVariable g)]    
-                                         ("variable", fromVariable) >>= 
-   throwIfErrorIO1
+variableFromGlobal ctx g = do
+   x@(e,var,ed) <- variableFromGlobal' ctx g 
+   dbg2  "arbb_get_variable_from_global" 
+	 [ InP  "arbb_context_t"         (mkptr ctx)
+	 , OutP "arbb_variable_t*"       (mkptr var)
+	 , InP  "arbb_global_variable_t" (mkptr g)
+	 , OutP "arbb_error_details_t*"  (mkptr ed)]
+   throwIfErrorIO1 x 
 
 {# fun unsafe arbb_get_variable_from_global as variableFromGlobal'
    { fromContext `Context'   ,
