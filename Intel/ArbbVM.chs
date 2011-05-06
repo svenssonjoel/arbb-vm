@@ -71,12 +71,12 @@ import Prelude hiding (break)
 
 -- ----------------------------------------------------------------------
 
-newtype Context = Context {fromContext :: Ptr ()} 
+newtype Context      = Context      {fromContext :: Ptr ()} 
 newtype ErrorDetails = ErrorDetails {fromErrorDetails :: Ptr ()} 
-newtype Type = Type {fromType :: Ptr ()} 
-newtype Variable = Variable {fromVariable :: Ptr ()}
+newtype Type         = Type     {fromType :: Ptr ()} 
+newtype Variable     = Variable {fromVariable :: Ptr ()}
 newtype GlobalVariable = GlobalVariable {fromGlobalVariable :: Ptr ()}
-newtype Binding = Binding {fromBinding :: Ptr ()}
+newtype Binding  = Binding  {fromBinding :: Ptr ()}
 newtype Function = Function {fromFunction :: Ptr ()}
 newtype VMString = VMString {fromVMString :: Ptr ()}
 
@@ -85,9 +85,22 @@ newtype AttributeMap = AttributeMap {fromAttributeMap :: Ptr ()}
 -- TODO: there is a struct called arbb_attribute_key_value_t 
 --       that needs to be handeld.
 
-instance Show Context      where show = show . fromContext 
-instance Show ErrorDetails where show = show . fromErrorDetails
-instance Show Type         where show = show . fromType
+-- <boilerplate>
+-- instance Show Context      where show = show . fromContext 
+-- instance Show ErrorDetails where show = show . fromErrorDetails
+-- instance Show Type         where show = show . fromType
+class    HasPtr a              where getPtr :: a -> Ptr ()
+instance HasPtr Context        where getPtr = fromContext
+instance HasPtr ErrorDetails   where getPtr = fromErrorDetails
+instance HasPtr Type           where getPtr = fromType
+instance HasPtr Variable       where getPtr = fromVariable
+instance HasPtr GlobalVariable where getPtr = fromGlobalVariable
+instance HasPtr Binding        where getPtr = fromBinding
+instance HasPtr Function       where getPtr = fromFunction
+instance HasPtr VMString       where getPtr = fromVMString
+-- </boilerplate>
+
+mkptr p = VPtr$ ptrToWordPtr$ getPtr p
 
 -- ----------------------------------------------------------------------
 -- ENUMS
@@ -177,8 +190,8 @@ throwIfErrorIO0 (error_code, error_det) =
 getDefaultContext :: IO Context
 getDefaultContext =
  do x@(e,c,ed) <- getDefaultContext'
-    dbg2 "arbb_get_default_context" [ OutP "arbb_context_t*" (show c)
-				    , OutP "arbb_error_details_t*" (show ed)]
+    dbg2 "arbb_get_default_context" [ OutP "arbb_context_t*"       (mkptr c)
+				    , OutP "arbb_error_details_t*" (mkptr ed)]
     throwIfErrorIO1 x
 
 
@@ -196,10 +209,10 @@ getDefaultContext =
 getScalarType :: Context -> ScalarType -> IO Type
 getScalarType ctx st = 
   do x@(e,ty,ed) <- getScalarType' ctx st
-     dbg2 "arbb_get_scalar_type" [ InP  "arbb_context_t"     (show ctx)
-                                 , OutP "arbb_type_t*"       (show ty) 
-				 , InP  "arbb_scalar_type_t" (show st)
-				 , OutP "arbb_error_details_t*" (show ed)]
+     dbg2 "arbb_get_scalar_type" [ InP  "arbb_context_t"        (mkptr ctx)
+                                 , OutP "arbb_type_t*"          (mkptr ty) 
+				 , InP  "arbb_scalar_type_t"    (VEnum (show st))
+				 , OutP "arbb_error_details_t*" (mkptr ed)]
      throwIfErrorIO1 x
    
 {# fun unsafe arbb_get_scalar_type as getScalarType' 
@@ -357,13 +370,13 @@ getFunctionType ctx outps inps =
         inlen  = length inps
     x@(e,ty,ed) <- getFunctionType' ctx outlen outps inlen inps
     dbg2 "arbb_get_function_type"
-	 [ inp  "arbb_context_t"     ctx 
-         , outp "arbb_type_t*"       ty     -- out_type
-	 , inp  "unsigned int"       outlen -- num_outputs
-         , inp  "const arbb_type_t*" outps  -- output_types
-	 , inp  "unsigned int"       inlen  -- num_inputs
-         , inp  "const arbb_type_t*" inps   -- input_types
-	 , outp "arbb_error_details_t*" ed]
+	 [ InP  "arbb_context_t"     (mkptr ctx) 
+         , OutP "arbb_type_t*"       (mkptr ty)    -- out_type
+	 , InP  "unsigned int"       (VNum outlen) -- num_outputs
+         , InP  "const arbb_type_t*" (VArr$ map mkptr outps)  -- output_types
+	 , InP  "unsigned int"       (VNum inlen)  -- num_inputs
+         , InP  "const arbb_type_t*" (VArr$ map mkptr inps)   -- input_types
+	 , OutP "arbb_error_details_t*" (mkptr ed)]
     throwIfErrorIO1 x
 
  

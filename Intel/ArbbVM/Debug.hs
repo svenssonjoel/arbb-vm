@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, BangPatterns, ScopedTypeVariables #-}
+{-# LANGUAGE ForeignFunctionInterface, BangPatterns, ScopedTypeVariables, CPP #-}
 {-# OPTIONS  -XDeriveDataTypeable -fwarn-unused-imports #-}
 
 {-
@@ -32,8 +32,7 @@
 
 module Intel.ArbbVM.Debug
   (
-    DbgEvent(..), Param(..),
-    outp, inp,
+    DbgEvent(..), Param(..), Val(..),
     dbg, dbg0, dbg2, dbgfile,
     runTrace, runReproducer, makeCReproducer,
 
@@ -50,6 +49,8 @@ import Data.List
 import Data.List.Split
 import Data.Char
 import qualified Data.Map as M
+
+import Foreign.Ptr
 
 import System.IO
 import System.Directory
@@ -91,13 +92,21 @@ data DbgEvent =
 type NamedValue = (String,String)
 
 
-data Param = OutP String String
-	   | InP  String String
+data Param = OutP String Val
+	   | InP  String Val
   deriving (Show, Read)
 
+-- A simple value representation that retains some structure (before
+-- this it was just strings).
+data Val = VNum Int
+	 | VPtr WordPtr
+	 | VEnum String
+	 | VArr [Val]
+  deriving (Show, Read, Ord, Eq)
+
 -- Generic version:
-outp s x = OutP s (show x)
-inp  s x = InP  s (show x)
+-- outp s x = OutP s (show x)
+-- inp  s x = InP  s (show x)
 
 fromParam (OutP p v) = (p,v)
 fromParam (InP  p v) = (p,v)
@@ -216,7 +225,7 @@ dbg0 msg inputs (ec,ed) =
 
 -- --------------------------------------------------------------------------------
 
-type MyState a = State (M.Map String String, [String], Int) a
+type MyState a = State (M.Map Val String, [String], Int) a
 
 -- | Generate a C file that reproduces a logged interaction between
 --   Haskell and the ArBB VM.  This function uses some dangerous
@@ -252,48 +261,44 @@ makeCReproducer log = render doc
        put (mp, inits, cntr+1)
        return cntr
 
-  -- Here we take a value represented as a STRING and put it in an acceptable C++ format.
-  -- This is quite primitive, and totally a HACK.
-  printValue ty str = 
-   trace ("Printing C value from str: "++str)$ 
-   case str of 
+  printVal ty val = 
+   trace ("Printing C value from val: "++ show val)$ 
+   case val of 
      -- Constants/ENUMs are replaced with their ArBB equivalent:
-     'A':'r':'b':'b':_ -> return$ caseToUnderscore str
+     VEnum str -> return$ caseToUnderscore str
 
      -- Here's another hack for handling lists:
      -- TODO: this only works one level deep... would need better parsing to go further:
-     -- TODO: One solution would simply be to move beyond using Strings for the value representation here!
-     '[':tl -> 
+     VArr ls -> 
        do cntr <- incr_cntr
-          let chopped = take (length tl - 1) tl 
-              elems   = splitOn "," chopped
+          let 
               freshname = "arr" ++ show cntr
               elemty = deptr ty -- TOTAL HACK!
-          chunks <- mapM (printValue elemty) elems 
+          chunks <- mapM (printVal elemty) ls
           -- Here we use an array initializer:
           add_init $    
             elemty ++" "++ freshname ++
-            "["++ show (length elems) ++ "] = {" ++ 
+            "["++ show (length ls) ++ "] = {" ++ 
 	      (concat $ intersperse ", " chunks)
 	        ++ "};" 
           return freshname
 
-     -- Numbers go right through:
-     s | all isDigit s -> return s
+     -- -- Numbers go right through:
+     VNum n -> return (show n)
      -- Pointers should have been mapped to a previous return value...
-     s | isNullPtr s   -> return "NULL"
+     VPtr p | p == 0 -> return "NULL"
 
-     s | isPtr s -> 
-	-- error$ "makeCReproducer: unrecognized pointer value: "++s
+     val@(VPtr ptr) -> 
+     	-- error$ "makeCReproducer: unrecognized pointer value: "++s
         -- Here we check if we've already seen that ptr value before:
       do (mp,_,_) <- get
-         case M.lookup s mp of
-	  Nothing   -> return s
-	  Just name -> return name
+         case M.lookup val mp of
+     	  Nothing   -> return (show$ wordPtrToPtr ptr)
+     	  Just name -> return name
 
---     s           -> error$ "makeCReproducer: unrecognized printed value: "++s
-     s           -> trace ("WARNING: makeCReproducer: unrecognized printed value: "++s) $ 
-		    return s
+     _ -> error $ "makeCReproducer: unhandled Val: "++ show val
+
+
 
   loop cntr mp [] = empty
   loop cntr mp (DbgStart:tl) = loop cntr mp tl
@@ -308,7 +313,7 @@ makeCReproducer log = render doc
         -- dorand returns the arguments text.  It also modifies a map
 	-- of seen values and a list of initialization statements that
 	-- it passes as state.  
-	dorand (InP ty r) = printValue ty r
+	dorand (InP ty r) = printVal ty r
 
         -- Output parameters need to be handled differently, we must
         -- allocate space for them.  We assume they are of pointer type.
@@ -325,8 +330,9 @@ makeCReproducer log = render doc
 	     put (mp', -- if isNullPtr r then mp' else mp0, 
 		  inits', cntr+1)
 	     return ("&" ++ freshname)
+
     in 
-    vcat (map text inits) $$ 
+    vcat (map text$ reverse inits) $$ 
     text oper <> 
       parens (hcat$ intersperse (comma<>space) (map text rands')) <> 
       text ";" $$ 
