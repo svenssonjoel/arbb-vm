@@ -33,7 +33,7 @@
 module Intel.ArbbVM.Debug
   (
     DbgEvent(..), Param(..), Val(..),
-    dbg, dbg0, dbg2, dbgfile,
+    dbg, dbg0, dbg2, dbg_snapshot, dbgfile,
     runTrace, runReproducer, makeCReproducer,
 
     -- TEMP:
@@ -49,6 +49,9 @@ import Data.List
 import Data.List.Split
 import Data.Char
 import qualified Data.Map as M
+
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Internal as BI
 
 import Foreign.Ptr
 
@@ -101,6 +104,14 @@ data Param = OutP String Val
 data Val = VNum Int
 	 | VStr String
 	 | VPtr WordPtr
+
+	 -- This represents a snapshot of a binary object in memory.
+	 -- It's location (pointer) is also recorded for faster
+	 -- equivalence checking.  WARNING -- long running
+	 -- computations that free and malloc memory repeatedly could
+	 -- pose a problem!
+	 | VCapture WordPtr B.ByteString
+
 	 | VEnum String
 	 | VArr [Val]
   deriving (Show, Read, Ord, Eq)
@@ -217,6 +228,18 @@ dbg2 msg params  =
      loop 
 
 
+-- Here's a wrapper which also snapshots a blob of data:
+dbg_snapshot :: (Ptr a,Int) -> String -> (B.ByteString -> [Param]) -> IO ()
+dbg_snapshot (ptr,sz) str fn = do
+   -- TODO FIXME: Make debugging CONDITIONAL!!  Otherwise this is needlessly inefficient.
+   -- Allocate space for a snapshot:
+   fptr <- BI.mallocByteString sz
+   withForeignPtr fptr$ \ptr -> 
+      BI.memcpy ptr (castPtr$ ptr) (fromIntegral sz)
+   let args = fn (BI.fromForeignPtr fptr 0 4)
+   dbg2 str args
+
+
 -- | Log a call to  a function without a return value.
 dbg0 msg inputs (ec,ed) = 
  do
@@ -298,6 +321,20 @@ makeCReproducer log = render doc
      	  Nothing   -> return (show$ wordPtrToPtr ptr)
      	  Just name -> trace ("WARNING: unknown pointer: "++ show name) $
 		       return name
+
+     VCapture p dat -> 
+       trace ("VCAPTURE OF TYPE "++ show (ty,p,dat)) $
+       do 
+          cntr <- incr_cntr
+	  let name = "snapshot"++show cntr
+--          add_init$ ty ++" "++ name ++ " = NULL;"
+
+-- FIXME: INEFFICIENT FOR LARGE ARRAYS!!!!
+          add_init$ "char* "++ name ++ "["++ show (B.length dat) ++"] = {"++ 
+		     concat (intersperse ", " (map show$ B.unpack dat)) ++"};"
+-- FIXME: INEFFICIENT FOR LARGE ARRAYS!!!!
+
+          return name
 
      _ -> error $ "makeCReproducer: unhandled Val: "++ show val
 

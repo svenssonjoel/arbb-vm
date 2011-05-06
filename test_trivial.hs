@@ -4,7 +4,7 @@ import Intel.ArbbVM
 import Intel.ArbbVM.Convenience
 
 -- import Foreign.Marshal.Array (withArray)
--- import Foreign.Ptr 
+import Foreign.Ptr 
 
 -- import C2HS
 
@@ -30,10 +30,9 @@ main = runReproducer$
      -- -- TODO: Clean up! 
      withArray [10.0, 20.0,30.0 :: Float] $ \ input -> 
         do 
---           g1 <- createConstant ctx t (castPtr input)
-
-     --      g2 <- createConstant ctx t (plusPtr (castPtr input) 4) 
-     --      g3 <- createConstant ctx t (plusPtr (castPtr input) 8)
+           g1 <- createConstant ctx t (castPtr input)
+           g2 <- createConstant ctx t (plusPtr (castPtr input) 4) 
+           g3 <- createConstant ctx t (plusPtr (castPtr input) 8)
      --      v1 <- variableFromGlobal ctx g1;
      --      v2 <- variableFromGlobal ctx g2;
      --      v3 <- variableFromGlobal ctx g3;

@@ -109,7 +109,7 @@ instance HasPtr (Ptr ())       where getPtr = id
 mkptr p = VPtr$ ptrToWordPtr$ getPtr p
 
 withArray x y = C2HS.withArray x y
-
+		
 -- ----------------------------------------------------------------------
 -- ENUMS
 -- ----------------------------------------------------------------------
@@ -574,13 +574,14 @@ finish = finish' >>= throwIfErrorIO0
 createConstant :: Context -> Type -> Ptr () -> IO GlobalVariable
 createConstant ctx t d = do
    x@(e,var,ed) <- createConstant' ctx t d nullPtr 
-   dbg2  "arbb_create_constant" 
-	 [ InP  "arbb_context_t"    (mkptr ctx)
-         , OutP "arbb_global_variable_t*"  (mkptr var) -- out_var 
-         , InP  "arbb_type_t"       (mkptr t)
-         , InP  "void*"             (mkptr d) -- data
-         , InP  "debug_data_description*" (VPtr 0)
-	 , OutP "arbb_error_details_t*" (mkptr ed)]
+   dbg_snapshot (getPtr d,4) "arbb_create_constant" $ 
+       \ snapshot ->             
+	    [ InP  "arbb_context_t"    (mkptr ctx)
+	    , OutP "arbb_global_variable_t*"  (mkptr var) -- out_var 
+	    , InP  "arbb_type_t"       (mkptr t)
+	    , InP  "void*"             (VCapture (ptrToWordPtr$ getPtr d) snapshot)
+	    , InP  "debug_data_description*" (VPtr 0)
+	    , OutP "arbb_error_details_t*" (mkptr ed)]
    throwIfErrorIO1 x
   
 {# fun unsafe arbb_create_constant as createConstant' 
