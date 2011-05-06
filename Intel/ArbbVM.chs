@@ -391,15 +391,17 @@ getFunctionType ctx outps inps =
      --id `Ptr (Ptr ())'
 
 beginFunction :: Context -> Type -> String -> Int -> IO Function
-beginFunction ctx t name remote = 
-  beginFunction' ctx t name remote >>= 
-  dbg "arbb_begin_function" [("ctx",show $ fromContext ctx),
-                             ("fn_t" ,show $ fromType t),
-                             ("name", name),
-                             ("remote", show remote)]
-                             ("fun",fromFunction) >>=                               
-                                    
-  throwIfErrorIO1 
+beginFunction ctx t name remote = do
+  x@(e,fn,ed) <- beginFunction' ctx t name remote 
+  dbg2 "arbb_begin_function" 
+	 [ InP  "arbb_context_t"     (mkptr ctx) 
+         , OutP "arbb_function_t*"   (mkptr fn)    -- out_function
+	 , InP  "arbb_type_t"        (mkptr t)     -- function_type
+	 , InP  "const char*"        (VStr name)   -- name
+         , InP  "int"                (VNum remote) -- is_remote
+	 , OutP "arbb_error_details_t*" (mkptr ed)]
+  throwIfErrorIO1 x
+
 
 {# fun unsafe arbb_begin_function as beginFunction'
    { fromContext `Context'   ,
@@ -411,10 +413,12 @@ beginFunction ctx t name remote =
      -- alloca- `ErrorDetails' peekErrorDet* 
 
 endFunction :: Function -> IO ()
-endFunction f = 
-   endFunction' f  >>= 
-   dbg0 "arbb_end_function" [("fun",show $ fromFunction f)] >>=                               
-   throwIfErrorIO0
+endFunction f = do
+   (e,ed) <- endFunction' f 
+   dbg2 "arbb_end_function" 
+	  [ InP "arbb_function_t" (mkptr f)
+	  , OutP "arbb_error_details_t*" (mkptr ed)]
+   throwIfErrorIO1 (e,(),ed)
  
 {#fun unsafe arbb_end_function as endFunction' 
       { fromFunction `Function'    ,
@@ -596,12 +600,15 @@ variableFromGlobal ctx g =
 
 
 getParameter :: Function -> Int -> Int -> IO Variable
-getParameter f n m = 
-  getParameter' f n m >>= 
-  dbg  "arbb_get_parameter" [("fun",show $ fromFunction f),  
-                             ("in/out",show n),   
-                             ("index", show m)] ("variable", fromVariable) >>= 
-  throwIfErrorIO1
+getParameter f n m = do
+  x@(e,var,ed) <- getParameter' f n m
+  dbg2 "arbb_get_parameter"
+	 [ InP  "arbb_function_t"   (mkptr f)
+         , OutP "arbb_variable_t*"  (mkptr var) -- out_var 
+         , InP  "int"               (VNum n) 
+         , InP  "unsigned int"      (VNum m) 
+	 , OutP "arbb_error_details_t*" (mkptr ed)]
+  throwIfErrorIO1 x
  
 {# fun unsafe arbb_get_parameter as getParameter' 
    { fromFunction `Function'   ,

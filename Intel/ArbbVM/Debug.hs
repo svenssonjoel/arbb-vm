@@ -99,6 +99,7 @@ data Param = OutP String Val
 -- A simple value representation that retains some structure (before
 -- this it was just strings).
 data Val = VNum Int
+	 | VStr String
 	 | VPtr WordPtr
 	 | VEnum String
 	 | VArr [Val]
@@ -285,6 +286,8 @@ makeCReproducer log = render doc
 
      -- -- Numbers go right through:
      VNum n -> return (show n)
+     VStr s -> return (show s)
+
      -- Pointers should have been mapped to a previous return value...
      VPtr p | p == 0 -> return "NULL"
 
