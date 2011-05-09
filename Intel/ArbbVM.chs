@@ -65,6 +65,8 @@ import Data.Typeable
 import Data.Word
 import Data.IORef
 
+import Debug.Trace
+
 import System.IO.Unsafe (unsafePerformIO)
 
 import C2HS hiding (sizeOf,withArray)
@@ -650,12 +652,22 @@ getParameter f n m = do
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 
 readScalar :: Context -> Variable -> Ptr () -> IO ()
-readScalar ctx v ptr = 
-   readScalar' ctx v ptr >>= 
-   dbg0  "arbb_read_scalar" [("ctx",show $ fromContext ctx),  
-                             ("variable",show $ fromVariable v),   
-                             ("dataOutPtr", show ptr)] >>= 
-   throwIfErrorIO0
+readScalar ctx v ptr = do
+   (e,ed) <- readScalar' ctx v ptr 
+   let size = trace "TODO: implement size" 4
+   dbg2  "arbb_read_scalar" 
+	 [ InP "arbb_context_t"   (mkptr ctx)
+         , InP "arbb_variable_t"  (mkptr v)
+	 -- The following is a different kind of output parameter:
+	 , InP "void*"            (VEmpty size (ptrToWordPtr ptr)) -- Ouput
+	 , OutP "arbb_error_details_t*" (mkptr ed)]
+
+-- if DEBUG
+--   sizeOf v ??????
+   snapshot <- mk_snapshot (ptr,4)
+   dbg_log_evt $ DbgReadAndCompare (ptrToWordPtr ptr) snapshot
+   
+   throwIfErrorIO1 (e,(),ed)
 
 {# fun unsafe arbb_read_scalar as readScalar' 
    { fromContext `Context'  ,

@@ -10,20 +10,7 @@
       reflect ONLY the arguments to the actual C api calls. 
 
           o This refactoring is in-progress within ArBBVM.chs
-
-          o The strings-only hack may not be sustainable.
-          o Perhaps the next step would be to include more structure
-            and metadata in the DbgEvent.  That's fine with me though --
-            the main thing was that I wanted DbgEvent to have Show/Read
-            invariance, not depend on in-memory haskell data
-            structures...
-
-    * The array capture mechanism needs to be implemented.  A
-      DbgArraySnapshot needs to be created when an array is sent to
-      ArBB (bind?), then makeCReproducer needs to generate a big
-      constant C array.  OR another approach is to store each array in
-      its binary representation in a file.
-
+ 
     * When the whole thing works I was going to factor out Joel's
       original debugging printed messages and implement a separate
       function that consumes DbgTraces and prints those same messages.
@@ -33,7 +20,10 @@
 module Intel.ArbbVM.Debug
   (
     DbgEvent(..), Param(..), Val(..),
-    dbg, dbg0, dbg2, dbg_snapshot, dbgfile,
+    -- OLD:
+    dbg, dbg0, dbgfile,
+    -- NEW:
+    dbg2, dbg_log_evt, dbg_snapshot, mk_snapshot,
     runTrace, runReproducer, makeCReproducer,
 
     -- TEMP:
@@ -82,15 +72,18 @@ type TaggedDbgEvent = (ThreadId,DbgEvent)
 
 data DbgEvent = 
    DbgStart -- A dummy event.
+
+ --  Log a call through the VMAPI:
  | DbgCall { operator :: String
 	   , operands :: [Param]
 --	   ,  result   :: NamedValue 
 	   }
- -- NOTE: This is an inefficent representation, we could at least use
- -- binary representations for common scalar types:
- -- Also we could use bytestrings here and Text.Show.ByteString:
- | DbgArraySnapshot [String]
-   deriving (Show, Read)
+
+ -- Log a value returned FROM ArBB and store a copy of the value.
+ | DbgReadAndCompare { origptr :: WordPtr
+		     , snapshot :: B.ByteString
+		     }
+ deriving (Show, Read)
 
 -- A printed value together with a descriptive name:
 type NamedValue = (String,String)
@@ -112,6 +105,9 @@ data Val = VNum Int
 	 -- computations that free and malloc memory repeatedly could
 	 -- pose a problem!
 	 | VCapture WordPtr B.ByteString
+         -- A placeholder for a fresh empty buffer of given size:
+	 -- Also stores the corresponding pointer in the original execution:
+         | VEmpty Int WordPtr 
 
 	 | VEnum String
 	 | VArr [Val]
@@ -207,39 +203,43 @@ dbg msg inputs (nom,accf) orig@(ec, rv, ed) =
 
 -- New version of logging procedure... refactoring.
 dbg2 :: String -> [Param] -> IO ()
-dbg2 msg params  = 
- do 
-     id     <- myThreadId
-     new_tl <- newEmptyMVar
-     let evt = DbgCall msg params 
-         loop = do
-	   -- Now to add a new entry to the debug trace.  Things get tricky
-	   -- because we want to do TWO things, extend the linked list and
-	   -- modify the global variable to point to the new tail.  We could
-	   -- use TVars to do that atomically but the following protocol
-	   -- works as well.  Which runs better under contention?
-	   DbgCons cntr hd tl <- readIORef global_dbg_trace_tail
-	   let newcell = DbgCons (cntr+1) (id,evt) new_tl
-	   success <- tryPutMVar tl newcell
-	   if success then 
-	    -- If we succeed then we have the right to repoint the global:
-	    writeIORef global_dbg_trace_tail newcell
-	    -- If we fail to fill the tail then someone else beat us to it and we retry:
-	    else loop
-     loop 
+dbg2 msg params = dbg_log_evt (DbgCall msg params)
+
+dbg_log_evt evt = 
+ do id     <- myThreadId
+    new_tl <- newEmptyMVar
+    let loop = do
+	    -- Now to add a new entry to the debug trace.  Things get tricky
+	    -- because we want to do TWO things, extend the linked list and
+	    -- modify the global variable to point to the new tail.  We could
+	    -- use TVars to do that atomically but the following protocol
+	    -- works as well.  Which runs better under contention?
+	    DbgCons cntr hd tl <- readIORef global_dbg_trace_tail
+	    let newcell = DbgCons (cntr+1) (id,evt) new_tl
+	    success <- tryPutMVar tl newcell
+	    if success then 
+	     -- If we succeed then we have the right to repoint the global:
+	     writeIORef global_dbg_trace_tail newcell
+	     -- If we fail to fill the tail then someone else beat us to it and we retry:
+	     else loop
+    loop 
 
 
--- Here's a wrapper which also snapshots a blob of data:
-dbg_snapshot :: (Ptr a,Int) -> String -> (B.ByteString -> [Param]) -> IO ()
-dbg_snapshot (ptr,sz) str fn = do
-   -- TODO FIXME: Make debugging CONDITIONAL!!  Otherwise this is needlessly inefficient.
+mk_snapshot  :: (Ptr a,Int) -> IO B.ByteString
+mk_snapshot (ptr,sz) = do
    -- Allocate space for a snapshot:
    fptr <- BI.mallocByteString sz
    withForeignPtr fptr$ \dest -> do 
       BI.memcpy dest (castPtr$ ptr) (fromIntegral sz)
-   let args = fn (BI.fromForeignPtr fptr 0 4)
-   dbg2 str args
+   return (BI.fromForeignPtr fptr 0 4)
 
+-- Here's a wrapper which also snapshots a blob of data:
+-- It should be disabled when debugging is off.
+dbg_snapshot :: (Ptr a,Int) -> String -> (B.ByteString -> [Param]) -> IO ()
+dbg_snapshot pr str fn = do
+   -- TODO FIXME: Make debugging CONDITIONAL!!  Otherwise this is needlessly inefficient.
+   snap <- mk_snapshot pr
+   dbg2 str (fn snap)
 
 -- | Log a call to  a function without a return value.
 dbg0 msg inputs (ec,ed) = 
@@ -344,6 +344,15 @@ makeCReproducer log = render doc
 		       return (show$ wordPtrToPtr ptr)
      	  Just name -> return name
 
+     VEmpty size origptr ->
+       do cntr <- incr_cntr
+	  let name = "buf"++show cntr
+	  add_init$ "char* "++name++" = (char*)malloc("++show size++");"
+
+-- TODO: Extend map connecting the name to the value of the origptr
+
+	  return name
+
      VCapture p dat -> 
        do 
           cntr <- incr_cntr
@@ -370,6 +379,11 @@ makeCReproducer log = render doc
 
   loop cntr mp [] = empty
   loop cntr mp (DbgStart:tl) = loop cntr mp tl
+
+  loop cntr mp (DbgReadAndCompare ptr snapshot : tl) = 
+   text ("// READ AND COMPARE RESULT "++ show (ptr,snapshot) ++"\n") $$
+   loop cntr mp tl
+
   loop cntr mp (DbgCall oper rands : tl) = 
     let 
         stateM :: MyState [String] = 
