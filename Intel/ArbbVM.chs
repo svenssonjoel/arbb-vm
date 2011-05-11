@@ -735,7 +735,12 @@ endIf f = endIf' f >>= throwIfErrorIO0
 -- Alternative means of data movement 
 
 mapToHost ctx var pitch mode = 
-   mapToHost' ctx var pitch mode >>= throwIfErrorIO1
+   mapToHost' ctx var pitch mode >>= 
+--  dbg "map_to_host" [("ctx",show $ fromContext ctx),
+--                                ("variable" ,show (fromVariable var)),
+--                                ("pitch", show pitch)]
+--                               (-- something about the result -- ) >>=      
+    throwIfErrorIO1
 
 {# fun unsafe arbb_map_to_host as mapToHost'
    { fromContext  `Context'     ,

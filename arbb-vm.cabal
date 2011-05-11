@@ -44,6 +44,7 @@ Library
                  , Intel.ArbbVM.Type
   other-modules:
                    C2HS
+                 , Intel.ArbbVM.Debug
 
   GHC-Options: -O2 
 --extra-libraries: tbb, arbb, pthread
