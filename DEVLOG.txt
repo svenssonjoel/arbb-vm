@@ -138,3 +138,14 @@ List of problems encountered with Haskell / Accelerate:
 
   * Power of two effect in GHC.Prim.newPinnedByteArray 
     Sometimes non-powers-of two take enormously more time.
+
+
+
+------------------------------------------------------------------------------
+
+May-12-2011:
+
+New version of ArBB available. I (BJS) started to make our bindings 
+compatible with this version. (Now the examples compile under the 
+new arBB version) 
+
