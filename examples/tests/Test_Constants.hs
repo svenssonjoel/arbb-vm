@@ -41,7 +41,7 @@ main = do
      op myfun ArbbOpAdd [c] [a,tmp]
      op myfun ArbbOpMul [c] [c,b]
      endFunction myfun
-     compile myfun
+     --compile myfun
      binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 

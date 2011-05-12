@@ -21,7 +21,7 @@ main = runReproducer$
      op myfun ArbbOpAdd [d] [a,b]
      op myfun ArbbOpMul [d] [c,d]
      endFunction myfun
-     compile myfun
+     --compile myfun
      binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 

@@ -34,7 +34,7 @@ main = arbbSession$ do
         one <- int32_ 1
         ten <- usize_ 10
                    
-        opDynamic_ ArbbOpNewVector [newArr] [ten] 
+        opDynamic_ ArbbOpAlloc {-ArbbOpNewVector-} [newArr] [ten] 
           
         opDynamic_ ArbbOpIndex [indices] [one,ten,one]      
         

@@ -27,7 +27,7 @@ main = do
      
      opDynamic myfun ArbbOpAddReduce [c] [tmp]
      endFunction myfun
-     compile myfun
+     --compile myfun
      binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 

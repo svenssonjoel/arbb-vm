@@ -32,7 +32,7 @@ main = do
         
      op myfun ArbbOpAdd [b] [a,one]
      endFunction myfun
-     compile myfun
+--     compile myfun
 -- myfun ends
      
 -- Caller starts 
@@ -45,7 +45,7 @@ main = do
      callOp caller ArbbOpMap myfun [out_array] [in_array]
    
      endFunction caller
-     compile caller
+  --   compile caller
 -- Caller ends
  
 

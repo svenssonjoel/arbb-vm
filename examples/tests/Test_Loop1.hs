@@ -74,7 +74,7 @@ main = do
      op myfun ArbbOpCopy [c] [tmp]          
     
      endFunction myfun
-     compile myfun
+     --compile myfun
      binding <- getBindingNull 
 
      str <- serializeFunction myfun 

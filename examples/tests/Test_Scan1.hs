@@ -63,7 +63,7 @@ main = arbbSession$ do
         op_ ArbbOpMul [start] [one,n] 
        
         -- vector of zeroes to be filled in with values using Scatter
-        opDynamic_ ArbbOpNewVector [tmpArr] [length]
+        opDynamic_ ArbbOpAlloc {-ArbbOpNewVector-}  [tmpArr] [length]
        
         opDynamic_ ArbbOpIndex [indices'] [start, length, step]
         op_ ArbbOpCast [indices] [indices']

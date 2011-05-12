@@ -22,7 +22,8 @@ main = runReproducer $ do
    
      op myfun ArbbOpAdd [c] [a,b]
      endFunction myfun
-     compile myfun
+     -- Compile is removed in .022 version 
+     -- compile myfun 
      binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 

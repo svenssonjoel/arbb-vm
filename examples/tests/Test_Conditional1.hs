@@ -30,7 +30,7 @@ main = do
        (op myfun ArbbOpDiv [c] [a,a])
     
      endFunction myfun
-     compile myfun
+     --compile myfun
      binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 

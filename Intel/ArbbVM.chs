@@ -28,7 +28,10 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       createDenseBinding, freeBinding, getFunctionType,
                       beginFunction, endFunction, 
                       op, opImm, opDynamic, opDynamicImm,
-		      callOp, execute, compile, 
+		      callOp, execute, 
+                      
+                      -- Compile has changed into compile_for_args in latest version
+                      --compile, 
 		  
                       finish, createConstant, createLocal,
                       variableFromGlobal, getParameter, readScalar,
@@ -67,7 +70,8 @@ import C2HS hiding (sizeOf)
 
 import Prelude hiding (break)
 
-#include "../cbits/arbb_alt.h"
+-- find this file in the ArBB installation!
+#include "../cbits/arbb_vmapi.h"
 
 -- ----------------------------------------------------------------------
 
@@ -507,6 +511,10 @@ execute f outp inp =
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
 --     alloca- `ErrorDetails' peekErrorDet*  
 
+
+-- There is no more "compile" function in this way 
+-- in the latest version of arbb_vmapi.h
+{-
 compile f = 
    compile' f >>= 
     dbg0 "arbb_compile" [("fun",show $ fromFunction f)] >>=                               
@@ -515,7 +523,7 @@ compile f =
 {# fun unsafe arbb_compile as compile' 
    { fromFunction `Function' ,
      alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
-
+-} 
 finish = finish' >>= throwIfErrorIO0
 {# fun unsafe arbb_finish as finish' 
    {alloca- `ErrorDetails' peekErrorDet*} -> `Error' cToEnum #}
