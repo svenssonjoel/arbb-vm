@@ -71,8 +71,8 @@ import C2HS hiding (sizeOf)
 import Prelude hiding (break)
 
 -- find this file in the ArBB installation!
-#include "../cbits/arbb_vmapi.h"
-
+-- #include "../cbits/arbb_vmapi.h"
+#include <arbb_vmapi.h>
 -- ----------------------------------------------------------------------
 
 newtype Context = Context {fromContext :: Ptr ()} 

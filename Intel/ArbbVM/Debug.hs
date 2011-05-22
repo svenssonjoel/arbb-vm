@@ -50,13 +50,13 @@ module Intel.ArbbVM.Debug
   )
 where 
 
-import Debug.Trace
+import Debug.Trace()
 import Control.Concurrent
 import Data.IORef
 import Data.List
 import qualified Data.Map as M
 
-import System.IO
+import System.IO()
 import System.Directory
 import Text.PrettyPrint.HughesPJ
 
