@@ -19,6 +19,10 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       getErrorMessage, getErrorCode, freeErrorDetails, 
                       
                       sizeOf,
+                      
+                      functionToRefCountable,globalVariableToRefCountable,
+                      acquireRef, releaseRef, 
+                      
 
                       getDenseType, createGlobal,  
                       getNestedType, 
@@ -84,6 +88,7 @@ newtype Binding = Binding {fromBinding :: Ptr ()}
 newtype Function = Function {fromFunction :: Ptr ()}
 newtype VMString = VMString {fromVMString :: Ptr ()}
 
+newtype RefCountable = RefCountable {fromRefCountable :: Ptr () }
 -- types to support aux functionality
 newtype AttributeMap = AttributeMap {fromAttributeMap :: Ptr ()}
 -- TODO: there is a struct called arbb_attribute_key_value_t 
@@ -129,9 +134,11 @@ peekVariable ptr = do { res <- peek ptr; return $ Variable res}
 peekContext  ptr = do { res <- peek ptr; return $ Context res}    
 peekBinding  ptr = do { res <- peek ptr; return $ Binding res}         
 peekVMString ptr = do { res <- peek ptr; return $ VMString res} 
+peekRefCountable ptr = do { res <- peek ptr; return $ RefCountable res}
 
 withTypeArray inp = if (length inp) == 0 then withNullPtr 
 	             else withArray (fmap fromType inp) 
+                          
 withVariableArray = withArray . (fmap fromVariable) 
 withIntArray xs = withArray (fmap fromIntegral xs)
 
@@ -149,7 +156,7 @@ data ArbbVMException = ArbbVMException Error String
 
 instance Exception ArbbVMException 
 
--- TODO: phase in
+-- Debug + Error handling is changing.. see ArbbVM/Debug
 throwIfErrorIO1 :: (Error,a,ErrorDetails) -> IO a 
 throwIfErrorIO1 (error_code,a,error_det) = 
    if fromEnum error_code > 0 
@@ -168,6 +175,44 @@ throwIfErrorIO0 (error_code, error_det) =
 -- ----------------------------------------------------------------------
 -- BINDINGS 
 -- ----------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------
+-- To and from refCountable 
+
+-- TODO: Include these in debug traces ? 
+{# fun unsafe arbb_function_to_refcountable as functionToRefCountable 
+   { fromFunction `Function' } ->   `RefCountable' RefCountable #}
+
+{# fun unsafe arbb_global_variable_to_refcountable as globalVariableToRefCountable
+   { fromGlobalVariable `GlobalVariable' } -> `RefCountable' RefCountable #} 
+
+-- ----------------------------------------------------------------------
+-- acquire and relese references
+
+acquireRef rc = 
+  acquireRef' rc >>= 
+  dbg0 "arbb_acquire_ref" [("refCountable", show $ fromRefCountable rc)] >>=
+  throwIfErrorIO0 
+ 
+
+{# fun unsafe arbb_acquire_ref as acquireRef'  
+   { fromRefCountable `RefCountable' , 
+     alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #} 
+
+
+releaseRef rc = 
+  releaseRef' rc >>= 
+  dbg0 "arbb_release_ref" [("refCountable", show $ fromRefCountable rc)] >>= 
+  throwIfErrorIO0 
+
+{# fun unsafe arbb_release_ref as releaseRef' 
+   { fromRefCountable `RefCountable' , 
+     alloca- `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
+
+
+
+
+
 
 -- ----------------------------------------------------------------------
 -- getDefaultContext 
