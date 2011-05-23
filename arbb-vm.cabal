@@ -11,7 +11,7 @@ Copyright:              Copyright (c) 2011 Intel Corporation
 Synopsis:               FFI binding to the Intel Array Building Blocks (ArBB) virtual machine.
 HomePage:               git://github.com/svenssonjoel/arbb-vm/wiki
 Description: 
-   DESCRIPTION GOES HERE.
+   Bindings to the "arbb_vmapi". Low level interface to the ArBB functionality.
 
 Category: Foreign
 Cabal-Version: >=1.8
@@ -56,9 +56,9 @@ Library
   else
     extra-lib-dirs: /opt/intel/arbb/latest/lib/ia32
 
-  C-sources: 
+--  C-sources: 
 -- [2011.02.15] Don't need this at the moment because of the arbb_alt hack:
 --      cbits/arbb_vmwrap.c
 --    , cbits/arbb_vmwrap.h
 
-  Include-Dirs: cbits
+-- Include-Dirs: cbits
