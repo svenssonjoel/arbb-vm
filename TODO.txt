@@ -1,5 +1,6 @@
 
-
+BJS high prio todo:
+ * Clean up code (All over!)  
 
 Ryan's priorities:
 
