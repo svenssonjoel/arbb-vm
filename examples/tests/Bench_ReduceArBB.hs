@@ -41,8 +41,8 @@ main = arbbSession$ do
 --        vout <- variableFromGlobal_ gout
        
         n <- usize_ (2^24)
-        binding <- getBindingNull_
-        g       <- createGlobal_ sty "res" binding
+        -- binding <- getBindingNull_
+        g       <- createGlobal_nobind_ sty "res" -- binding
         y       <- variableFromGlobal_ g
         --execute_ reduceStep [vout] [vin,n]     
     

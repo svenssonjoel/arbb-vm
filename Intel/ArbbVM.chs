@@ -24,10 +24,11 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       acquireRef, releaseRef, 
                       
 
-                      getDenseType, createGlobal,  
+                      getDenseType, createGlobal, createGlobalNB, 
                       getNestedType, 
 		      
-                      isBindingNull, getBindingNull, 
+		      -- Removed in latest ArBB
+                      --isBindingNull, getBindingNull, 
                       
                       createDenseBinding, freeBinding, getFunctionType,
                       beginFunction, endFunction, 
@@ -321,6 +322,15 @@ getNestedType ctx t =
 -- ----------------------------------------------------------------------
 -- createGlobal 
 
+createGlobalNB :: Context -> Type -> String -> IO GlobalVariable
+createGlobalNB ctx t name = 
+   createGlobal' ctx t name (Binding nullPtr) nullPtr >>= 
+   dbg "arbb_create_global" [("ctx",show $ fromContext ctx),
+                             ("t" ,show $ fromType t),
+                             ("name",name)]  ("GlobalVar",fromGlobalVariable) >>=                               
+   throwIfErrorIO1 
+
+
 createGlobal :: Context -> Type -> String -> Binding -> IO GlobalVariable
 createGlobal ctx t name b = 
    createGlobal' ctx t name b nullPtr >>= 
@@ -345,12 +355,14 @@ createGlobal ctx t name b =
 -- ----------------------------------------------------------------------
 -- Bindings
 
-{# fun pure arbb_is_binding_null as isBindingNull
-   { fromBinding `Binding' } -> `Bool'  cToBool #} 
+-- The is_binding_null API call is removed in the latest ArBB version
+--{# fun pure arbb_is_binding_null as isBindingNull
+--   { fromBinding `Binding' } -> `Bool'  cToBool #} 
 
--- TODO: see if this needs to be done differently
-{# fun unsafe arbb_set_binding_null as getBindingNull 
-   { alloca- `Binding' peekBinding*  } -> `()'#} 
+-- #OLD# TODO: see if this needs to be done differently.
+-- The set_binding_null API call i removed in latest ArBB version
+-- {# fun unsafe arbb_set_binding_null as getBindingNull 
+--   { alloca- `Binding' peekBinding*  } -> `()'#} 
   
 
 --createDenseBinding ::  Context -> Ptr () -> Word -> [CULLong] -> [CULLong] ->  IO Binding

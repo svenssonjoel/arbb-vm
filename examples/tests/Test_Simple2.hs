@@ -24,7 +24,7 @@ main = runReproducer $ do
      endFunction myfun
      -- Compile is removed in .022 version 
      -- compile myfun 
-     binding <- getBindingNull 
+     -- binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 
      withArray [0..1023 :: Float] $ \ i1 -> 

@@ -43,8 +43,8 @@ main = arbbSession$ do
             
      liftIO$ putStrLn "Done compiling function, now executing..."
      x       <- const_ ArbbI32 (100::Int32)
-     binding <- getBindingNull_
-     g       <- createGlobal_ sty "res" binding
+     -- binding <- getBindingNull_
+     g       <- createGlobal_nobind_ sty "res" -- binding
      y       <- variableFromGlobal_ g
 
      execute_ fun [y] [x]

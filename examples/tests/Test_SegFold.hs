@@ -22,8 +22,8 @@ import Data.Time
 -}
 
 newGlobalVar t nom = do 
-  bin <- getBindingNull_ 
-  g <- createGlobal_ t nom bin
+  -- bin <- getBindingNull_ 
+  g <- createGlobal_nobind_ t nom -- bin
   variableFromGlobal_ g     
 
 
@@ -147,11 +147,11 @@ main = arbbSession$ do
         -- gout <- createGlobal_ dty "output" outb
        
         vin <- variableFromGlobal_ gin
-        -- vout <- variableFromGlobal_ gout
+        -- vout <- vniariableFromGlobal_ gout
        
         n <- usize_ (2^24)
-        binding <- getBindingNull_
-        g       <- createGlobal_ sty "res" binding
+        -- binding <- getBindingNull_
+        g       <- createGlobal_nobind_ sty "res" -- binding
         y       <- variableFromGlobal_ g
         --execute_ reduceStep [vout] [vin,n]     
     

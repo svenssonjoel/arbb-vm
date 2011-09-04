@@ -51,16 +51,16 @@ main = arbbSession$ do
 
      liftIO$ putStrLn "Done compiling function, now executing..."
 
-     binding <- getBindingNull_
-     g       <- createGlobal_ sty "res" binding   
+     -- binding <- getBindingNull_
+     g       <- createGlobal_nobind_ sty "res" -- binding   
      y       <- variableFromGlobal_ g
      liftIO$ putStrLn "e" 
 
      -- input data
      i_d  <- liftIO$ newArray (replicate 1024 2 :: [Word32])         
       
-     bin <- getBindingNull_
-     g_apa <- createGlobal_ dty "in" bin
+     --bin <- getBindingNull_
+     g_apa <- createGlobal_nobind_ dty "in" -- bin
      v1 <- variableFromGlobal_ g_apa 
     
      opDynamicImm_ ArbbOpAlloc [v1] [tusentjugofyra]

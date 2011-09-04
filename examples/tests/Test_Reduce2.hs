@@ -83,8 +83,8 @@ main = arbbSession$ do
    
      v1 <- variableFromGlobal_ g_in; 
  
-     binding <- getBindingNull_
-     g       <- createGlobal_ sty "res" binding
+     --binding <- getBindingNull_
+     g       <- createGlobal_nobind_ sty "res" -- binding
      y       <- variableFromGlobal_ g
    
      execute_ reduce2 [y] [v1]     

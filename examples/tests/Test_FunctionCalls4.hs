@@ -36,8 +36,8 @@ main = arbbSession$ do
 
 -- looks good ! apply it ! 
      
-     bin <- getBindingNull_
-     g_apa <- createGlobal_ dty "in" bin
+     -- bin <- getBindingNull_
+     g_apa <- createGlobal_nobind_ dty "in" --bin
      v1 <- variableFromGlobal_ g_apa 
      opDynamicImm_ ArbbOpAlloc [v1] [tusentjugofyra]
      
@@ -91,8 +91,8 @@ main = arbbSession$ do
      liftIO$ putStrLn "c"              
 -}  
 
-     binding <- getBindingNull_
-     g       <- createGlobal_ sty "res" binding   
+     -- binding <- getBindingNull_
+     g       <- createGlobal_nobind_ sty "res" -- binding   
      y       <- variableFromGlobal_ g
      liftIO$ putStrLn "e" 
 

@@ -26,15 +26,17 @@ module Intel.ArbbVM.Convenience
    incr_int32_, 
    copy_, copyImm_, 
 
-   local_bool_, local_int32_, local_float64_, 
-   global_nobind_, global_nobind_int32_,
+   local_bool_, local_int32_, local_float32_, local_float64_, 
+   -- global_nobind_, global_nobind_int32_,
 
    -- Compile does not exist in this way anymore
    --compile_, 
    execute_, serializeFunction_, finish_, 
 
-   getBindingNull_, getScalarType_, variableFromGlobal_,
+   -- getBindingNull_, 
+   getScalarType_, variableFromGlobal_,
    getFunctionType_, createGlobal_, createLocal_,
+   createGlobal_nobind_, 
 
    createDenseBinding_,  getDenseType_,
    getNestedType_, 
@@ -392,6 +394,7 @@ getNestedType_      = lift1 getNestedType
 variableFromGlobal_ = lift1 variableFromGlobal
 getFunctionType_    = lift2 getFunctionType
 createGlobal_       = lift3 createGlobal
+createGlobal_nobind_ = lift2 createGlobalNB
 
 createLocal_ :: Type -> String -> EmitArbb Variable
 createLocal_ ty name = do f <- getFun "Convenience.createLocal_ cannot create local"
@@ -406,7 +409,7 @@ createDenseBinding_ = lift4 createDenseBinding
 -- execute_ a b c   = liftIO$ execute a b c
 finish_          = liftIO finish
 --serializeFunction_ = liftIO . serializeFunction
-getBindingNull_  = liftIO getBindingNull
+--getBindingNull_  = liftIO getBindingNull
 
 --BJS: execute_ nolonger quite as easy
 execute_ f o i = liftIO$ execute (executable f) o i  
@@ -457,9 +460,13 @@ local_bool_ name = do bty <- getScalarType_ ArbbBoolean
 local_int32_ name = do ity <- getScalarType_ ArbbI32
 		       createLocal_ ity name
 
+local_float32_ name = do ity <- getScalarType_ ArbbF32
+                         createLocal_ ity name
+                      
+
 local_float64_ name = do ty <- getScalarType_ ArbbF64
 		         createLocal_ ty name
-
+{-
 global_nobind_ ty name = 
   do binding <- getBindingNull_
      g       <- createGlobal_ ty name binding
@@ -468,6 +475,7 @@ global_nobind_ ty name =
 global_nobind_int32_ name = 
   do sty <- getScalarType_ ArbbI32
      global_nobind_ sty name
+-}
 
 --------------------------------------------------------------------------------
 -- Num instance.

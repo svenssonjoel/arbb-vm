@@ -37,14 +37,14 @@ main = arbbSession$ do
        -- inb <- createDenseBinding_ (castPtr inp) 1 [10] [4]
        --  outb <- createDenseBinding_ (castPtr out) 1 [10] [4]
          
-        inb <- getBindingNull_
-        outb <- getBindingNull_ 
+        --inb <- getBindingNull_
+        --outb <- getBindingNull_ 
          
-        gin <- createGlobal_ dty "input" inb
-        gout <- createGlobal_ dty "output" outb
-        gIm1 <- createGlobal_ dty "output" outb 
+        gin <- createGlobal_nobind_ dty "input" --inb
+        gout <- createGlobal_nobind_ dty "output" --outb
+        gIm1 <- createGlobal_nobind_ dty "output" --outb 
         vIm1 <- variableFromGlobal_ gIm1
-        gIm2 <- createGlobal_ dty "output" outb
+        gIm2 <- createGlobal_nobind_ dty "output" --outb
         vIm2 <- variableFromGlobal_ gIm2
        
        

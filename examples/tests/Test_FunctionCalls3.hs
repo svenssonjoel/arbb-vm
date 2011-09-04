@@ -63,8 +63,8 @@ main = arbbSession$ do
    
      liftIO$ putStrLn "c"              
  
-     binding <- getBindingNull_
-     g       <- createGlobal_ sty "res" binding   
+     -- binding <- getBindingNull_
+     g       <- createGlobal_nobind_ sty "res" -- binding   
      y       <- variableFromGlobal_ g
      liftIO$ putStrLn "e" 
 

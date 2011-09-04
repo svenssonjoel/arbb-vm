@@ -108,14 +108,15 @@ main = arbbSession$ do
        -- outb <- createDenseBinding_ (castPtr out) 1 [8] [4]
        
         gin <- createGlobal_ dty "input" inb
+       
        -- gout <- createGlobal_ dty "output" outb
        
         vin <- variableFromGlobal_ gin
        -- vout <- variableFromGlobal_ gout
        
         n <- usize_ (2^24)
-        binding <- getBindingNull_
-        g       <- createGlobal_ sty "res" binding
+        -- binding <- getBindingNull_
+        g       <- createGlobal_nobind_ sty "res" -- binding
         y       <- variableFromGlobal_ g
         --execute_ reduceStep [vout] [vin,n]     
     

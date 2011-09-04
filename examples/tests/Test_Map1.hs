@@ -49,7 +49,7 @@ main = do
 -- Caller ends
  
 
-     binding <- getBindingNull 
+     -- binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 
      withArray [0..1023 :: Float] $ \ i1 -> 

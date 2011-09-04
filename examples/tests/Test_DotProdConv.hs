@@ -45,8 +45,8 @@ main = arbbSession$ do
         vin1 <- variableFromGlobal_ gin1
         vin2 <- variableFromGlobal_ gin2 
         
-        outb <- getBindingNull_ 
-        g    <- createGlobal_ sty "res" outb
+        --outb <- getBindingNull_ 
+        g    <- createGlobal_nobind_ sty "res" --outb
         y    <- variableFromGlobal_ g 
         
         execute_ dotprod [y] [vin1,vin2] 

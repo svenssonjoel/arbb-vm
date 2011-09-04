@@ -28,7 +28,7 @@ main = do
      opDynamic myfun ArbbOpAddReduce [c] [tmp]
      endFunction myfun
      --compile myfun
-     binding <- getBindingNull 
+     -- binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 
      withArray [1.0 :: Float | _ <- [0..len]] $ \ i1 -> 

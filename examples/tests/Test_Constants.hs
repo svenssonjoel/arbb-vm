@@ -42,7 +42,7 @@ main = do
      op myfun ArbbOpMul [c] [c,b]
      endFunction myfun
      --compile myfun
-     binding <- getBindingNull 
+     -- binding <- getBindingNull 
      -- This part gets messy! 
      -- TODO: Clean up! 
      withArray [10.0, 2.0 :: Float] $ \ input -> 
@@ -53,7 +53,7 @@ main = do
           v1 <- variableFromGlobal ctx g1;
           v2 <- variableFromGlobal ctx g2;
          
-          r  <- createGlobal ctx t "result" binding
+          r  <- createGlobalNB ctx t "result" --binding
           v3 <- variableFromGlobal ctx r 
           execute myfun [v3] [v1,v2]
           -- TODO: Figure out how to best access results (of various types) 
