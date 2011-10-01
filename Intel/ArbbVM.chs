@@ -285,7 +285,6 @@ sizeOf ctx t = sizeOf' ctx t >>= throwIfErrorIO1
             res <- peek x 
             return (fromIntegral res)
 
--- id          `Ptr (Ptr ())'
 
 -- ----------------------------------------------------------------------
 -- getDenseType
@@ -302,7 +301,7 @@ getDenseType ctx t dim =
      fromType    `Type'      , 
      cIntConv    `Int'       ,
      alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}  
---  id `Ptr (Ptr ())'
+
 
 getNestedType ctx t = 
     getNestedType' ctx t >>= 
@@ -337,7 +336,7 @@ createGlobal ctx t name b =
    dbg "arbb_create_global" [("ctx",show $ fromContext ctx),
                              ("t" ,show $ fromType t),
                              ("name",name),
-                             ("bind",show $ fromBinding b)]  ("GlobalVar",fromGlobalVariable) >>=                               
+                             ("bind",show $ fromBinding b)]  ("GlobalVar",fromGlobalVariable) >>=                     
    throwIfErrorIO1 
              
 {# fun unsafe arbb_create_global as createGlobal'
@@ -365,8 +364,6 @@ createGlobal ctx t name b =
 --   { alloca- `Binding' peekBinding*  } -> `()'#} 
   
 
---createDenseBinding ::  Context -> Ptr () -> Word -> [CULLong] -> [CULLong] ->  IO Binding
---createDenseBinding ::  Context -> Ptr () -> Word -> [Integer] -> [Integer] ->  IO Binding
 createDenseBinding ::  Context -> Ptr () -> Word -> [Word64] -> [Word64] ->  IO Binding
 createDenseBinding ctx d dim sizes pitches = 
   createDenseBinding' ctx d dim sizes pitches >>= 
@@ -382,10 +379,7 @@ createDenseBinding ctx d dim sizes pitches =
    { fromContext `Context'  ,
      alloca- `Binding' peekBinding* ,
      id `Ptr ()' ,
---     cIntConv `Int' ,
      cIntConv `Word' ,
---     withCULArray* `[Integer]',
---     withCULArray* `[Integer]', 
      withIntArray* `[Word64]',
      withIntArray* `[Word64]', 
      alloca-      `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #}
@@ -424,7 +418,6 @@ getFunctionType ctx outp inp =
      cIntConv `Int'            , 
      withTypeArray* `[Type]'   ,
      alloca-      `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
-     --id `Ptr (Ptr ())'
 
 beginFunction :: Context -> Type -> String -> Int -> IO Function
 beginFunction ctx t name remote = 
@@ -444,7 +437,6 @@ beginFunction ctx t name remote =
      withCString* `String'  ,
      cIntConv     `Int'    ,
      alloca-      `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #}
-     -- alloca- `ErrorDetails' peekErrorDet* 
 
 endFunction :: Function -> IO ()
 endFunction f = 
@@ -455,7 +447,7 @@ endFunction f =
 {#fun unsafe arbb_end_function as endFunction' 
       { fromFunction `Function'    ,
         alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #}
-  ---id `Ptr (Ptr ())'
+
 
 -- ----------------------------------------------------------------------
 -- Operations of various kinds
@@ -818,73 +810,3 @@ mapToHost ctx var pitch mode =
 
 
 
-
--- ----------------------------------------------------------------------
--- null and isThisNull ? 
-
-
--- int arbb_is_refcountable_null(arbb_refcountable_t object);
-
-
--- void arbb_set_refcountable_null(arbb_refcountable_t* object);
-
-
--- int arbb_is_error_details_null(arbb_error_details_t object);
-
-
--- void arbb_set_error_details_null(arbb_error_details_t* object);
-
-
--- int arbb_is_string_null(arbb_string_t object);
-
-
--- void arbb_set_string_null(arbb_string_t* object);
-
- 
--- int arbb_is_context_null(arbb_context_t object);
-
-
--- void arbb_set_context_null(arbb_context_t* object);
-
--- int arbb_is_function_null(arbb_function_t object);
-
-
--- void arbb_set_function_null(arbb_function_t* object);
-
-
--- int arbb_is_variable_null(arbb_variable_t object);
-
-
--- void arbb_set_variable_null(arbb_variable_t* object);
-
-
--- int arbb_is_global_variable_null(arbb_global_variable_t object);
-
-
--- void arbb_set_global_variable_null(arbb_global_variable_t* object);
-
-
--- int arbb_is_binding_null(arbb_binding_t object);
-
-
--- void arbb_set_binding_null(arbb_binding_t* object);
-
-
--- int arbb_is_type_null(arbb_type_t object);
-
-
--- void arbb_set_type_null(arbb_type_t* object);
-
--- void arbb_cxx_set_stack_trace_null(arbb_cxx_stack_trace_t* object);
-
-
--- int arbb_cxx_is_stack_trace_null(arbb_cxx_stack_trace_t object);
-
-
--- void arbb_set_attribute_map_null(arbb_attribute_map_t* object);
-
-
--- int arbb_is_attribute_map_null(arbb_attribute_map_t object);
-
--- ----------------------------------------------------------------------
--- Auxiliary functionality

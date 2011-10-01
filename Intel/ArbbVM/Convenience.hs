@@ -20,7 +20,9 @@ module Intel.ArbbVM.Convenience
 
    mapToHost_,
 
-   const_, int32_, int64_,float32_, float64_, bool_,
+   const_, 
+   int8_, int16_, int32_, int64_,float32_, float64_, bool_,
+   uint8_, uint16_, uint32_, uint64_, 
    const_storable_,
    usize_, isize_, 
    incr_int32_, 
@@ -31,7 +33,7 @@ module Intel.ArbbVM.Convenience
 
    -- Compile does not exist in this way anymore
    --compile_, 
-   execute_, serializeFunction_, finish_, 
+   execute_, serializeFunction_,serializeFunctionWrapper_,  finish_, 
 
    -- getBindingNull_, 
    getScalarType_, variableFromGlobal_,
@@ -411,27 +413,38 @@ finish_          = liftIO finish
 --serializeFunction_ = liftIO . serializeFunction
 --getBindingNull_  = liftIO getBindingNull
 
---BJS: execute_ nolonger quite as easy
+--BJS: execute_ nolonger quite as simple
 execute_ f o i = liftIO$ execute (executable f) o i  
 
 --BJS: should be a way to serialize the wrapper also!
 serializeFunction_ f = liftIO$ serializeFunction (callable f)  
-
+serializeFunctionWrapper_ f = liftIO$ serializeFunction (executable f)  
 -- ... TODO ...  Keep going.
 
 --------------------------------------------------------------------------------
 
 -- Lazy, lazy, lazy: here are even more shorthands.
-
+int8_    :: Integral t => t -> EmitArbb Variable
+int16_   :: Integral t => t -> EmitArbb Variable
 int32_   :: Integral t => t -> EmitArbb Variable 
 int64_   :: Integral t => t -> EmitArbb Variable 
+uint8_   :: Integral t => t -> EmitArbb Variable
+uint16_  :: Integral t => t -> EmitArbb Variable
+uint32_  :: Integral t => t -> EmitArbb Variable
+uint64_  :: Integral t => t -> EmitArbb Variable
 usize_   :: Integral t => t -> EmitArbb Variable
 isize_   :: Integral t => t -> EmitArbb Variable
 float32_ :: Float           -> EmitArbb Variable 
 float64_ :: Double          -> EmitArbb Variable 
 
+int8_    = const_ ArbbI8
+int16_   = const_ ArbbI16
 int32_   = const_ ArbbI32 
 int64_   = const_ ArbbI64 
+uint8_   = const_ ArbbU8
+uint16_  = const_ ArbbU16
+uint32_  = const_ ArbbU32
+uint64_  = const_ ArbbU64
 usize_   = const_ ArbbUsize
 isize_   = const_ ArbbIsize 
 float32_ = const_storable_ ArbbF32 
