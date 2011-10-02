@@ -195,7 +195,6 @@ const_ sty i =
 
      ArbbUsize -> const_storable_ sty (fromIntegral i :: Word)
      ArbbIsize -> const_storable_ sty (fromIntegral i :: Int)
-
  
 
 readScalar_ :: (Num a, Storable a) =>  Variable -> EmitArbb a

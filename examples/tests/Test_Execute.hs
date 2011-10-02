@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ScopedTypeVariables, CPP #-}
+{-# LANGUAGE ScopedTypeVariables#-}
 
 import Intel.ArbbVM 
 import Intel.ArbbVM.Convenience
