@@ -2,7 +2,10 @@
 
 See arbb-vm.cabal for more information.
 
+Latest News
+=================================
 
+dec 16 2011: built examples on new ArBB (v 1.0.0.030) 
 
 
 Interacting with ArbbVM from GHCI
