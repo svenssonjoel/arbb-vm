@@ -68,7 +68,7 @@ import C2HS hiding (sizeOf)
 
 -- | Flag to disable debugging.  For now this is set statically in the
 -- code.  It should be dynamically configurable.
-debug_arbbvm = True
+debug_arbbvm = False -- True
 
 -- | Name of the debug output file, to be placed in the current directory.
 dbgfile = "debugtrace_HaskellArBB.txt"
@@ -158,34 +158,37 @@ dbg :: (Show c) =>
        (d, b, e) -> IO (d, b, e)
 
 dbg msg inputs (nom,accf) (ec, rv, ed) = 
-  do     
-     id     <- myThreadId
-     new_tl <- newEmptyMVar
-     let evt = DbgCall msg inputs (nom, show (accf rv))
-         loop = do
-	   -- Now to add a new entry to the debug trace.  Things get tricky
-	   -- because we want to do TWO things, extend the linked list and
-	   -- modify the global variable to point to the new tail.  We could
-	   -- use TVars to do that atomically but the following protocol
-	   -- works as well.  Which runs better under contention?
-	   DbgCons cntr hd tl <- readIORef global_dbg_trace_tail
-	   let newcell = DbgCons (cntr+1) (id,evt) new_tl
-	   success <- tryPutMVar tl newcell
-	   if success then 
-	    -- If we succeed then we have the right to repoint the global:
-	    writeIORef global_dbg_trace_tail newcell
-	    -- If we fail to fill the tail then someone else beat us to it and we retry:
-	    else loop
-     loop 
-     putStrLn$ ",  "++ show evt
+  if debug_arbbvm
+  then 
+    do     
+      id     <- myThreadId
+      new_tl <- newEmptyMVar
+      let evt = DbgCall msg inputs (nom, show (accf rv))
+          loop = do
+            -- Now to add a new entry to the debug trace.  Things get tricky
+            -- because we want to do TWO things, extend the linked list and
+            -- modify the global variable to point to the new tail.  We could
+            -- use TVars to do that atomically but the following protocol
+            -- works as well.  Which runs better under contention?
+            DbgCons cntr hd tl <- readIORef global_dbg_trace_tail
+            let newcell = DbgCons (cntr+1) (id,evt) new_tl
+            success <- tryPutMVar tl newcell
+            if success then 
+              -- If we succeed then we have the right to repoint the global:
+              writeIORef global_dbg_trace_tail newcell
+              -- If we fail to fill the tail then someone else beat us to it and we retry:
+              else loop
+      loop 
+      putStrLn$ ",  "++ show evt
 
-     -- TEMP: Keeping the old-style print messages for now as well:
-     appendFile dbgfile $ 
+      -- TEMP: Keeping the old-style print messages for now as well:
+      appendFile dbgfile $ 
         msg ++ concatMap printInfo inputs ++ 
         "-> {" ++ nom ++ " = " ++ show (accf rv) ++ " }" ++ "\n"   
 
-     return (ec, rv, ed)
-
+      return (ec, rv, ed)
+    else 
+      return (ec, rv, ed)
 -- | Log a call to  a function without a return value.
 dbg0 msg inputs (ec,ed) = 
  do

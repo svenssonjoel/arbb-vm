@@ -28,7 +28,9 @@ module Intel.ArbbVM.Convenience
    incr_int32_, 
    copy_, copyImm_, 
 
-   local_bool_, local_int32_, local_float32_, local_float64_, 
+   local_bool_, 
+   local_int8_, 
+   local_int32_, local_float32_, local_float64_, 
    -- global_nobind_, global_nobind_int32_,
 
    -- Compile does not exist in this way anymore
@@ -207,7 +209,7 @@ readScalar_ v =
 
 type FunBody = [Variable] -> [Variable] -> EmitArbb ()
 
-debug_fundef = True
+debug_fundef = False
 
 {- 
   BJS:  This funDef_ situation might need some improvement. 
@@ -471,6 +473,9 @@ local_bool_ name = do bty <- getScalarType_ ArbbBoolean
 
 local_int32_ name = do ity <- getScalarType_ ArbbI32
 		       createLocal_ ity name
+                       
+local_int8_ name = do ity <- getScalarType_ ArbbI8
+                      createLocal_ ity name                       
 
 local_float32_ name = do ity <- getScalarType_ ArbbF32
                          createLocal_ ity name

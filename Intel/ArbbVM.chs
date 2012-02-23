@@ -158,6 +158,7 @@ data ArbbVMException = ArbbVMException Error String
 instance Exception ArbbVMException 
 
 -- Debug + Error handling is changing.. see ArbbVM/Debug
+
 throwIfErrorIO1 :: (Error,a,ErrorDetails) -> IO a 
 throwIfErrorIO1 (error_code,a,error_det) = 
    if fromEnum error_code > 0 
@@ -170,6 +171,8 @@ throwIfErrorIO1 (error_code,a,error_det) =
 throwIfErrorIO0 :: (Error,ErrorDetails) -> IO ()
 throwIfErrorIO0 (error_code, error_det) = 
    throwIfErrorIO1 (error_code, (), error_det)  
+
+
 
 
 
