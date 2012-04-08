@@ -22,11 +22,17 @@ gen_fun = do
       stop <- int32_ 10  
       zero <- int32_ 0
       one  <- int32_ 1 
+      forty <- usize_ 40
 
       i <- createLocal_ sty "loopcounter" 
       copy_ i zero -- init
 
+      apa <- createLocal_ sty "test"
+      copy_ apa one 
+      bepa <- createLocal_ sty "test"
+      copy_ bepa zero 
       tmp <- createLocal_ dty "data" 
+      opDynamic_ ArbbOpAlloc [tmp] [forty]
       copy_ tmp in1 
  
       while_ 
@@ -37,17 +43,18 @@ gen_fun = do
           ) 
           (
             do 
-             -- TODO: uncommenting the line below couses trouble! 
-             -- op_ ArbbOpAdd [tmp] [tmp,in1]
-             op_ ArbbOpAdd [i] [i,one]          
+             op_ ArbbOpAdd [apa] [apa,one]
+             -- op_ ArbbOpAdd [bepa] [bepa,one]
+             op_ ArbbOpAdd [tmp] [tmp,in1]
+             op_ ArbbOpAdd [i] [i,one]    
           ) 
       
       --j <- createLocal_ sty "hej" 
-      --op_ ArbbOpAdd [j] [i,one]
+      op_ ArbbOpAdd [apa] [apa,one]
+        
 
-
-      copy_ o1 tmp
-      copy_ o2 i       
+      copy_ o1 tmp -- in1 -- tmp
+      copy_ o2 apa      
 
   return fun 
 
@@ -66,13 +73,10 @@ main = arbbSession$ do
      vin1 <- variableFromGlobal_ gin1
      
      outb1 <- createDenseBinding_ (castPtr out) 1 [10] [4] 
-     gout1 <- createGlobal_ dty "gin1" outb1
+     gout1 <- createGlobal_ dty "gout1" outb1
      vout1 <- variableFromGlobal_ gout1
 
- 
-     --g    <- createGlobal_nobind_ dty "res" --outb
-     --y    <- variableFromGlobal_ g 
-        
+       
      r  <- createGlobal_nobind_ sty "result" -- binding
      v  <- variableFromGlobal_ r  
 
