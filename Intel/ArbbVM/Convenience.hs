@@ -93,7 +93,9 @@ type ArbbEmissionState = (Context, [ConvFunction]) -- BJS: ConvFunction in place
 -- BJS: Convenient functions are pairs of inconvenient functions 
 data ConvFunction = ConvFunction { executable :: Function,  -- just a wrapper 
                                    callable   :: Function } -- "The" function
-
+                    deriving Show
+instance Show Function where
+  show f = "Function"
 
 #define L S.lift$
 

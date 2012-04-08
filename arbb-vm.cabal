@@ -1,5 +1,5 @@
 Name:           arbb-vm
-Version:        0.1.1.3
+Version:        0.1.1.4
 
 License:                BSD3
 License-file:           LICENSE
@@ -7,15 +7,16 @@ Stability:              Beta
 Maintainer:		Joel Svensson<svenssonjoel@yahoo.se>
 Author:			Joel Svensson<svenssonjoel@yahoo.se>
 
-Copyright:              Copyright (c) 2011 Intel Corporation
+Copyright:              Copyright (c) 2011-2012 Intel Corporation
 Synopsis:               FFI binding to the Intel Array Building Blocks (ArBB) virtual machine.
 HomePage:               git://github.com/svenssonjoel/arbb-vm/wiki
 Description: 
    Bindings to the "arbb_vmapi". Low level interface to the ArBB functionality.
+   Requires Intel ArBB version 1.0.0.030 (download ArBB at software.intel.com)
 
 Category: Foreign
 Cabal-Version: >=1.8
-Tested-With: GHC == 7.0.1
+Tested-With: GHC == 7.0.4
 
 build-type: Simple
 
@@ -46,7 +47,8 @@ Library
                    C2HS
                  , Intel.ArbbVM.Debug
 
-  GHC-Options: -O2 
+  GHC-Options: 
+-- -O2 
 --extra-libraries: tbb, arbb, pthread
   include-dirs: /opt/intel/arbb/latest/include
 
