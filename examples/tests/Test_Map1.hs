@@ -7,7 +7,7 @@ import Intel.ArbbVM
 import Foreign.Marshal.Array
 import Foreign.Ptr 
 
-import C2HS
+import Foreign.Storable
 
 newConstant :: Storable a => Context -> Type -> a -> IO Variable 
 newConstant ctx t n = 

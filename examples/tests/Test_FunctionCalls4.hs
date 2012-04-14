@@ -5,10 +5,11 @@ import Intel.ArbbVM.Convenience
 
 import Control.Monad
 import Foreign.Marshal.Array
+import Foreign.Marshal.Utils
 import Foreign.Ptr 
 import Foreign.ForeignPtr
 
-import C2HS
+import Data.Word
 
 {- 
    Note: 

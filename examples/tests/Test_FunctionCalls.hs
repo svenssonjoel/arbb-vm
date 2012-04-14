@@ -7,7 +7,7 @@ import Foreign.Marshal.Array
 import Foreign.Ptr 
 import Foreign.ForeignPtr
 
-import C2HS
+import Data.Int
 {- 
 
   Changes:

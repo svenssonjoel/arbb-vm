@@ -8,7 +8,7 @@ import Intel.ArbbVM
 import Foreign.Marshal.Array
 import Foreign.Ptr 
 
-import C2HS
+--import C2HS
 
 main = runReproducer $ do 
      ctx <- getDefaultContext 

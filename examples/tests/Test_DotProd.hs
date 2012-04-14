@@ -7,7 +7,7 @@ import Intel.ArbbVM
 import Foreign.Marshal.Array
 import Foreign.Ptr 
 
-import C2HS
+
 
 len = 2^22-1
 

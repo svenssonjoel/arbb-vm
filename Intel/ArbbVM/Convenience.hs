@@ -72,7 +72,7 @@ import Foreign.Marshal.Alloc
 import Foreign.ForeignPtr
 import Foreign.Storable as Storable
 import Foreign.Ptr 
-import C2HS
+-- import C2HS
 
 import qualified  Control.Monad.State.Strict as S 
 

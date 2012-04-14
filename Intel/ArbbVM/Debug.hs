@@ -57,10 +57,11 @@ import Data.List
 import qualified Data.Map as M
 
 import System.IO()
+import System.IO.Unsafe
 import System.Directory
 import Text.PrettyPrint.HughesPJ
 
-import C2HS hiding (sizeOf) 
+-- import C2HS hiding (sizeOf) 
 
 -- --------------------------------------------------------------------------------
 -- Globals and Datatype Definitions

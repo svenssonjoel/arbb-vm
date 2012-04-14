@@ -5,7 +5,7 @@ import Intel.ArbbVM.Convenience
 import Foreign.Marshal.Array
 import Foreign.Ptr 
 
-import C2HS
+import Data.Word
 
 -----------------------------------------------------------------------------
 -- Main

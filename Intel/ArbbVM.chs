@@ -59,6 +59,8 @@ import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Ptr
 import Foreign.Storable hiding (sizeOf)
+import Foreign.Marshal.Alloc
+import Foreign.Marshal.Array
 
 import Control.Exception
 import Control.Monad
@@ -71,7 +73,7 @@ import Data.IORef
 
 import System.IO.Unsafe (unsafePerformIO)
 
-import C2HS hiding (sizeOf) 
+--import C2HS hiding (sizeOf) 
 
 import Prelude hiding (break)
 
@@ -95,6 +97,14 @@ newtype AttributeMap = AttributeMap {fromAttributeMap :: Ptr ()}
 -- TODO: there is a struct called arbb_attribute_key_value_t 
 --       that needs to be handeld.
 
+-------------------------------------------------------------------------
+-- 
+cIntConv :: (Integral a, Integral b) => a -> b 
+cIntConv = fromIntegral 
+cToEnum  = toEnum . fromIntegral 
+
+cFromEnum :: (Enum a, Integral i)  => a -> i 
+cFromEnum = fromIntegral . fromEnum
 -- ----------------------------------------------------------------------
 -- ENUMS
 -- ----------------------------------------------------------------------
