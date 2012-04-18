@@ -42,7 +42,8 @@ gen_fun = do
              op_ ArbbOpAdd [tmp] [tmp,in1]
              op_ ArbbOpAdd [i] [i,one]    
           ) 
-      
+      op_ ArbbOpAdd [i] [i,one]
+
       copy_ o1 tmp
       copy_ o2 i      
 
