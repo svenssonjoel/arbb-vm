@@ -264,6 +264,7 @@ is_executable = 1
 nullfun = Function nullPtr
 
 -- BJS: New funDef  (create a pair of funs, actual fun + wrapper) 
+-- BJS: Names seem to be only there as a help when printing in human readable form. 
 funDef_ :: String -> [Type] -> [Type] -> FunBody  -> EmitArbb ConvFunction
 funDef_ name outty inty userbody =
   do 
@@ -277,6 +278,7 @@ funDef_ name outty inty userbody =
      outvars <- L forM [0 .. length outty - 1]   (getParameter fun 1)
 
      -- Push on the stack:
+     -- BJS: Why 
      S.modify (\ (c,ls) -> (c, (ConvFunction nullfun fun):ls))
 
      -- Now generate body:
@@ -294,7 +296,7 @@ funDef_ name outty inty userbody =
      --when debug_fundef$ print_$ "["++name++"] Done compiling."
 
       -- Also create an executable wrapper 
-     wrapper <- L beginFunction ctx fnt name is_executable
+     wrapper <- L beginFunction ctx fnt (name ++ "W") is_executable
      inputs  <- L forM [0 .. length inty  - 1] (getParameter wrapper 0)
      outputs <- L forM [0 .. length outty - 1] (getParameter wrapper 1) 
      L callOp wrapper ArbbOpCall fun outputs inputs
