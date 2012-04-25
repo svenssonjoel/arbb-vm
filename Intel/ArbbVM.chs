@@ -29,6 +29,7 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
 		      
 		      -- Removed in latest ArBB
                       --isBindingNull, getBindingNull, 
+                      nullBinding,
                       
                       createDenseBinding, freeBinding, getFunctionType,
                       beginFunction, endFunction, 
@@ -371,6 +372,7 @@ createGlobal ctx t name b =
 --{# fun pure arbb_is_binding_null as isBindingNull
 --   { fromBinding `Binding' } -> `Bool'  cToBool #} 
 
+nullBinding = Binding nullPtr
 -- #OLD# TODO: see if this needs to be done differently.
 -- The set_binding_null API call i removed in latest ArBB version
 -- {# fun unsafe arbb_set_binding_null as getBindingNull 

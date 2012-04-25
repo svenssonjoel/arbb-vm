@@ -43,7 +43,9 @@ module Intel.ArbbVM.Convenience
    createGlobal_nobind_, 
 
    createDenseBinding_,  getDenseType_,
+   freeBinding_,
    getNestedType_, 
+
 
    withArray_, print_,
 
@@ -408,6 +410,7 @@ createLocal_ ty name = do f <- getFun "Convenience.createLocal_ cannot create lo
 			  L createLocal f ty name
 
 createDenseBinding_ = lift4 createDenseBinding
+freeBinding_        = lift1 freeBinding
 
 ----------------------------------------
 -- These are easy ones, no Context or Function argument:
