@@ -9,7 +9,7 @@ Author:			Joel Svensson<svenssonjoel@yahoo.se>
 
 Copyright:              Copyright (c) 2011-2012 Intel Corporation
 Synopsis:               FFI binding to the Intel Array Building Blocks (ArBB) virtual machine.
-HomePage:               git://github.com/svenssonjoel/arbb-vm/wiki
+HomePage:               https://github.com/svenssonjoel/arbb-vm/wiki
 Description: 
    Bindings to the "arbb_vmapi". Low level interface to the ArBB functionality.
    Requires Intel ArBB version 1.0.0.030 (download ArBB at software.intel.com)
