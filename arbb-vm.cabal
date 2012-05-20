@@ -1,5 +1,5 @@
 Name:           arbb-vm
-Version:        0.1.1.6
+Version:        0.1.1.8
 
 License:                BSD3
 License-file:           LICENSE
@@ -47,7 +47,7 @@ Library
 
   GHC-Options: 
 -- -O2 
---extra-libraries: tbb, arbb, pthread
+
   include-dirs: /opt/intel/arbb/latest/include
 
   -- FIXME: How do we read an environment variable?
@@ -55,6 +55,10 @@ Library
     extra-lib-dirs: /opt/intel/arbb/latest/lib/intel64
   else
     extra-lib-dirs: /opt/intel/arbb/latest/lib/ia32
+
+  Includes: arbb_vmapi.h 
+  Extra-libraries: arbb_dev
+  
 
 --  C-sources: 
 -- [2011.02.15] Don't need this at the moment because of the arbb_alt hack:
