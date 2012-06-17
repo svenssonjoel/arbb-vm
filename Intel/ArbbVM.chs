@@ -830,18 +830,22 @@ mapToHost ctx var pitch mode =
 -- ----------------------------------------------------------------------
 -- Aux functions 
 
-{# fun unsafe arbb_set_num_threads as setNumThreads 
+setNumThreads c w = setNumThreads' c w >>= throwIfErrorIO0 
+setDecompDegree c w = setDecompDegree' c w >>= throwIfErrorIO0 
+setHeapSize w1 w2 = setHeapSize' w1 w2 >>= throwIfErrorIO0
+
+{# fun unsafe arbb_set_num_threads as setNumThreads' 
    { fromContext `Context'   ,
      cIntConv    `Word'      ,
      alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
  
-{# fun unsafe arbb_set_decomp_degree as setDecompDegree 
+{# fun unsafe arbb_set_decomp_degree as setDecompDegree'
    { fromContext `Context'  , 
      cIntConv    `Word'     , 
      alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
 
-{# fun unsafe arbb_set_heap_size as setHeapSize 
+{# fun unsafe arbb_set_heap_size as setHeapSize' 
    { cIntConv    `Word64'   ,
      cIntConv    `Word64'   , 
      alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 

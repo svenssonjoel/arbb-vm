@@ -59,7 +59,7 @@ module Intel.ArbbVM.Convenience
 
    -- low level 
    
-   setNumThreads_, setDecompDegree, setHeapSize
+   setNumThreads_, setDecompDegree_
    
 
  )
@@ -419,7 +419,6 @@ createDenseBinding_ = lift4 createDenseBinding
 freeBinding_        = lift1 freeBinding
 
 -- 
-setHeapSize_ = setHeapSize
 setDecompDegree_ = lift1 setDecompDegree
 setNumThreads_ = lift1 setNumThreads
 
