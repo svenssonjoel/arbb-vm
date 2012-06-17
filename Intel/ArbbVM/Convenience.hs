@@ -46,7 +46,6 @@ module Intel.ArbbVM.Convenience
    freeBinding_,
    getNestedType_, 
 
-
    withArray_, print_,
 
    doarith_, SimpleArith(V),
@@ -55,7 +54,14 @@ module Intel.ArbbVM.Convenience
    liftIO, liftMs,
 
    -- These should probably be internal only:
-   getCtx, getFun
+   getCtx, getFun,
+
+
+   -- low level 
+   
+   setNumThreads_, setDecompDegree, setHeapSize
+   
+
  )
 where
 
@@ -411,6 +417,11 @@ createLocal_ ty name = do f <- getFun "Convenience.createLocal_ cannot create lo
 
 createDenseBinding_ = lift4 createDenseBinding
 freeBinding_        = lift1 freeBinding
+
+-- 
+setHeapSize_ = setHeapSize
+setDecompDegree_ = lift1 setDecompDegree
+setNumThreads_ = lift1 setNumThreads
 
 ----------------------------------------
 -- These are easy ones, no Context or Function argument:

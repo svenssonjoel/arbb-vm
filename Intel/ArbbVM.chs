@@ -49,6 +49,8 @@ module Intel.ArbbVM ( Context, ErrorDetails, Type, Variable,
                       endIf,
                       
                       mapToHost, 
+                      setHeapSize, setDecompDegree, setNumThreads,
+
 -- REMOVE THIS EVENTUALLY
                       fromContext 
 -------------------------
@@ -825,3 +827,22 @@ mapToHost ctx var pitch mode =
 
 
 
+-- ----------------------------------------------------------------------
+-- Aux functions 
+
+{# fun unsafe arbb_set_num_threads as setNumThreads 
+   { fromContext `Context'   ,
+     cIntConv    `Word'      ,
+     alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
+
+ 
+{# fun unsafe arbb_set_decomp_degree as setDecompDegree 
+   { fromContext `Context'  , 
+     cIntConv    `Word'     , 
+     alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
+
+{# fun unsafe arbb_set_heap_size as setHeapSize 
+   { cIntConv    `Word64'   ,
+     cIntConv    `Word64'   , 
+     alloca-     `ErrorDetails' peekErrorDet* } -> `Error' cToEnum #} 
+ 
