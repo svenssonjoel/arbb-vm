@@ -31,7 +31,7 @@ TESTS= \
    examples/tests/Bench_BlackScholes.hs \
    examples/tests/Bench_ReduceOwn.hs \
    examples/tests/Bench_ReduceArBB.hs \
-
+   examples/tests/Test_Recursive.hs \
 
 
 # This is not passing for me right now [2011.02.27]:

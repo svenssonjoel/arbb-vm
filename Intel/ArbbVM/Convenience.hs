@@ -54,7 +54,7 @@ module Intel.ArbbVM.Convenience
    liftIO, liftMs,
 
    -- These should probably be internal only:
-   getCtx, getFun,
+   getCtx, getFun, getConvFun, 
 
 
    -- low level 
@@ -219,7 +219,7 @@ readScalar_ v =
 
 type FunBody = [Variable] -> [Variable] -> EmitArbb ()
 
-debug_fundef = False
+debug_fundef = True --False
 
 {- 
   BJS:  This funDef_ situation might need some improvement. 
@@ -286,7 +286,6 @@ funDef_ name outty inty userbody =
      outvars <- L forM [0 .. length outty - 1]   (getParameter fun 1)
 
      -- Push on the stack:
-     -- BJS: Why 
      S.modify (\ (c,ls) -> (c, (ConvFunction nullfun fun):ls))
 
      -- Now generate body:
@@ -298,18 +297,24 @@ funDef_ name outty inty userbody =
      S.modify (\ (c, h:t) -> (c, t))
      L endFunction fun
 
+     when debug_fundef$ print_$ "["++name++"] Function ended."
+
      -- EXPERIMENTAL!  Compile immediately!!
-     --when debug_fundef$ print_$ "["++name++"] Function ended. Compiling..."
+
      --L compile fun
      --when debug_fundef$ print_$ "["++name++"] Done compiling."
 
       -- Also create an executable wrapper 
+
      wrapper <- L beginFunction ctx fnt (name ++ "W") is_executable
+     when debug_fundef$ print_$ "["++name++ "W" ++"] Wrapper function begun."
      inputs  <- L forM [0 .. length inty  - 1] (getParameter wrapper 0)
      outputs <- L forM [0 .. length outty - 1] (getParameter wrapper 1) 
+     when debug_fundef$ print_$ "["++name++"]  Begin wrapper body codgen..."
      L callOp wrapper ArbbOpCall fun outputs inputs
+     when debug_fundef$ print_$ "["++name++"]  Done wrapper body codgen."
      L endFunction wrapper
-    
+     when debug_fundef$ print_$ "["++name++"] Wrapper function ended."
     
      return$ ConvFunction wrapper fun
 
