@@ -159,7 +159,11 @@ withIntArray xs = withArray (fmap fromIntegral xs)
 withNullPtr :: (Ptr b -> IO a) -> IO a 
 withNullPtr f = f nullPtr
 
-
+alloc3 = allocaArray 3
+peek3 d =
+  do
+    l <- peekArray 3 d :: IO [CULong]
+    return (map fromIntegral l)
 -- ----------------------------------------------------------------------
 -- Exception
 -- ----------------------------------------------------------------------
@@ -171,6 +175,15 @@ data ArbbVMException = ArbbVMException Error String
 instance Exception ArbbVMException 
 
 -- Debug + Error handling is changing.. see ArbbVM/Debug
+
+throwIfErrorIO2 :: (Error,a,b,ErrorDetails) -> IO (a,b) 
+throwIfErrorIO2 (error_code,a,b,error_det) = 
+   if fromEnum error_code > 0 
+    then do 
+      str <- getErrorMessage error_det
+      freeErrorDetails error_det
+      throwIO (ArbbVMException error_code str)
+    else return (a,b)
 
 throwIfErrorIO1 :: (Error,a,ErrorDetails) -> IO a 
 throwIfErrorIO1 (error_code,a,error_det) = 
@@ -808,19 +821,22 @@ endIf f = endIf' f >>= throwIfErrorIO0
 -- ----------------------------------------------------------------------
 -- Alternative means of data movement 
 
-mapToHost ctx var pitch mode = 
-   mapToHost' ctx var pitch mode >>= 
+--mapToHost ctx var pitch mode = 
+--   mapToHost' ctx var pitch mode >>= 
+
+mapToHost ctx var mode = 
+   mapToHost' ctx var mode >>= 
 --  dbg "map_to_host" [("ctx",show $ fromContext ctx),
 --                                ("variable" ,show (fromVariable var)),
 --                                ("pitch", show pitch)]
 --                               (-- something about the result -- ) >>=      
-    throwIfErrorIO1
+    throwIfErrorIO2
 
 {# fun unsafe arbb_map_to_host as mapToHost'
    { fromContext  `Context'     ,
      fromVariable `Variable'    , 
      alloca- `Ptr ()' peek*     , 
-     withIntArray* `[Word64]'    ,
+     alloc3- `[Word64]' peek3*    ,
      cFromEnum `RangeAccessMode' ,
      alloca- `ErrorDetails' peekErrorDet*  } -> `Error' cToEnum #} 
 
