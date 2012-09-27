@@ -136,10 +136,10 @@ getCtx =
 
 ------------------------------------------------------------------------------
 -- Map an ArBB array into host addrspace
-mapToHost_ :: Variable -> [Word64] -> RangeAccessMode -> EmitArbb (Ptr ())
-mapToHost_ var pitch mode = do 
+mapToHost_ :: Variable -> RangeAccessMode -> EmitArbb (Ptr (),[Word64])
+mapToHost_ var mode = do 
    ctx <- getCtx
-   L mapToHost ctx var pitch mode 
+   L mapToHost ctx var mode 
 --------------------------------------------------------------------------------
 -- Convenience functions for common patterns:
 

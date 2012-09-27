@@ -139,7 +139,6 @@ cFromEnum = fromIntegral . fromEnum
 -- ----------------------------------------------------------------------
 -- Helpers
 -- ----------------------------------------------------------------------
--- Todo: This is code duplication, clean up
 peekErrorDet  ptr = do { res <- peek ptr; return $ ErrorDetails res}
 peekType  ptr = do { res <- peek ptr; return $ Type res}    
 peekFunction  ptr = do { res <- peek ptr; return $ Function res}    
@@ -160,6 +159,7 @@ withNullPtr :: (Ptr b -> IO a) -> IO a
 withNullPtr f = f nullPtr
 
 alloc3 = allocaArray 3
+
 peek3 d =
   do
     l <- peekArray 3 d :: IO [CULong]
