@@ -30,8 +30,8 @@ TESTS= \
    examples/tests/Test_DummyBlackScholes1.hs \
    examples/tests/Bench_BlackScholes.hs \
    examples/tests/Bench_ReduceOwn.hs \
-   examples/tests/Bench_ReduceArBB.hs \
-   examples/tests/Test_Recursive.hs \
+   examples/tests/Bench_ReduceArBB.hs 
+
 
 
 # This is not passing for me right now [2011.02.27]:

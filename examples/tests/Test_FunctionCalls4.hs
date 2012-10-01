@@ -42,7 +42,7 @@ main = arbbSession$ do
      v1 <- variableFromGlobal_ g_apa 
      opDynamicImm_ ArbbOpAlloc [v1] [tusentjugofyra]
      
-     m_ptr <- mapToHost_ v1 [1] ArbbReadWriteRange
+     (m_ptr,pitches) <- mapToHost_ v1 ArbbReadWriteRange
      liftIO$ copyBytes m_ptr (castPtr i_d) 4096
      
      --g_apa  <- createGlobal_  dty "in" i_a  

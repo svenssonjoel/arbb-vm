@@ -56,7 +56,7 @@ main = arbbSession$ do
 
         n <- usize_ 10
         opDynamicImm_ ArbbOpAlloc [vin] [n] 
-        inputs <- mapToHost_ vin [10] ArbbWriteOnlyRange
+        (inputs,pitches) <- mapToHost_ vin ArbbWriteOnlyRange
         liftIO$ copyBytes inputs (castPtr inp) 40         
         
     -- Repeated execution 
@@ -68,7 +68,7 @@ main = arbbSession$ do
 
         execute_ maper [vout] [vIm2]  
                  
-        out <- mapToHost_ vout [10] ArbbReadOnlyRange
+        (out,pitches) <- mapToHost_ vout ArbbReadOnlyRange
          
         result <- liftIO $ peekArray 10 (castPtr out :: Ptr Word32) 
         liftIO$ putStrLn $ show result
